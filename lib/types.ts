@@ -112,6 +112,13 @@ export interface Booking {
   venue: string;
   guestCount: number;
   mealPrepFrequency?: MealPrepFrequency;
+  mealPrepStartDate?: string;
+  mealPrepEndDate?: string;
+  mealPeriods?: ('Breakfast' | 'Lunch' | 'Dinner')[];
+  deliveryDays?: number[];
+  deliveryTimes?: Record<number, string>;
+  servingsPerCycle?: number;
+  autoRenew?: boolean;
   fulfillmentMethod?: FulfillmentMethod;
   mealPrepStatus?: 'active' | 'paused';
   specialRequests: string;

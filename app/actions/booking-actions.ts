@@ -112,7 +112,7 @@ export async function createMealPrepOrder(orderDetails: MealPrepOrderDetails, it
   }
 
   const operatorId = 2
-  const [{ data: operatorSettingsRow, error: settingsError }, { data: existingMealPrepRows, error: existingMealPrepError }] = await Promise.all([
+  const [{ data: operatorSettingsRow, error: settingwsError }, { data: existingMealPrepRows, error: existingMealPrepError }] = await Promise.all([
     admin
       .from('OPERATOR_SETTINGS')
       .select('OperatorID, DayOfWeek, OperatingStartTime, OperatingEndTime, MaxCateringEventsPerDay, MaxMealPrepOrdersPerDay, MaxGuestCountPerEvent')
