@@ -12,7 +12,7 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const tableSession = await decodeSession(request.cookies.get(SESSION_COOKIE)?.value)
 
-  const publicRoutes = ['/', '/login', '/signup']
+   const publicRoutes = ['/', '/login', '/signup', '/menu']
   if (publicRoutes.includes(pathname)) {
     if ((pathname === '/login' || pathname === '/signup') && tableSession) {
       return NextResponse.redirect(new URL(homeForRole(tableSession.role), request.url))

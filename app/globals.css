@@ -291,12 +291,12 @@
 
 .marquee-row-viewport::before {
   left: 0;
-  background: linear-gradient(to right, #fde6e6, rgb(253 230 230 / 0));
+  background: linear-gradient(to right, #7F1623 15%, rgb(209 58 71 / 0));
 }
 
 .marquee-row-viewport::after {
   right: 0;
-  background: linear-gradient(to left, #fde6e6, rgb(253 230 230 / 0));
+  background: linear-gradient(to left, #7F1623 15%, rgb(209 58 71 / 0));
 }
 
 .marquee-left,
