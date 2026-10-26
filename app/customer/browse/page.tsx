@@ -31,7 +31,16 @@ export default function BrowsePage() {
     customerBookingDraft,
     customerOrderType,
     clearCustomerSession,
+    mealPrepDaySelections,
+    activeMealPrepDay,
+    setMealPrepDaySelections,
+    setActiveMealPrepDay,
   } = useAppState();
+
+  const isMealPrepSelection =
+  (customerOrderType === 'meal_prep' ||
+    customerBookingDraft.orderType === 'meal_prep') &&
+  activeMealPrepDay !== null;
 
   const [dbMenuItems, setDbMenuItems] = useState<MenuItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -39,6 +48,50 @@ export default function BrowsePage() {
   const [showAllergenConfirm, setShowAllergenConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showBookingSuccess, setShowBookingSuccess] = useState(false);
+
+  const [activeMealPeriod, setActiveMealPeriod] = useState<
+  'Breakfast' | 'Lunch' | 'Dinner'
+>('Breakfast');
+
+const [dayMenuItemIds, setDayMenuItemIds] = useState<string[]>([]);
+const [preferredTime, setPreferredTime] = useState('12:00');
+
+useEffect(() => {
+  if (activeMealPrepDay === null) return;
+
+  const savedDay = mealPrepDaySelections[activeMealPrepDay] ?? {};
+  const savedMeal = savedDay[activeMealPeriod];
+
+  setDayMenuItemIds(savedMeal?.menuItemIds ?? []);
+  setPreferredTime(savedMeal?.preferredTime ?? '12:00');
+}, [activeMealPrepDay, activeMealPeriod, mealPrepDaySelections]);
+
+
+const saveMealPrepSelection = () => {
+  if (activeMealPrepDay === null) {
+    alert('Please choose a meal-prep day first.');
+    return;
+  }
+
+  if (dayMenuItemIds.length === 0) {
+    alert('Please select at least one dish for this meal.');
+    return;
+  }
+
+  const updatedSelections = {
+    ...mealPrepDaySelections,
+    [activeMealPrepDay]: {
+      ...(mealPrepDaySelections[activeMealPrepDay] ?? {}),
+      [activeMealPeriod]: {
+        menuItemIds: [...dayMenuItemIds],
+        preferredTime,
+      },
+    },
+  };
+
+  setMealPrepDaySelections(updatedSelections);
+  alert(`${activeMealPeriod} selections saved.`);
+};
 
   /*
    * Load menu items from Supabase.
@@ -264,162 +317,248 @@ export default function BrowsePage() {
           (item) => item.category?.trim() === selectedCategory
         );
 
+  
+  const savedMealPrepMenuItemIds = Object.values(mealPrepDaySelections)
+  .flatMap((daySelections) =>
+    Object.values(daySelections).flatMap(
+      (meal) => meal?.menuItemIds ?? []
+    )
+  );
+
+  const mealPrepSelectedMenuItemIds = Array.from(
+  new Set([
+    ...savedMealPrepMenuItemIds,
+    ...(isMealPrepSelection ? dayMenuItemIds : []),
+  ])
+  );
+
+  const currentSelectedMenuItemIds = isMealPrepSelection
+  ? dayMenuItemIds
+  : selectedMenuItemIds;
+
   const selectedItems = dbMenuItems.filter((item) =>
-    selectedMenuItemIds.includes(item.id)
+  (
+    isMealPrepSelection
+      ? mealPrepSelectedMenuItemIds
+      : selectedMenuItemIds
+  ).includes(item.id)
   );
 
   /*
-   * Check selected items against customer's allergies.
-   */
+  * Check all saved meal-prep selections, including the current unsaved
+  * selection, against the customer's declared allergies.
+  * Catering continues to check its shared selection only.
+  */
   const conflictingAllergens = getUniqueConflictingAllergens(
-    selectedItems,
-    customerDietaryRestrictions
+  selectedItems,
+  customerDietaryRestrictions
   );
 
   const hasSelectionConflicts = conflictingAllergens.length > 0;
 
+
   /*
    * Submit the booking to Supabase.
    */
-  const finalizeSubmit = async () => {
-    if (isSubmitting) {
+  
+const finalizeSubmit = async () => {
+  if (isSubmitting) return;
+
+  setIsSubmitting(true);
+
+  try {
+    const isMealPrepOrder =
+      customerOrderType === 'meal_prep' ||
+      customerBookingDraft.orderType === 'meal_prep';
+
+    const eventDate = String(
+      customerBookingDraft.eventDate ?? ''
+    ).trim();
+
+    const eventTime = String(
+      customerBookingDraft.eventTime ?? ''
+    ).trim();
+
+    const venue = String(
+      customerBookingDraft.venue ?? ''
+    ).trim();
+
+    const guestCount = parseInt(
+      String(customerBookingDraft.guestCount || '1'),
+      10
+    );
+
+    // Validate customer account.
+    if (!currentUser?.id || !Number.isFinite(Number(currentUser.id))) {
+      alert('Unable to identify your customer account. Please log in again.');
       return;
     }
-  
-    setIsSubmitting(true);
-  
-    try {
-      const eventDate = String(
-        customerBookingDraft.eventDate ?? ''
-      ).trim();
-  
-      const eventTime = String(
-        customerBookingDraft.eventTime ?? ''
-      ).trim();
-  
-      const venue = String(
-        customerBookingDraft.venue ?? ''
-      ).trim();
-  
-      const guestCount = parseInt(
-        String(customerBookingDraft.guestCount || '1'),
-        10
-      );
 
+    // Meal-prep submission.
+    if (isMealPrepOrder) {
       if (!eventDate) {
-        alert('Please select an event date.');
-        setIsSubmitting(false);
-        return;
-      }
-      
-      if (!eventTime) {
-        alert('Please select an event time.');
-        setIsSubmitting(false);
-        return;
-      }
-      
-      if (!venue) {
-        alert('Please enter a venue.');
-        setIsSubmitting(false);
-        return;
-      }
-      
-      if (!Number.isFinite(guestCount) || guestCount <= 0) {
-        alert('Please enter a valid guest count.');
-        setIsSubmitting(false);
-        return;
-      }
-  
-      // Validate customer account
-      if (!currentUser?.id) {
-        alert(
-          'Unable to identify your customer account. Please log in again.'
-        );
-        setIsSubmitting(false);
-        return;
-      }
-  
-      const customerId = Number(currentUser.id);
-  
-      if (Number.isNaN(customerId)) {
-        alert('Invalid customer account. Please log in again.');
-        setIsSubmitting(false);
+        alert('Please select a meal-prep start date.');
         return;
       }
 
-      // Make sure the selected menu items actually exist in Supabase.
-      const validMenuItemIds = selectedMenuItemIds.filter(
-        (menuItemId) =>
-          dbMenuItems.some((item) => item.id === menuItemId)
+      const savedMealPlan = Object.entries(mealPrepDaySelections)
+        .map(([day, selections]) => ({
+          dayOfWeek: Number(day),
+          meals: (['Breakfast', 'Lunch', 'Dinner'] as const)
+            .flatMap((mealPeriod) => {
+              const meal = selections[mealPeriod];
+
+              if (!meal || meal.menuItemIds.length === 0) {
+                return [];
+              }
+
+              return [{
+                mealPeriod,
+                preferredTime: meal.preferredTime,
+                items: meal.menuItemIds
+                  .filter((id) => dbMenuItems.some((item) => item.id === id))
+                  .map((id) => ({
+                    MenuItemID: Number(id),
+                    Quantity: 1,
+                  })),
+              }];
+            })
+            .filter((meal) => meal.items.length > 0),
+        }))
+        .filter((day) => day.meals.length > 0);
+
+      if (savedMealPlan.length === 0) {
+        alert('Please save at least one meal selection before submitting.');
+        return;
+      }
+
+      const mealPlanItems = savedMealPlan.flatMap((day) =>
+        day.meals.flatMap((meal) => meal.items)
       );
-  
-      if (validMenuItemIds.length === 0) {
-        alert('Please select at least one valid menu item.');
-        setIsSubmitting(false);
-        return;
-      }
 
-      const selectedItems = validMenuItemIds.map((menuItemId) => ({
-        MenuItemID: Number(menuItemId),
-        Quantity: 1,
-      }));
-      const isMealPrepOrder = customerOrderType === 'meal_prep' || customerBookingDraft.orderType === 'meal_prep';
-      const result = isMealPrepOrder
-        ? await createMealPrepOrder({
-            mealPrepFrequency: customerBookingDraft.mealPrepFrequency,
-            eventDate,
-            guestCount,
-          }, selectedItems)
-        : await createBooking({
-            ...customerBookingDraft,
-            eventDate,
-            eventTime,
-            venue,
-            guestCount,
-          }, selectedItems);
+      const uniqueItems = Array.from(
+        new Map(
+          mealPlanItems.map((item) => [item.MenuItemID, item])
+        ).values()
+      );
+
+      const result = await createMealPrepOrder(
+        {
+          mealPrepFrequency: customerBookingDraft.mealPrepFrequency,
+          eventDate,
+          guestCount: Number.isFinite(guestCount) && guestCount > 0
+            ? guestCount
+            : mealPlanItems.length,
+          autoRenew: true,
+          mealPlan: savedMealPlan,
+        },
+        uniqueItems
+      );
 
       if (!result.ok) {
-        console.error(isMealPrepOrder ? 'MEAL_PREP_ORDER INSERT ERROR:' : 'BOOKING INSERT ERROR:', result.error);
-        alert(`${isMealPrepOrder ? 'Meal prep order' : 'Booking'} failed: ${result.error}`);
-        setIsSubmitting(false);
+        console.error('MEAL_PREP_ORDER INSERT ERROR:', result.error);
+        alert(`Meal prep order failed: ${result.error}`);
         return;
       }
 
-      if (isMealPrepOrder) {
-        setShowBookingSuccess(true);
-        return;
-      }
-
-      // Catering bookings receive an invoice only after owner confirmation.
       setShowBookingSuccess(true);
-    } catch (err) {
-      console.error(
-        'UNEXPECTED BOOKING ERROR:',
-        err
-      );
-  
-      alert(
-        'An unexpected error occurred while submitting your booking.'
-      );
-    } finally {
-      setIsSubmitting(false);
+      return;
     }
-  };
+
+    // Existing catering validation and submission remain unchanged.
+    if (!eventDate) {
+      alert('Please select an event date.');
+      return;
+    }
+
+    if (!eventTime) {
+      alert('Please select an event time.');
+      return;
+    }
+
+    if (!venue) {
+      alert('Please enter a venue.');
+      return;
+    }
+
+    if (!Number.isFinite(guestCount) || guestCount <= 0) {
+      alert('Please enter a valid guest count.');
+      return;
+    }
+
+    const validMenuItemIds = selectedMenuItemIds.filter(
+      (menuItemId) =>
+        dbMenuItems.some((item) => item.id === menuItemId)
+    );
+
+    if (validMenuItemIds.length === 0) {
+      alert('Please select at least one valid menu item.');
+      return;
+    }
+
+    const selectedItems = validMenuItemIds.map((menuItemId) => ({
+      MenuItemID: Number(menuItemId),
+      Quantity: 1,
+    }));
+
+    const result = await createBooking(
+      {
+        ...customerBookingDraft,
+        eventDate,
+        eventTime,
+        venue,
+        guestCount,
+      },
+      selectedItems
+    );
+
+    if (!result.ok) {
+      console.error('BOOKING INSERT ERROR:', result.error);
+      alert(`Booking failed: ${result.error}`);
+      return;
+    }
+
+    setShowBookingSuccess(true);
+  } catch (err) {
+    console.error('Unexpected booking error:', err);
+    alert('An unexpected error occurred while submitting your booking.');
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
 
   /*
    * Handles the Submit Booking button.
    */
   const handleSubmit = () => {
-    if (selectedMenuItemIds.length === 0) {
+    const isMealPrepOrder =
+      customerOrderType === 'meal_prep' ||
+      customerBookingDraft.orderType === 'meal_prep';
+  
+    if (isMealPrepOrder) {
+      const hasSavedMealPrepItems = Object.values(
+        mealPrepDaySelections
+      ).some((daySelections) =>
+        Object.values(daySelections).some(
+          (meal) => (meal?.menuItemIds.length ?? 0) > 0
+        )
+      );
+  
+      if (!hasSavedMealPrepItems) {
+        alert('Please save at least one meal selection before submitting.');
+        return;
+      }
+    } else if (selectedMenuItemIds.length === 0) {
       alert('Please select at least one menu item.');
       return;
     }
-
+  
     if (hasSelectionConflicts) {
       setShowAllergenConfirm(true);
       return;
     }
-
+  
     finalizeSubmit();
   };
 
@@ -433,6 +572,56 @@ export default function BrowsePage() {
             <h1 className="font-heading text-3xl font-bold text-surface-foreground">
               Menu Items
             </h1>
+
+            {isMealPrepSelection && (
+              <Card className="mt-4 space-y-4 p-4">
+                <p className="font-semibold">
+                  Choose dishes for Day {activeMealPrepDay}
+                </p>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium">
+                    Meal Period
+                  </label>
+
+                  <select
+                    value={activeMealPeriod}
+                    onChange={(e) =>
+                      setActiveMealPeriod(
+                        e.target.value as 'Breakfast' | 'Lunch' | 'Dinner'
+                      )
+                    }
+                    className="w-full rounded-md border border-input bg-white p-2 text-gray-900"
+                  >
+                    <option value="Breakfast">Breakfast</option>
+                    <option value="Lunch">Lunch</option>
+                    <option value="Dinner">Dinner</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium">
+                    Preferred Time
+                  </label>
+
+                  <input
+                    type="time"
+                    value={preferredTime}
+                    onChange={(e) => setPreferredTime(e.target.value)}
+                    className="w-full rounded-md border border-input bg-white p-2 text-gray-900"
+                    required
+                  />
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={saveMealPrepSelection}
+                  className="w-full"
+                >
+                  Save {activeMealPeriod} Selection
+                </Button>
+              </Card>
+            )}
 
             <p className="text-surface-muted-foreground mt-2">
               Select items for your event
@@ -479,8 +668,9 @@ export default function BrowsePage() {
         ) : (
             <div className="grid md:grid-cols-2 gap-6">
               {filteredMenuItems.map((item) => {
-                const isSelected =
-                  selectedMenuItemIds.includes(item.id);
+                const isSelected = isMealPrepSelection
+                  ? dayMenuItemIds.includes(item.id)
+                  : selectedMenuItemIds.includes(item.id);
 
                 const itemConflicts =
                   checkAllergenConflict(
@@ -499,11 +689,22 @@ export default function BrowsePage() {
                         ? 'border-primary bg-primary/5'
                         : 'border-border hover:border-primary/50'
                     }`}
-                    onClick={() =>
-                      isSelected
-                        ? deselectMenuItem(item.id)
-                        : selectMenuItem(item.id)
-                    }
+                    onClick={() => {
+                      if (isMealPrepSelection) {
+                        setDayMenuItemIds((current) =>
+                          current.includes(item.id)
+                            ? current.filter((id) => id !== item.id)
+                            : [...current, item.id]
+                        );
+                        return;
+                      }
+                    
+                      if (isSelected) {
+                        deselectMenuItem(item.id);
+                      } else {
+                        selectMenuItem(item.id);
+                      }
+                    }}
                   >
                     <div className="relative mb-5 overflow-hidden rounded-xl">
                       {item.photoUrl ? (
@@ -591,7 +792,7 @@ export default function BrowsePage() {
             </h2>
 
             <p className="mt-2 text-sm text-muted-foreground">
-              {selectedMenuItemIds.length} menu items selected.
+              {currentSelectedMenuItemIds.length} menu items selected.
             </p>
 
             <div className="space-y-6 mb-8">
@@ -603,7 +804,7 @@ export default function BrowsePage() {
                 </p>
 
                 <p className="text-3xl font-bold text-primary">
-                  {selectedMenuItemIds.length}
+                  {currentSelectedMenuItemIds.length}
                 </p>
               </div>
 
@@ -657,7 +858,7 @@ export default function BrowsePage() {
             <Button
               onClick={handleSubmit}
               disabled={
-                selectedMenuItemIds.length === 0 ||
+                currentSelectedMenuItemIds.length === 0 ||
                 loadingMenu ||
                 isSubmitting
               }

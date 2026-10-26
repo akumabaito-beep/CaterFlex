@@ -97,6 +97,7 @@ export interface OperatorSettings {
 // Booking Types
 export type OrderType = 'catering' | 'meal_prep';
 export type MealPrepFrequency = 'weekly' | 'biweekly';
+export type MealPeriod = 'Breakfast' | 'Lunch' | 'Dinner';
 export type FulfillmentMethod = 'pickup' | 'delivery';
 export type BookingStatus = 'pending' | 'confirmed' | 'rejected' | 'completed';
 
@@ -114,9 +115,18 @@ export interface Booking {
   mealPrepFrequency?: MealPrepFrequency;
   mealPrepStartDate?: string;
   mealPrepEndDate?: string;
-  mealPeriods?: ('Breakfast' | 'Lunch' | 'Dinner')[];
-  deliveryDays?: number[];
-  deliveryTimes?: Record<number, string>;
+  mealPeriods?: MealPeriod[];
+deliveryDays?: number[];
+
+// Preferred time for each meal on each selected day.
+// Example: { 1: { Breakfast: '08:00', Lunch: '12:00' } }
+mealPeriodTimes?: Record<
+  number,
+  Partial<Record<'Breakfast' | 'Lunch' | 'Dinner', string>>
+>;
+
+// Keep temporarily for compatibility with existing code.
+deliveryTimes?: Record<number, string>;
   servingsPerCycle?: number;
   autoRenew?: boolean;
   fulfillmentMethod?: FulfillmentMethod;

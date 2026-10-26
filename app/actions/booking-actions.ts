@@ -24,11 +24,27 @@ type BookingItemInput = {
   Quantity?: number
 }
 
+
+
 type MealPrepOrderDetails = {
-  mealPrepFrequency?: string | null
-  guestCount?: number
-  eventDate?: string | null
-}
+  mealPrepFrequency?: string | null;
+  eventDate?: string | null;
+  guestCount?: number;
+  fulfillmentMethod?: 'pickup' | 'delivery';
+  deliveryAddress?: string | null;
+  specialRequests?: string | null;
+  autoRenew?: boolean;
+  mealPlan?: {
+    dayOfWeek: number;
+    meals: {
+      mealPeriod: 'Breakfast' | 'Lunch' | 'Dinner';
+      preferredTime: string;
+      items: BookingItemInput[];
+    }[];
+  }[];
+};
+
+
 
 function todayInManila() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila' }).format(new Date())
@@ -112,8 +128,7 @@ export async function createMealPrepOrder(orderDetails: MealPrepOrderDetails, it
   }
 
   const operatorId = 2
-  const [{ data: operatorSettingsRow, error: settingwsError }, { data: existingMealPrepRows, error: existingMealPrepError }] = await Promise.all([
-    admin
+  const [{ data: operatorSettingsRow, error: settingsError }, { data: existingMealPrepRows, error: existingMealPrepError }] = await Promise.all([    admin
       .from('OPERATOR_SETTINGS')
       .select('OperatorID, DayOfWeek, OperatingStartTime, OperatingEndTime, MaxCateringEventsPerDay, MaxMealPrepOrdersPerDay, MaxGuestCountPerEvent')
       .eq('OperatorID', operatorId),
@@ -167,30 +182,57 @@ export async function createMealPrepOrder(orderDetails: MealPrepOrderDetails, it
     await createNotification(operatorId, 'allergen_conflict', 'A customer attempted a meal-prep order with an allergen conflict.', {})
   }
 
-  const { data: order, error } = await admin
-    .from('MEAL_PREP_ORDER')
-    .insert({
-      CustomerID: customerId,
-      OperatorID: 2,
-      RecurrencePattern: recurrencePattern,
-      MealsPerCycle: mealsPerCycle,
-      Status: 'pending',
-      AllergenConflictFlag: hasAllergenConflict,
-      NextFulfillmentDate: eventDate,
-    })
-    .select('MealPrepOrderID')
-    .single()
+  
+const mealPlan = orderDetails.mealPlan ?? [];
+
+const { data: order, error } = await admin
+  .from('MEAL_PREP_ORDER')
+  .insert({
+    CustomerID: customerId,
+    OperatorID: operatorId,
+    RecurrencePattern: recurrencePattern,
+    MealsPerCycle: mealsPerCycle,
+    Status: 'pending',
+    AllergenConflictFlag: hasAllergenConflict,
+    NextFulfillmentDate: eventDate,
+    SubscriptionFrequency: recurrencePattern,
+    StartDate: eventDate,
+    AutoRenew: orderDetails.autoRenew ?? true,
+    MealPlan: JSON.stringify(mealPlan),
+  })
+  .select('MealPrepOrderID')
+  .single();
+
   if (error || !order) return { ok: false as const, error: error?.message ?? 'Unable to create the meal prep order.' }
 
-  const { error: itemError } = await admin.from('MEAL_PREP_ITEM').insert(items.map((item) => ({
-    MealPrepOrderID: order.MealPrepOrderID,
-    MenuItemID: Number(item.MenuItemID),
-    Quantity: Number(item.Quantity ?? 1),
-  })))
-  if (itemError) {
-    await admin.from('MEAL_PREP_ORDER').delete().eq('MealPrepOrderID', order.MealPrepOrderID)
-    return { ok: false as const, error: itemError.message }
-  }
+  
+const planItems = mealPlan.flatMap((day) =>
+  day.meals.flatMap((meal) =>
+    meal.items.map((item) => ({
+      MealPrepOrderID: order.MealPrepOrderID,
+      MenuItemID: Number(item.MenuItemID),
+      Quantity: Number(item.Quantity ?? 1),
+    })),
+  ),
+);
+
+const itemsToSave = planItems.length > 0
+  ? planItems
+  : items.map((item) => ({
+      MealPrepOrderID: order.MealPrepOrderID,
+      MenuItemID: Number(item.MenuItemID),
+      Quantity: Number(item.Quantity ?? 1),
+    }));
+
+const { error: itemError } = await admin
+  .from('MEAL_PREP_ITEM')
+  .insert(itemsToSave);
+
+if (itemError) {
+  await admin.from('MEAL_PREP_ORDER').delete().eq('MealPrepOrderID', order.MealPrepOrderID);
+  return { ok: false as const, error: itemError.message };
+}
+
 
   await createNotification(operatorId, 'new_meal_prep_order', `New meal-prep order request for ${eventDate}.`, { mealPrepOrderId: order.MealPrepOrderID })
   return { ok: true as const, mealPrepOrderId: order.MealPrepOrderID }

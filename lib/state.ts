@@ -201,6 +201,17 @@ const emptyMenuItems: MenuItem[] = [];
 const emptyIngredients: Ingredient[] = [];
 const emptyPayments: Payment[] = [];
 const emptyInvoices: Invoice[] = [];
+type MealPeriod = 'Breakfast' | 'Lunch' | 'Dinner';
+
+type DayMealSelection = {
+  menuItemIds: string[];
+  preferredTime: string;
+};
+
+type MealPrepDaySelections = Record<
+  number,
+  Partial<Record<MealPeriod, DayMealSelection>>
+>;
 
 interface AppState {
   currentRole: UserRole;
@@ -218,6 +229,9 @@ interface AppState {
   invoices: Invoice[];
 
   selectedMenuItemIds: string[];
+  mealPrepDaySelections: MealPrepDaySelections;
+  activeMealPrepDay: number | null;
+
   customerDietaryRestrictions: AllergenType[];
   customerBookingDraft: Partial<Booking>;
   customerOrderType: OrderType;
@@ -257,6 +271,14 @@ interface AppState {
 
   updateAlerts: (alerts: Alert[]) => void;
   regenerateAlerts: () => void;
+
+  setMealPrepDaySelections: (
+    selections: MealPrepDaySelections
+  ) => void;
+  
+  setActiveMealPrepDay: (
+    day: number | null
+  ) => void;
 }
 
 export const useAppState = create<AppState>(
@@ -274,6 +296,9 @@ export const useAppState = create<AppState>(
     alerts: [],
 
     selectedMenuItemIds: [],
+    mealPrepDaySelections: {},
+    activeMealPrepDay: null,
+
     customerDietaryRestrictions: [],
     customerBookingDraft: {},
     customerOrderType: 'catering',
@@ -428,6 +453,16 @@ export const useAppState = create<AppState>(
         ],
       })),
 
+      setMealPrepDaySelections: (selections) =>
+        set({
+          mealPrepDaySelections: selections,
+        }),
+      
+      setActiveMealPrepDay: (day) =>
+        set({
+          activeMealPrepDay: day,
+        }),
+
     /**
      * Remove a menu item from the current
      * customer booking.
@@ -478,6 +513,8 @@ export const useAppState = create<AppState>(
     clearCustomerSession: () =>
       set({
         selectedMenuItemIds: [],
+        mealPrepDaySelections: {},
+        activeMealPrepDay: null,
         customerDietaryRestrictions: [],
         customerBookingDraft: {},
         customerOrderType: 'catering',
