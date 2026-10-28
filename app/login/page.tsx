@@ -1,19 +1,27 @@
 'use client';
 
 import { FormEvent, Suspense, useState } from 'react';
+import { AuthShell } from '@/components/auth/AuthShell';
+import { GoogleButton, OrDivider } from '@/components/auth/GoogleButton';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { signInAccount } from '@/lib/auth';
-import type { UserRole } from '@/lib/types';
 
 const fieldClass =
-  'h-11 w-full rounded-xl border border-border bg-card px-4 font-normal text-foreground outline-none placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20';
+  'h-12 w-full rounded-lg border border-border bg-white px-4 font-normal text-foreground outline-none placeholder:text-muted-foreground focus:border-[#8E1F2C] focus:ring-2 focus:ring-[#8E1F2C]/20';
+
+
+const googleErrors: Record<string, string> = {
+  google_cancelled: 'Google sign-in was cancelled.',
+  google_failed: 'We could not sign you in with Google. Please try again.',
+  google_unavailable: 'Google sign-in is not available right now. Use your email and password.',
+  google_owner: 'Business owners sign in with email and password.',
+};
 
 function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialRole = searchParams.get('role') === 'owner' ? 'owner' : 'customer';
-  const [role, setRole] = useState<UserRole>(initialRole);
+  const googleError = googleErrors[useSearchParams().get('error') ?? ''] ?? '';
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
@@ -29,50 +37,27 @@ function LoginForm() {
     }
     setPending(true);
     setError('');
-    const result = await signInAccount({ role, email, password });
+    const result = await signInAccount({ email, password });
     setPending(false);
     if (!result.ok) {
       setError(result.error);
       return;
     }
-    router.replace(role === 'owner' ? '/owner/dashboard' : '/customer/inquiry');
+    router.replace(result.user.role === 'owner' ? '/owner/dashboard' : '/customer/inquiry');
   }
 
   return (
-    <main className="relative h-screen max-h-screen overflow-hidden bg-cover bg-center px-6 py-4 text-primary-foreground" style={{ backgroundImage: "url('/background.webp')" }}>
-      <div className="absolute inset-0 bg-brand/80" aria-hidden="true" />
-      <header className="relative z-10 flex justify-end">
-        <span className="hidden font-mono text-xs uppercase tracking-[0.35em] text-primary-foreground/80 sm:block">Catering, refined</span>
-      </header>
-      <div className="relative z-10 mx-auto flex h-[calc(100vh-5rem)] max-w-6xl items-center justify-center gap-12 py-2 lg:gap-16">
-        <section className="hidden max-w-xl lg:block">
-          <button type="button" onClick={() => router.push('/')} className="mb-4 block" aria-label="Back to CaterFlex home">
-            <img src="/logo.png" alt="CaterFlex logo" className="size-28 object-contain object-left" />
-          </button>
-          <p className="font-mono text-sm uppercase tracking-[0.35em] text-primary-foreground/80">The calm behind every great event</p>
-          <h1 className="mt-6 max-w-xl text-balance text-6xl font-bold uppercase leading-[0.88] tracking-tight">Your table is ready.</h1>
-          <p className="mt-7 max-w-xl font-mono text-lg leading-7 text-primary-foreground/85">One considered space for running your catering business or planning a memorable gathering. Sign in to pick up where you left off.</p>
-          <div className="mt-8 flex gap-8 font-mono text-sm text-primary-foreground/70"><span>• Bookings made simple</span><span>• Menus made personal</span></div>
-        </section>
-        <section className="w-full max-w-lg rounded-3xl border border-border/70 bg-card p-6 text-card-foreground shadow-2xl sm:p-8" aria-labelledby="login-heading">
-          <div className="flex items-start justify-between gap-4">
-            <div><p className="font-mono text-xs uppercase tracking-[0.28em] text-muted-foreground">Welcome back</p><h2 id="login-heading" className="mt-3 text-4xl font-semibold uppercase tracking-tight">Sign in</h2></div>
-          </div>
-          <div className="mt-6 grid grid-cols-2 rounded-xl bg-muted p-1" role="tablist" aria-label="Account type">
-            {(['owner', 'customer'] as const).map((accountRole) => (
-              <button
-                key={accountRole}
-                type="button"
-                role="tab"
-                aria-selected={role === accountRole}
-                onClick={() => setRole(accountRole)}
-                className={`rounded-lg px-3 py-3 text-sm font-semibold capitalize transition-colors ${role === accountRole ? 'bg-card text-card-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                {accountRole}
-              </button>
-            ))}
-          </div>
-          <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+    <AuthShell>
+        <section className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10" aria-labelledby="login-heading">
+          <h1 id="login-heading" className="text-center font-heading text-4xl font-bold uppercase tracking-tight text-[#2A1B1F] sm:text-5xl">Welcome back</h1>
+          <p className="mt-3 text-center text-base leading-7 text-muted-foreground">Sign in to plan your events and manage your meals.</p>
+
+          {googleError && <p role="alert" className="mt-6 rounded-lg bg-primary-soft px-4 py-3 text-sm text-[#8E1F2C]">{googleError}</p>}
+
+          <div className="mt-8"><GoogleButton /></div>
+          <OrDivider />
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <label htmlFor="email" className="flex flex-col gap-2 text-sm font-semibold">
               Email address
               <input id="email" name="email" type="email" required autoComplete="email" placeholder="you@example.com" className={fieldClass} />
@@ -81,30 +66,28 @@ function LoginForm() {
               Password
               <span className="relative">
                 <input id="password" name="password" type={showPassword ? 'text' : 'password'} required autoComplete="current-password" placeholder="Enter your password" className={`${fieldClass} pr-20`} />
-                <button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-primary hover:underline">
+                <button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#8E1F2C] hover:underline">
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
               </span>
             </label>
             {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={pending} className="h-11 w-full text-base">
-              {pending ? 'Signing in…' : `Continue as ${role}`}
+            <Button type="submit" disabled={pending} className="mt-2 h-12 w-full justify-center rounded-lg bg-[#9B1C2C] text-base font-semibold text-white shadow-none hover:bg-[#7F1623]">
+              {pending ? 'Signing in…' : 'Continue'}
             </Button>
           </form>
-          {role === 'customer' && (
-            <p className="mt-8 text-center text-sm text-muted-foreground">
-              New to CaterFlex? <button type="button" onClick={() => router.push('/signup')} className="font-semibold text-primary hover:underline">Create a customer account</button>
+
+                      <p className="mt-8 text-center text-sm text-muted-foreground">
+              New to CaterFlex? <Link href="/signup" className="font-semibold text-[#8E1F2C] underline underline-offset-4">Create an account</Link>
             </p>
-          )}
         </section>
-      </div>
-    </main>
+    </AuthShell>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-background" aria-busy="true" />}>
+    <Suspense fallback={<main className="min-h-screen bg-white" aria-busy="true" />}>
       <LoginForm />
     </Suspense>
   );

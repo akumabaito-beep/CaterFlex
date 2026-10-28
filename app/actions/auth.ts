@@ -67,18 +67,19 @@ export async function requireRole(role: UserRole): Promise<User | null> {
 }
 
 export async function signUpCustomer(input: {
-  name: string
-  contact: string
+  name?: string
+  contact?: string
   email: string
   password: string
 }): Promise<AuthActionResult> {
-  const name = input.name.trim()
-  const contact = input.contact.trim()
   const email = input.email.trim()
   const password = input.password
+  // Name and contact are optional at sign-up; the name defaults to the email's local part.
+  const name = input.name?.trim() || email.split('@')[0]
+  const contact = input.contact?.trim() ?? ''
 
-  if (!name || !contact || !email || password.length < 6) {
-    return { ok: false, error: 'Enter your name, contact, email, and a password with at least 6 characters.' }
+  if (!email || !name || password.length < 6) {
+    return { ok: false, error: 'Enter your email and a password with at least 6 characters.' }
   }
 
   const admin = createAdminClient()
@@ -195,6 +196,17 @@ export async function signInOwner(input: {
   }
   await setSessionCookie(user)
   return { ok: true, user }
+}
+
+// One sign-in for every role: the account's role is found from the credentials,
+// so the caller does not need to know whether it is an owner or a customer.
+export async function signInAny(input: {
+  email: string
+  password: string
+}): Promise<AuthActionResult> {
+  const owner = await signInOwner(input)
+  if (owner.ok) return owner
+  return signInCustomer(input)
 }
 
 export async function signOutSession() {

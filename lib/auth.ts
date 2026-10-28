@@ -1,5 +1,6 @@
 import {
   getAuthSession,
+  signInAny,
   signInCustomer,
   signInOwner,
   signOutSession,
@@ -20,8 +21,8 @@ function appUser(user: User) {
 export async function signUpAccount(input: {
   email: string
   password: string
-  name: string
-  contact: string
+  name?: string
+  contact?: string
 }): Promise<AuthResult> {
   const result = await signUpCustomer(input)
   if (result.ok) appUser(result.user)
@@ -29,14 +30,17 @@ export async function signUpAccount(input: {
 }
 
 export async function signInAccount(input: {
-  role: UserRole
+  role?: UserRole
   email: string
   password: string
 }): Promise<AuthResult> {
+  const credentials = { email: input.email, password: input.password }
   const result =
     input.role === 'owner'
-      ? await signInOwner({ email: input.email, password: input.password })
-      : await signInCustomer({ email: input.email, password: input.password })
+      ? await signInOwner(credentials)
+      : input.role === 'customer'
+        ? await signInCustomer(credentials)
+        : await signInAny(credentials)
 
   if (result.ok) appUser(result.user)
   return result

@@ -6,9 +6,9 @@ import { Reveal } from '@/components/landing/Reveal'
 import { Button } from '@/components/ui/button'
 
 const foodPhotos = [
-  { src: '/landing/5-tray-assortment.webp', alt: 'Colorful catered food tray', className: 'left-[2%] top-[17%] size-20 sm:left-[3%] sm:size-28' },
-  { src: '/landing/2-crispy-pork-mains.webp', alt: 'Crispy pork dish with fresh sides', className: 'right-[4%] top-[8%] size-24 sm:right-[7%] sm:size-32' },
-  { src: '/landing/3-meal-prep-boxes.webp', alt: 'Fresh meal prep box', className: 'bottom-[7%] left-[15%] size-24 sm:bottom-[4%] sm:left-[18%] sm:size-32' },
+  { src: '/landing/hero5.jpg', alt: 'Colorful catered food tray', className: 'left-[2%] top-[17%] size-20 sm:left-[3%] sm:size-28' },
+  { src: '/landing/hero6.jpg', alt: 'Crispy pork dish with fresh sides', className: 'right-[4%] top-[8%] size-24 sm:right-[7%] sm:size-32' },
+  { src: '/landing/hero3.jpg', alt: 'Fresh meal prep box', className: 'bottom-[7%] left-[15%] size-24 sm:bottom-[4%] sm:left-[18%] sm:size-32' },
 ]
 
 export function OrderSection({ onOrder }: { onOrder: () => void }) {
@@ -29,7 +29,7 @@ export function OrderSection({ onOrder }: { onOrder: () => void }) {
           <div className="absolute inset-[9%] rounded-full border border-[#D79BA3]/70" />
           <div className="absolute inset-[17%] rounded-full border border-dashed border-[#D79BA3]/40" />
           <div className="absolute inset-[14%] overflow-hidden rounded-full border-[10px] border-white bg-white shadow-[0_18px_50px_rgba(92,38,46,0.15)]">
-            <Image src="/landing/1-salad-rice-bites.webp" alt="A generous plate of colorful catered food" fill sizes="(min-width: 1024px) 430px, 80vw" className="object-cover" priority />
+            <Image src="/landing/hero2.jpg" alt="A generous plate of colorful catered food" fill sizes="(min-width: 1024px) 430px, 80vw" className="object-cover" priority />
           </div>
           {foodPhotos.map((photo) => <div key={photo.src} className={`absolute overflow-hidden rounded-full border-4 border-white bg-white shadow-[0_12px_24px_rgba(92,38,46,0.16)] ${photo.className}`}><Image src={photo.src} alt={photo.alt} fill sizes="128px" className="object-cover" /></div>)}
           <Sparkles aria-hidden="true" className="absolute left-[20%] top-[4%] size-7 rotate-12 text-[#C9808C]/70" />

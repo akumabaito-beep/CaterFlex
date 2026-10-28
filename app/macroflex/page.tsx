@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { paginate } from '@/lib/pagination'
+import { WalkingLoader } from '@/components/ui/WalkingLoader'
 
 import {
   AlertTriangle,
@@ -261,11 +262,10 @@ export default function MacroFlexPage() {
 
         {/* LOADING */}
         {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed p-12 text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Loading MacroFlex data...
-          </div>
-        ) : (
+  <div className="flex items-center justify-center rounded-lg border border-dashed py-16">
+    <WalkingLoader height={160} label="Loading data" />
+  </div>
+) : (
           <>
             {/* MENU AVAILABILITY */}
             <Card>
