@@ -6,9 +6,12 @@ const { createAdminClient, cookieSet } = vi.hoisted(() => ({
   cookieSet: vi.fn(),
 }))
 
+const { sendVerificationEmail } = vi.hoisted(() => ({ sendVerificationEmail: vi.fn() }))
 vi.mock('@/lib/supabase-admin', () => ({ createAdminClient }))
+vi.mock('@/lib/email', () => ({ sendVerificationEmail }))
 vi.mock('next/headers', () => ({
   cookies: async () => ({ set: cookieSet, get: vi.fn(), delete: vi.fn() }),
+  headers: async () => new Headers({ host: 'localhost:3000' }),
 }))
 vi.mock('@/lib/session-cookie', () => ({
   SESSION_COOKIE: 'session',
@@ -63,10 +66,21 @@ describe('signInAny', () => {
   })
 })
 
+describe('signInAny with an unconfirmed email', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('blocks a customer who has not confirmed their email', async () => {
+    tables({ CUSTOMER: { CustomerID: 7, Name: 'Cus', Email: 'c@x.com', Password: hash, EmailVerified: false } })
+    const result = await signInAny({ email: 'c@x.com', password: 'secret123' })
+    expect(result).toMatchObject({ ok: false, code: 'unverified' })
+    expect(cookieSet).not.toHaveBeenCalled()
+  })
+})
+
 describe('signUpCustomer', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('needs only an email and password; name defaults to the email prefix and contact is blank', async () => {
+  function signupDb(deleted = vi.fn()) {
     const insert = vi.fn()
     createAdminClient.mockReturnValue({
       from: () => {
@@ -75,13 +89,30 @@ describe('signUpCustomer', () => {
         chain.eq = () => chain
         chain.maybeSingle = async () => ({ data: null, error: null })
         chain.insert = (row: unknown) => { insert(row); return chain }
-        chain.single = async () => ({ data: { CustomerID: 1, Name: 'maria', Email: 'maria@x.com' }, error: null })
+        chain.single = async () => ({ data: { CustomerID: 1 }, error: null })
+        chain.delete = () => { deleted(); return chain }
         return chain
       },
     })
+    return { insert, deleted }
+  }
+
+  it('creates an unverified account and emails a confirmation link instead of signing in', async () => {
+    const { insert } = signupDb()
     const result = await signUpCustomer({ email: 'maria@x.com', password: 'secret123' })
-    expect(result.ok).toBe(true)
-    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ Name: 'maria', Contact: '', Email: 'maria@x.com' }))
+    expect(result).toEqual({ ok: true, pendingVerification: true, email: 'maria@x.com' })
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ Name: 'maria', Contact: '', EmailVerified: false }))
+    expect(sendVerificationEmail).toHaveBeenCalledWith('maria@x.com', 'maria', expect.stringContaining('/api/auth/verify?token='))
+    expect(cookieSet).not.toHaveBeenCalled()
+  })
+
+  it('removes the account and reports an error when the email cannot be delivered', async () => {
+    const deleted = vi.fn()
+    signupDb(deleted)
+    sendVerificationEmail.mockRejectedValueOnce(new Error('smtp down'))
+    const result = await signUpCustomer({ email: 'maria@x.com', password: 'secret123' })
+    expect(result.ok).toBe(false)
+    expect(deleted).toHaveBeenCalled()
   })
 
   it('still rejects short passwords', async () => {

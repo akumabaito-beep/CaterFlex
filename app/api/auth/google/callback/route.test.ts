@@ -64,7 +64,7 @@ describe('Google callback', () => {
     const inserted = db({})
     const res = await GET(request())
     expect(location(res)).toBe('/customer/inquiry')
-    expect(inserted).toHaveBeenCalledWith({ Name: 'Juan Dela Cruz', Contact: '', Email: 'Juan@Gmail.com', Password: null })
+    expect(inserted).toHaveBeenCalledWith({ Name: 'Juan Dela Cruz', Contact: '', Email: 'Juan@Gmail.com', Password: null, EmailVerified: true })
     expect(res.headers.get('set-cookie')).toContain('session=token')
   })
 

@@ -76,18 +76,26 @@ export async function GET(request: NextRequest) {
 
   const { data: existing, error: lookupError } = await admin
     .from('CUSTOMER')
-    .select('CustomerID, Name, Email')
+    .select('CustomerID, Name, Email, EmailVerified')
     .ilike('Email', email)
     .maybeSingle()
   if (lookupError) return fail(request, 'google_failed')
+
+  // Google has already proven the address, so a pending email confirmation is no longer needed.
+  if (existing && existing.EmailVerified === false) {
+    await admin
+      .from('CUSTOMER')
+      .update({ EmailVerified: true, EmailVerifyTokenHash: null, EmailVerifyExpires: null })
+      .eq('CustomerID', existing.CustomerID)
+  }
 
   let customer = existing
   if (!customer) {
     const name = typeof claims.name === 'string' && claims.name.trim() ? claims.name.trim() : email.split('@')[0]
     const { data: created, error: insertError } = await admin
       .from('CUSTOMER')
-      .insert({ Name: name, Contact: '', Email: email, Password: null })
-      .select('CustomerID, Name, Email')
+      .insert({ Name: name, Contact: '', Email: email, Password: null, EmailVerified: true })
+      .select('CustomerID, Name, Email, EmailVerified')
       .single()
     if (insertError || !created) return fail(request, 'google_failed')
     customer = created

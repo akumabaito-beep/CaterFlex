@@ -2,14 +2,29 @@
 
 import bcrypt from 'bcryptjs'
 import { timingSafeEqual } from 'crypto'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
+import { sendVerificationEmail } from '@/lib/email'
+import { newVerificationToken, VERIFY_RESEND_COOLDOWN_MS } from '@/lib/email-verification'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { decodeSession, encodeSession, SESSION_COOKIE } from '@/lib/session-cookie'
 import type { User, UserRole } from '@/lib/types'
 
 type AuthSuccess = { ok: true; user: User }
-type AuthFailure = { ok: false; error: string }
+type AuthFailure = { ok: false; error: string; code?: 'unverified' }
 export type AuthActionResult = AuthSuccess | AuthFailure
+export type SignUpActionResult = AuthFailure | { ok: true; pendingVerification: true; email: string }
+
+async function siteOrigin() {
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/$/, '')
+  const h = await headers()
+  const host = h.get('x-forwarded-host') ?? h.get('host') ?? 'localhost:3000'
+  const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https')
+  return `${proto}://${host}`
+}
+
+async function verificationLink(token: string) {
+  return `${await siteOrigin()}/api/auth/verify?token=${encodeURIComponent(token)}`
+}
 
 function passwordsMatch(stored: string | null | undefined, provided: string) {
   if (!stored) return false
@@ -71,7 +86,7 @@ export async function signUpCustomer(input: {
   contact?: string
   email: string
   password: string
-}): Promise<AuthActionResult> {
+}): Promise<SignUpActionResult> {
   const email = input.email.trim()
   const password = input.password
   // Name and contact are optional at sign-up; the name defaults to the email's local part.
@@ -97,6 +112,7 @@ export async function signUpCustomer(input: {
   }
 
   const passwordHash = await bcrypt.hash(password, 12)
+  const verification = newVerificationToken()
   const { data, error } = await admin
     .from('CUSTOMER')
     .insert({
@@ -104,22 +120,64 @@ export async function signUpCustomer(input: {
       Contact: contact,
       Email: email,
       Password: passwordHash,
+      EmailVerified: false,
+      EmailVerifyTokenHash: verification.hash,
+      EmailVerifyExpires: verification.expires,
+      EmailVerifySentAt: new Date().toISOString(),
     })
-    .select('CustomerID, Name, Email')
+    .select('CustomerID')
     .single()
 
   if (error || !data) {
     return { ok: false, error: 'Could not create the customer profile.' }
   }
 
-  const user: User = {
-    id: String(data.CustomerID),
-    name: data.Name,
-    email: data.Email,
-    role: 'customer',
+  // The account only becomes usable once the address proves it is real by opening this link.
+  try {
+    await sendVerificationEmail(email, name, await verificationLink(verification.token))
+  } catch (sendError) {
+    console.error('Verification email failed:', sendError)
+    await admin.from('CUSTOMER').delete().eq('CustomerID', data.CustomerID)
+    return { ok: false, error: 'We could not send a confirmation email to that address. Check it and try again.' }
   }
-  await setSessionCookie(user)
-  return { ok: true, user }
+
+  return { ok: true, pendingVerification: true, email }
+}
+
+// Sends a fresh confirmation link. Always answers the same way so it cannot be used to find out which emails are registered.
+export async function resendVerification(emailInput: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const email = emailInput.trim()
+  if (!email) return { ok: false, error: 'Enter your email first.' }
+
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('CUSTOMER')
+    .select('CustomerID, Name, EmailVerified, EmailVerifySentAt')
+    .eq('Email', email)
+    .maybeSingle()
+
+  if (data && data.EmailVerified === false) {
+    const lastSent = data.EmailVerifySentAt ? new Date(data.EmailVerifySentAt).getTime() : 0
+    if (Date.now() - lastSent < VERIFY_RESEND_COOLDOWN_MS) {
+      return { ok: false, error: 'Please wait a minute before requesting another email.' }
+    }
+    const verification = newVerificationToken()
+    await admin
+      .from('CUSTOMER')
+      .update({
+        EmailVerifyTokenHash: verification.hash,
+        EmailVerifyExpires: verification.expires,
+        EmailVerifySentAt: new Date().toISOString(),
+      })
+      .eq('CustomerID', data.CustomerID)
+    try {
+      await sendVerificationEmail(email, data.Name, await verificationLink(verification.token))
+    } catch (sendError) {
+      console.error('Verification email failed:', sendError)
+      return { ok: false, error: 'We could not send the email right now. Please try again later.' }
+    }
+  }
+  return { ok: true }
 }
 
 export async function signInCustomer(input: {
@@ -130,7 +188,7 @@ export async function signInCustomer(input: {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('CUSTOMER')
-    .select('CustomerID, Name, Email, Password')
+    .select('CustomerID, Name, Email, Password, EmailVerified')
     .eq('Email', email)
     .maybeSingle()
 
@@ -140,6 +198,10 @@ export async function signInCustomer(input: {
   const passwordCheck = await verifyPassword(data?.Password, input.password)
   if (!data || !passwordCheck.valid) {
     return { ok: false, error: 'Invalid email or password.' }
+  }
+
+  if (data.EmailVerified === false) {
+    return { ok: false, code: 'unverified', error: 'Please confirm your email first. Check your inbox for the link.' }
   }
 
   if (passwordCheck.needsUpgrade) {

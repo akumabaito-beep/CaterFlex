@@ -1,12 +1,12 @@
 'use client';
 
-import { FormEvent, Suspense, useState } from 'react';
+import { FormEvent, Suspense, useEffect, useState } from 'react';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { GoogleButton, OrDivider } from '@/components/auth/GoogleButton';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { signInAccount } from '@/lib/auth';
+import { resendVerification, signInAccount } from '@/lib/auth';
 
 const fieldClass =
   'h-12 w-full rounded-lg border border-border bg-white px-4 font-normal text-foreground outline-none placeholder:text-muted-foreground focus:border-[#8E1F2C] focus:ring-2 focus:ring-[#8E1F2C]/20';
@@ -17,6 +17,7 @@ const googleErrors: Record<string, string> = {
   google_failed: 'We could not sign you in with Google. Please try again.',
   google_unavailable: 'Google sign-in is not available right now. Use your email and password.',
   google_owner: 'Business owners sign in with email and password.',
+  verify_failed: 'That confirmation link is invalid or has expired. Sign in to get a new one.',
 };
 
 function LoginForm() {
@@ -25,6 +26,18 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
+  // The form is inert until React has loaded, so an early submit can never fall back to a plain
+  // browser GET that would put the email and password in the address bar.
+  const [ready, setReady] = useState(false);
+  useEffect(() => setReady(true), []);
+  const [needsVerification, setNeedsVerification] = useState('');
+  const [note, setNote] = useState('');
+
+  async function handleResend() {
+    setNote('');
+    const result = await resendVerification(needsVerification);
+    setNote(result.ok ? 'We sent a new confirmation link. Check your inbox.' : result.error);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -37,10 +50,13 @@ function LoginForm() {
     }
     setPending(true);
     setError('');
+    setNote('');
+    setNeedsVerification('');
     const result = await signInAccount({ email, password });
     setPending(false);
     if (!result.ok) {
       setError(result.error);
+      if (result.code === 'unverified') setNeedsVerification(email);
       return;
     }
     router.replace(result.user.role === 'owner' ? '/owner/dashboard' : '/customer/inquiry');
@@ -72,7 +88,13 @@ function LoginForm() {
               </span>
             </label>
             {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-            <Button type="submit" disabled={pending} className="mt-2 h-12 w-full justify-center rounded-lg bg-[#9B1C2C] text-base font-semibold text-white shadow-none hover:bg-[#7F1623]">
+            {needsVerification && (
+              <div className="text-sm">
+                <button type="button" onClick={handleResend} className="font-semibold text-[#8E1F2C] underline underline-offset-4">Resend confirmation email</button>
+                {note && <p role="status" className="mt-2 text-muted-foreground">{note}</p>}
+              </div>
+            )}
+            <Button type="submit" disabled={pending || !ready} className="mt-2 h-12 w-full justify-center rounded-lg bg-[#9B1C2C] text-base font-semibold text-white shadow-none hover:bg-[#7F1623]">
               {pending ? 'Signing in…' : 'Continue'}
             </Button>
           </form>
