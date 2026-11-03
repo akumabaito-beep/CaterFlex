@@ -925,10 +925,10 @@ export default function BrowsePage() {
               onClick={() => {
                 setShowBookingSuccess(false);
                 clearCustomerSession();
-                router.push('/customer/status');
+                router.push('/customer/active-orders');
               }}
             >
-              View my bookings
+              View my active orders
             </Button>
           </div>
         </div>

@@ -42,17 +42,23 @@ export async function createMenuItem(values: MenuItemCreate) {
 
   const admin = createAdminClient()
 
-  const { data, error } = await admin
-    .from('MENU_ITEM')
-    .insert(values)
-    .select('MenuItemID')
-    .single()
+  const { data, error } = await admin.rpc(
+    'create_menu_item_with_price_history',
+    {
+      p_item_name: values.ItemName,
+      p_category: values.Category,
+      p_price: values.Price,
+      p_prep_time_days: values.PrepTimeDays,
+      p_description: values.Description,
+      p_availability: values.Availability,
+    }
+  )
 
-  if (error || !data) {
+  if (error || data == null) {
     throw new Error(error?.message ?? 'Unable to create the menu item.')
   }
 
-  return Number(data.MenuItemID)
+  return Number(data)
 }
 
 export async function updateMenuItem(
@@ -64,12 +70,22 @@ export async function updateMenuItem(
 
   const admin = createAdminClient()
 
-  const { error } = await admin
-    .from('MENU_ITEM')
-    .update(values)
-    .eq('MenuItemID', menuItemId)
+  const { error } = await admin.rpc(
+    'update_menu_item_with_price_history',
+    {
+      p_menu_item_id: menuItemId,
+      p_item_name: values.ItemName,
+      p_category: values.Category,
+      p_price: values.Price,
+      p_prep_time_days: values.PrepTimeDays,
+      p_description: values.Description,
+      p_availability: values.Availability,
+    }
+  )
 
-  if (error) throw new Error(error.message)
+  if (error) {
+    throw new Error(error.message)
+  }
 }
 
 export async function replaceMenuItemAllergies(

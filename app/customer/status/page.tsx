@@ -38,6 +38,7 @@ type BookingItem = {
   BookingID: number;
   MenuItemID: number;
   Quantity: number;
+  UnitPrice: number | null;
 };
 
 type MenuItem = {
@@ -50,7 +51,7 @@ type BookingWithItems = Booking & {
   items: {
     name: string;
     quantity: number;
-    price: number;
+    price: number | null;
   }[];
 };
 
@@ -184,7 +185,10 @@ export default function CustomerStatusPage() {
                   menuItem?.ItemName ??
                   `Menu Item #${bookingItem.MenuItemID}`,
                 quantity: bookingItem.Quantity,
-                price: Number(menuItem?.Price ?? 0),
+                price:
+                  bookingItem.UnitPrice === null
+                    ? null
+                    : Number(bookingItem.UnitPrice),
               };
             });
 
@@ -236,12 +240,21 @@ export default function CustomerStatusPage() {
               const status = statusCopy[statusKey] ?? statusCopy.pending;
               const StatusIcon = status.icon;
 
-              const foodTotal = booking.items.reduce(
-                (total, item) => total + item.price * item.quantity,
-                0
+              const hasUnavailablePrices = booking.items.some(
+                (item) => item.price === null
               );
+              
+              const foodTotal = hasUnavailablePrices
+                ? null
+                : booking.items.reduce(
+                    (total, item) => total + item.price! * item.quantity,
+                    0
+                  );
+              
               const deliveryFee = Number(booking.DeliveryFee ?? 0);
-              const estimatedTotal = foodTotal + deliveryFee;
+              
+              const estimatedTotal =
+                foodTotal === null ? null : foodTotal + deliveryFee;
 
               const title = booking.EventType?.trim() || 'Catering order';
               const pinned = parsePinnedAddress(booking.Venue ?? '');
@@ -364,10 +377,19 @@ export default function CustomerStatusPage() {
                               key={`${booking.BookingID}-${item.name}`}
                               className="rounded-lg border border-[#E8D2D2] bg-white px-3 py-1.5 text-sm font-medium text-[#2A1B1F]"
                             >
-                              {item.name}
+                              <div>
+                              <span>{item.name}</span>
                               {item.quantity > 1 && (
-                                <span className="text-[#2A1B1F]/50"> × {item.quantity}</span>
+                                <span className="text-[#2A1B1F]/50">
+                                  {' '}× {item.quantity}
+                                </span>
                               )}
+                              <p className="mt-1 text-xs text-[#2A1B1F]/60">
+                                {item.price === null
+                                  ? 'Price unavailable'
+                                  : `${peso(item.price)} each`}
+                              </p>
+                            </div>
                             </span>
                           ))
                         )}
@@ -378,7 +400,9 @@ export default function CustomerStatusPage() {
                     <div className="space-y-1 border-t border-[#E8D2D2] pt-4 text-sm">
                       <div className="flex justify-between text-[#2A1B1F]/70">
                         <span>Food</span>
-                        <span>{peso(foodTotal)}</span>
+                        <span>
+                          {foodTotal === null ? 'Unavailable' : peso(foodTotal)}
+                        </span>
                       </div>
                       {deliveryFee > 0 && (
                         <div className="flex justify-between text-[#2A1B1F]/70">
@@ -388,7 +412,9 @@ export default function CustomerStatusPage() {
                       )}
                       <div className="flex items-center justify-between pt-1">
                         <span className="font-semibold text-[#2A1B1F]">Estimated total</span>
-                        <span className="text-xl font-bold text-[#9B1C2C]">{peso(estimatedTotal)}</span>
+                        <span className="text-xl font-bold text-[#9B1C2C]">
+                          {estimatedTotal === null ? 'Unavailable' : peso(estimatedTotal)}
+                        </span>
                       </div>
                     </div>
 

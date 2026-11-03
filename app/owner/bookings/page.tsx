@@ -71,6 +71,7 @@ type BookingItem = {
   BookingID: number;
   MenuItemID: number;
   Quantity: number;
+  UnitPrice: number | null;
 };
 
 type MealPrepItem = {
@@ -78,6 +79,7 @@ type MealPrepItem = {
   MealPrepOrderID: number;
   MenuItemID: number;
   Quantity: number;
+  UnitPrice: number | null;
 };
 
 type MenuItem = {
@@ -93,7 +95,7 @@ type BookingDisplay = Booking & {
     bookingItemId?: number;
     name: string;
     quantity: number;
-    price: number;
+    price: number | null;
   }[];
 };
 
@@ -280,7 +282,10 @@ export default function BookingsPage() {
                 bookingItemId: bookingItem.BookingItemID,
                 name: menuItem?.ItemName ?? `Menu Item #${bookingItem.MenuItemID}`,
                 quantity: bookingItem.Quantity,
-                price: Number(menuItem?.Price ?? 0),
+                price:
+                  bookingItem.UnitPrice === null
+                    ? null
+                    : Number(bookingItem.UnitPrice),
               };
             });
 
@@ -295,7 +300,10 @@ export default function BookingsPage() {
               return {
                 name: menuItem?.ItemName ?? `Menu Item #${mealPrepItem.MenuItemID}`,
                 quantity: mealPrepItem.Quantity,
-                price: Number(menuItem?.Price ?? 0),
+                price:
+                  mealPrepItem.UnitPrice === null
+                    ? null
+                    : Number(mealPrepItem.UnitPrice),
               };
             });
 
@@ -671,12 +679,41 @@ export default function BookingsPage() {
     item.bookingItemId !== undefined && draft[item.bookingItemId] !== undefined &&
     Number(draft[item.bookingItemId]) !== Number(item.quantity)
   );
-  const deliveryFee = booking.OrderType === 'catering' ? Number(booking.DeliveryFee ?? 0) : 0;
-  const pinned = parsePinnedAddress(booking.Venue ?? '');
-  const foodCost = booking.OrderType === 'catering'
-                            ? computeBookingTotal(booking.items.map((item) => ({ menuItemId: item.bookingItemId ?? 0, quantity: Number(draft[item.bookingItemId ?? 0] ?? item.quantity) })), new Map(booking.items.map((item) => [item.bookingItemId ?? 0, item.price])))
-                            : booking.items.reduce((total, item) => total + item.price * item.quantity, 0);
-  const totalCost = foodCost + deliveryFee;
+  const deliveryFee =
+  booking.OrderType === 'catering'
+    ? Number(booking.DeliveryFee ?? 0)
+    : 0;
+
+const pinned = parsePinnedAddress(booking.Venue ?? '');
+
+const hasUnavailablePrices = booking.items.some(
+  (item) => item.price === null
+);
+
+const foodCost = hasUnavailablePrices
+  ? null
+  : booking.OrderType === 'catering'
+    ? computeBookingTotal(
+        booking.items.map((item) => ({
+          menuItemId: item.bookingItemId ?? 0,
+          quantity: Number(
+            draft[item.bookingItemId ?? 0] ?? item.quantity
+          ),
+        })),
+        new Map(
+          booking.items.map((item) => [
+            item.bookingItemId ?? 0,
+            item.price!,
+          ])
+        )
+      )
+    : booking.items.reduce(
+        (total, item) => total + item.price! * item.quantity,
+        0
+      );
+
+const totalCost =
+  foodCost === null ? null : foodCost + deliveryFee;
 
                           return (
                             <Card
@@ -876,8 +913,20 @@ export default function BookingsPage() {
                                                 {booking.OrderType === 'catering' && Number(draft[item.bookingItemId ?? 0] ?? item.quantity) > booking.GuestCount && <span className="text-xs text-amber-700">Exceeds guests</span>}
                                               </div>
 
-                                              <span className="text-sm text-muted-foreground">₱{(item.price * Number(draft[item.bookingItemId ?? 0] ?? item.quantity)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
-                                            </div>
+                                              <span className="text-sm text-muted-foreground">
+                                                {item.price === null
+                                                  ? 'Price unavailable'
+                                                  : `₱${item.price.toLocaleString('en-PH', {
+                                                      minimumFractionDigits: 2,
+                                                    })} × ${Number(
+                                                      draft[item.bookingItemId ?? 0] ?? item.quantity
+                                                    )} = ₱${(
+                                                      item.price *
+                                                      Number(draft[item.bookingItemId ?? 0] ?? item.quantity)
+                                                    ).toLocaleString('en-PH', {
+                                                      minimumFractionDigits: 2,
+                                                    })}`}
+                                              </span>                                            </div>
                                           )
                                         )
                                       )}
@@ -912,13 +961,11 @@ export default function BookingsPage() {
                                       </span>
 
                                       <span className="text-lg font-bold text-primary">
-                                        ₱
-                                        {totalCost.toLocaleString(
-                                          'en-PH',
-                                          {
-                                            minimumFractionDigits: 2,
-                                          }
-                                        )}
+                                        {totalCost === null
+                                          ? 'Unavailable — historical price missing'
+                                          : `₱${totalCost.toLocaleString('en-PH', {
+                                              minimumFractionDigits: 2,
+                                            })}`}
                                       </span>
 
                                     </div>

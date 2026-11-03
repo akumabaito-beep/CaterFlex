@@ -10,7 +10,7 @@ import { deliveryFeeForVenue } from '../../lib/pricing'
 import { revalidatePath } from 'next/cache'
 
 const BOOKING_FIELDS = 'BookingID, EventType, CustomerID, OperatorID, EventDate, EventTime, Venue, GuestCount, Status, AllergenConflictFlag, IsArchived, ArchivedAt, DeliveryFee'
-const BOOKING_ITEM_FIELDS = 'BookingItemID, BookingID, MenuItemID, Quantity'
+const BOOKING_ITEM_FIELDS = 'BookingItemID, BookingID, MenuItemID, Quantity, UnitPrice'
 
 type BookingDetails = {
   eventDate?: string | null
@@ -60,6 +60,7 @@ export async function getOwnerCalendarBookings() {
   const names = new Map((customers ?? []).map((customer) => [Number(customer.CustomerID), String(customer.Name)]))
   return { ok: true as const, bookings: (data ?? []).map((booking) => ({ ...booking, customerName: names.get(Number(booking.CustomerID)) ?? `Customer #${booking.CustomerID}` })) }
 }
+
 
 export async function createMealPrepOrder(orderDetails: MealPrepOrderDetails, items: BookingItemInput[]) {
   const customer = await requireRole('customer')
@@ -168,6 +169,35 @@ export async function createMealPrepOrder(orderDetails: MealPrepOrderDetails, it
     await createNotification(operatorId, 'allergen_conflict', 'A customer attempted a meal-prep order with an allergen conflict.', {})
   }
 
+    // Get the active menu prices from the price history table.
+    const { data: activePrices, error: priceError } = await admin
+    .from('PRICES')
+    .select('MenuItemID, Price')
+    .in('MenuItemID', selectedMenuItemIds)
+    .is('EffectiveTo', null)
+
+  if (priceError) {
+    return { ok: false as const, error: priceError.message }
+  }
+
+  const priceByMenuItemId = new Map(
+    (activePrices ?? []).map((row) => [
+      Number(row.MenuItemID),
+      Number(row.Price),
+    ])
+  )
+
+  const missingPrice = selectedMenuItemIds.filter(
+    (id) => !priceByMenuItemId.has(id)
+  )
+
+  if (missingPrice.length > 0) {
+    return {
+      ok: false as const,
+      error: 'Some selected menu items do not have an active price record.',
+    }
+  }
+
   const { data: order, error } = await admin
     .from('MEAL_PREP_ORDER')
     .insert({
@@ -183,11 +213,14 @@ export async function createMealPrepOrder(orderDetails: MealPrepOrderDetails, it
     .single()
   if (error || !order) return { ok: false as const, error: error?.message ?? 'Unable to create the meal prep order.' }
 
-  const { error: itemError } = await admin.from('MEAL_PREP_ITEM').insert(items.map((item) => ({
-    MealPrepOrderID: order.MealPrepOrderID,
-    MenuItemID: Number(item.MenuItemID),
-    Quantity: Number(item.Quantity ?? 1),
-  })))
+    const { error: itemError } = await admin.from('MEAL_PREP_ITEM').insert(
+    items.map((item) => ({
+      MealPrepOrderID: order.MealPrepOrderID,
+      MenuItemID: Number(item.MenuItemID),
+      Quantity: Number(item.Quantity ?? 1),
+      UnitPrice: priceByMenuItemId.get(Number(item.MenuItemID)),
+    }))
+  )
   if (itemError) {
     await admin.from('MEAL_PREP_ORDER').delete().eq('MealPrepOrderID', order.MealPrepOrderID)
     return { ok: false as const, error: itemError.message }
@@ -214,7 +247,7 @@ export async function getCustomerMealPrepOrders() {
 
   const { data: items, error: itemError } = await admin
     .from('MEAL_PREP_ITEM')
-    .select('MealPrepItemID, MealPrepOrderID, MenuItemID, Quantity')
+    .select('MealPrepItemID, MealPrepOrderID, MenuItemID, Quantity, UnitPrice')
     .in('MealPrepOrderID', orderIds)
   if (itemError) return { ok: false as const, error: itemError.message, orders: [], items: [] }
 
@@ -387,6 +420,35 @@ if (!validation.valid) {
   return { ok: false as const, error: validation.failures.map((failure) => failure.message).join(' ') }
 }
 
+  // Get the active menu prices from the price history table.
+  const { data: activePrices, error: priceError } = await admin
+    .from('PRICES')
+    .select('MenuItemID, Price')
+    .in('MenuItemID', selectedMenuItemIds)
+    .is('EffectiveTo', null)
+
+  if (priceError) {
+    return { ok: false as const, error: priceError.message }
+  }
+
+  const priceByMenuItemId = new Map(
+    (activePrices ?? []).map((row) => [
+      Number(row.MenuItemID),
+      Number(row.Price),
+    ])
+  )
+
+  const missingPrice = selectedMenuItemIds.filter(
+    (id) => !priceByMenuItemId.has(id)
+  )
+
+  if (missingPrice.length > 0) {
+    return {
+      ok: false as const,
+      error: 'Some selected menu items do not have an active price record.',
+    }
+  }
+  
 const { data: booking, error } = await admin
   .from('BOOKING')
   .insert({
@@ -409,8 +471,15 @@ const { data: booking, error } = await admin
 
   await createNotification(operatorId, 'new_booking', `New booking request for ${eventDate} at ${eventTime}.`, { bookingId: booking.BookingID })
 
-  const { error: itemError } = await admin.from('BOOKING_ITEM').insert(items.map((item) => ({ BookingID: booking.BookingID, MenuItemID: Number(item.MenuItemID), Quantity: guestCount })))
-  if (itemError) {
+  const { error: itemError } = await admin.from('BOOKING_ITEM').insert(
+    items.map((item) => ({
+      BookingID: booking.BookingID,
+      MenuItemID: Number(item.MenuItemID),
+      Quantity: guestCount,
+      UnitPrice: priceByMenuItemId.get(Number(item.MenuItemID)),
+    }))
+  )
+    if (itemError) {
     await admin.from('BOOKING').delete().eq('BookingID', booking.BookingID)
     return { ok: false as const, error: itemError.message }
   }
@@ -475,7 +544,7 @@ export async function getOwnerBookings() {
       ? admin.from('BOOKING_ITEM').select(BOOKING_ITEM_FIELDS).in('BookingID', bookingIds)
       : Promise.resolve({ data: [], error: null }),
     mealPrepOrderIds.length > 0
-      ? admin.from('MEAL_PREP_ITEM').select('MealPrepItemID, MealPrepOrderID, MenuItemID, Quantity').in('MealPrepOrderID', mealPrepOrderIds)
+      ? admin.from('MEAL_PREP_ITEM').select('MealPrepItemID, MealPrepOrderID, MenuItemID, Quantity, UnitPrice').in('MealPrepOrderID', mealPrepOrderIds)
       : Promise.resolve({ data: [], error: null }),
   ])
   if (itemError) return { ok: false as const, error: itemError.message, bookings: [], bookingItems: [], mealPrepOrders: [], mealPrepItems: [] }
@@ -533,7 +602,7 @@ export async function getOwnerPrepSchedule() {
   const mealPrepOrderIds = (mealPrepOrders ?? []).map((order) => order.MealPrepOrderID)
   const [{ data: bookingItems, error: bookingItemsError }, { data: mealPrepItems, error: mealPrepItemsError }] = await Promise.all([
     bookingIds.length > 0 ? admin.from('BOOKING_ITEM').select('BookingItemID, BookingID, MenuItemID, Quantity').in('BookingID', bookingIds) : Promise.resolve({ data: [], error: null }),
-    mealPrepOrderIds.length > 0 ? admin.from('MEAL_PREP_ITEM').select('MealPrepItemID, MealPrepOrderID, MenuItemID, Quantity').in('MealPrepOrderID', mealPrepOrderIds) : Promise.resolve({ data: [], error: null }),
+    mealPrepOrderIds.length > 0 ? admin.from('MEAL_PREP_ITEM').select('MealPrepItemID, MealPrepOrderID, MenuItemID, Quantity, UnitPrice').in('MealPrepOrderID', mealPrepOrderIds) : Promise.resolve({ data: [], error: null }),
   ])
   if (bookingItemsError) return { ok: false as const, error: bookingItemsError.message, bookings: [], bookingItems: [], mealPrepOrders: [], mealPrepItems: [], customers: [], menuItems: [] }
   if (mealPrepItemsError) return { ok: false as const, error: mealPrepItemsError.message, bookings: [], bookingItems: [], mealPrepOrders: [], mealPrepItems: [], customers: [], menuItems: [] }
@@ -621,22 +690,47 @@ export async function updateBookingStatus(bookingId: number, newStatus: 'confirm
 
     if (!existingInvoice) {
       const { data: bookingItems, error: bookingItemsError } = await admin
-        .from('BOOKING_ITEM')
-        .select('MenuItemID, Quantity')
-        .eq('BookingID', bookingId)
-      if (bookingItemsError) return { ok: false as const, error: bookingItemsError.message }
+  .from('BOOKING_ITEM')
+  .select('MenuItemID, Quantity, UnitPrice')
+  .eq('BookingID', bookingId)
 
-      const menuItemIds = Array.from(new Set((bookingItems ?? []).map((item) => Number(item.MenuItemID)).filter(Number.isFinite)))
-      const { data: menuItems, error: menuItemsError } = menuItemIds.length > 0
-        ? await admin.from('MENU_ITEM').select('MenuItemID, Price').in('MenuItemID', menuItemIds)
-        : { data: [], error: null }
-      if (menuItemsError) return { ok: false as const, error: menuItemsError.message }
+if (bookingItemsError) {
+  return { ok: false as const, error: bookingItemsError.message }
+}
 
-      const pricesByMenuItemId = new Map((menuItems ?? []).map((item) => [Number(item.MenuItemID), Number(item.Price ?? 0)]))
-      const totalAmount = computeBookingTotal(
-        (bookingItems ?? []).map((item) => ({ menuItemId: Number(item.MenuItemID), quantity: Number(item.Quantity ?? 0) })),
-        pricesByMenuItemId,
-      ) + Number(booking.DeliveryFee ?? 0)
+// Do not generate an invoice using current menu prices when a snapshot is missing.
+const hasMissingPrice = (bookingItems ?? []).some(
+  (item) => item.UnitPrice == null
+)
+
+if (hasMissingPrice) {
+  return {
+    ok: false as const,
+    error: 'A booking item is missing its saved price. Please review this booking before generating its invoice.',
+  }
+}
+
+if ((bookingItems ?? []).some((item) => item.UnitPrice == null)) {
+  return {
+    ok: false as const,
+    error: 'Cannot generate invoice: one or more booking items have no saved historical price.',
+  };
+}
+
+const pricesByMenuItemId = new Map(
+  (bookingItems ?? []).map((item) => [
+    Number(item.MenuItemID),
+    Number(item.UnitPrice),
+  ])
+);
+
+const totalAmount = computeBookingTotal(
+  (bookingItems ?? []).map((item) => ({
+    menuItemId: Number(item.MenuItemID),
+    quantity: Number(item.Quantity ?? 0),
+  })),
+  pricesByMenuItemId,
+) + Number(booking.DeliveryFee ?? 0)
 
       const { error: invoiceInsertError } = await admin.from('INVOICE').insert({
         BookingID: bookingId,
