@@ -8,18 +8,15 @@ import { supabase } from '@/lib/supabase';
 import { getCustomerBookings } from '@/app/actions/booking-actions';
 import { OWNER_CONTACT } from '@/lib/constants';
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-
-import { Badge } from '@/components/ui/badge';
+import { parsePinnedAddress } from '@/lib/kitchen';
 
 import {
+  CalendarDays,
   CheckCircle2,
+  Clock,
   Clock3,
+  MapPin,
+  Users,
   XCircle,
 } from 'lucide-react';
 
@@ -32,6 +29,8 @@ type Booking = {
   Venue: string | null;
   GuestCount: number;
   Status: string | null;
+  EventType?: string | null;
+  DeliveryFee?: number | null;
 };
 
 type BookingItem = {
@@ -57,36 +56,46 @@ type BookingWithItems = Booking & {
 
 const statusCopy: Record<
   string,
-  {
-    label: string;
-    icon: typeof Clock3;
-    tone: 'secondary' | 'default' | 'destructive';
-  }
+  { label: string; icon: typeof Clock3; badge: string; note: string }
 > = {
   pending: {
     label: 'Pending review',
     icon: Clock3,
-    tone: 'secondary',
+    badge: 'bg-amber-100 text-amber-900 border-amber-300',
+    note: 'The caterer is reviewing your request.',
   },
-
   confirmed: {
     label: 'Confirmed',
     icon: CheckCircle2,
-    tone: 'default',
+    badge: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+    note: 'Your booking is confirmed.',
   },
-
   rejected: {
-    label: 'Rejected',
+    label: 'Declined',
     icon: XCircle,
-    tone: 'destructive',
+    badge: 'bg-red-100 text-red-800 border-red-300',
+    note: 'The caterer could not accept this booking.',
   },
-
   completed: {
     label: 'Completed',
     icon: CheckCircle2,
-    tone: 'default',
+    badge: 'bg-[#FDECEC] text-[#7F1623] border-[#E8B4B4]',
+    note: 'This event is done. Thank you for ordering!',
   },
 };
+
+const STEPS = ['Submitted', 'Confirmed', 'Completed'];
+const stepIndex: Record<string, number> = { pending: 0, confirmed: 1, completed: 2 };
+
+const peso = (n: number) =>
+  `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+function formatTime(t: string) {
+  const m = String(t ?? '').match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return t;
+  const h = Number(m[1]);
+  return `${h % 12 === 0 ? 12 : h % 12}:${m[2]} ${h >= 12 ? 'PM' : 'AM'}`;
+}
 
 export default function CustomerStatusPage() {
   const { currentUser } = useAppState();
@@ -201,125 +210,199 @@ export default function CustomerStatusPage() {
     <CustomerShell>
       <div className="mx-auto flex max-w-4xl flex-col gap-8">
         <header>
-          <h1 className="font-heading text-3xl font-bold text-surface-foreground">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#9B1C2C]">
+            Your catering requests
+          </p>
+          <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
             My bookings
           </h1>
-
-          <p className="mt-2 text-surface-muted-foreground">
+          <p className="mt-2 text-[#2A1B1F]/70">
             Track your submitted bookings and their current status.
           </p>
         </header>
 
         {loading ? (
-          <Card>
-            <CardContent className="p-12 text-center text-muted-foreground">
-              Loading your bookings...
-            </CardContent>
-          </Card>
+          <div className="rounded-xl border border-[#E8D2D2] bg-white p-12 text-center text-[#2A1B1F]/60">
+            Loading your bookings...
+          </div>
         ) : bookings.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center text-muted-foreground">
-              No bookings yet. Start a new inquiry to see it here.
-            </CardContent>
-          </Card>
+          <div className="rounded-xl border border-dashed border-[#E8D2D2] bg-white p-12 text-center text-[#2A1B1F]/60">
+            No bookings yet. Start a new order to see it here.
+          </div>
         ) : (
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-6">
             {bookings.map((booking) => {
-              const statusKey =
-                booking.Status?.toLowerCase() ?? 'pending';
-
-              const status =
-                statusCopy[statusKey] ?? statusCopy.pending;
-
+              const statusKey = booking.Status?.toLowerCase() ?? 'pending';
+              const status = statusCopy[statusKey] ?? statusCopy.pending;
               const StatusIcon = status.icon;
 
-              const estimatedTotal = booking.items.reduce(
-                (total, item) =>
-                  total + item.price * item.quantity,
+              const foodTotal = booking.items.reduce(
+                (total, item) => total + item.price * item.quantity,
                 0
               );
+              const deliveryFee = Number(booking.DeliveryFee ?? 0);
+              const estimatedTotal = foodTotal + deliveryFee;
+
+              const title = booking.EventType?.trim() || 'Catering order';
+              const pinned = parsePinnedAddress(booking.Venue ?? '');
+              const address = pinned?.address ?? booking.Venue ?? '';
+              const date = new Date(`${booking.EventDate}T12:00:00`).toLocaleDateString('en-PH', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+              });
+              const step = stepIndex[statusKey];
 
               return (
-                <Card key={booking.BookingID}>
-                  <CardHeader className="flex-row items-start justify-between gap-4">
+                <article
+                  key={booking.BookingID}
+                  className="overflow-hidden rounded-xl border border-[#E8D2D2] bg-white shadow-sm"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E8D2D2] bg-[#FDECEC] px-6 py-5">
                     <div>
-                      <CardTitle>
-                        Catering Order #{booking.BookingID}
-                      </CardTitle>
-
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {new Date(
-                          `${booking.EventDate}T00:00:00`
-                        ).toLocaleDateString()}{' '}
-                        · {booking.GuestCount} guests
-                      </p>
-
-                      {booking.Venue && (
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {booking.Venue}
-                        </p>
-                      )}
-
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Event time: {booking.EventTime}
-                      </p>
+                      <h2 className="font-heading text-2xl font-bold uppercase leading-tight text-[#2A1B1F]">
+                        {title}
+                      </h2>
+                      <p className="mt-1 text-sm text-[#2A1B1F]/60">Order #{booking.BookingID}</p>
                     </div>
-
-                    <Badge variant={status.tone}>
-                      <StatusIcon data-icon="inline-start" />
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold ${status.badge}`}
+                    >
+                      <StatusIcon className="size-4" aria-hidden="true" />
                       {status.label}
-                    </Badge>
-                  </CardHeader>
+                    </span>
+                  </div>
 
-                  <CardContent className="flex flex-col gap-5">
-                    {(statusKey === 'pending' || statusKey === 'confirmed') && (
-                      <p className="text-sm text-muted-foreground">
-                        Need to cancel or change this booking? Please contact the caterer at {OWNER_CONTACT}.
+                  <div className="space-y-6 p-6">
+                    {/* PROGRESS */}
+                    {step !== undefined ? (
+                      <ol className="flex items-center" aria-label="Booking progress">
+                        {STEPS.map((label, i) => (
+                          <li key={label} className="flex flex-1 items-center last:flex-none">
+                            <span
+                              className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                                i <= step ? 'bg-[#9B1C2C] text-white' : 'bg-neutral-200 text-neutral-500'
+                              }`}
+                              aria-current={i === step ? 'step' : undefined}
+                            >
+                              {i < step ? '✓' : i + 1}
+                            </span>
+                            <span
+                              className={`ml-2 text-xs font-semibold uppercase tracking-wide ${
+                                i <= step ? 'text-[#2A1B1F]' : 'text-[#2A1B1F]/40'
+                              }`}
+                            >
+                              {label}
+                            </span>
+                            {i < STEPS.length - 1 && (
+                              <span
+                                className={`mx-3 h-0.5 flex-1 rounded ${i < step ? 'bg-[#9B1C2C]' : 'bg-neutral-200'}`}
+                                aria-hidden="true"
+                              />
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                        {status.note}
                       </p>
                     )}
+
+                    {/* DETAILS */}
+                    <dl className="grid gap-4 sm:grid-cols-2">
+                      {[
+                        { icon: CalendarDays, label: 'Date', value: date },
+                        { icon: Clock, label: 'Time', value: formatTime(booking.EventTime) },
+                        { icon: Users, label: 'Guests', value: `${booking.GuestCount} guests` },
+                      ].map(({ icon: Icon, label, value }) => (
+                        <div key={label} className="flex items-start gap-3">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#9B1C2C] text-white">
+                            <Icon className="size-4" aria-hidden="true" />
+                          </span>
+                          <div>
+                            <dt className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">{label}</dt>
+                            <dd className="font-semibold text-[#2A1B1F]">{value}</dd>
+                          </div>
+                        </div>
+                      ))}
+                      {address && (
+                        <div className="flex items-start gap-3 sm:col-span-2">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#9B1C2C] text-white">
+                            <MapPin className="size-4" aria-hidden="true" />
+                          </span>
+                          <div>
+                            <dt className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">Drop-off location</dt>
+                            <dd className="font-semibold text-[#2A1B1F]">{address}</dd>
+                            {pinned && (
+                              <a
+                                href={`https://www.openstreetmap.org/?mlat=${pinned.lat}&mlon=${pinned.lng}#map=17/${pinned.lat}/${pinned.lng}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm font-semibold text-[#9B1C2C] underline"
+                              >
+                                View pin on map
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </dl>
+
+                    {/* MENU ITEMS */}
                     <div>
-                      <p className="mb-2 text-sm font-medium text-foreground">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">
                         Selected menu items
                       </p>
-
                       <div className="flex flex-wrap gap-2">
                         {booking.items.length === 0 ? (
-                          <span className="text-sm text-muted-foreground">
-                            No menu items recorded.
-                          </span>
+                          <span className="text-sm text-[#2A1B1F]/60">No menu items recorded.</span>
                         ) : (
                           booking.items.map((item) => (
-                            <Badge
+                            <span
                               key={`${booking.BookingID}-${item.name}`}
-                              variant="outline"
+                              className="rounded-lg border border-[#E8D2D2] bg-white px-3 py-1.5 text-sm font-medium text-[#2A1B1F]"
                             >
                               {item.name}
-                              {item.quantity > 1 &&
-                                ` × ${item.quantity}`}
-                            </Badge>
+                              {item.quantity > 1 && (
+                                <span className="text-[#2A1B1F]/50"> × {item.quantity}</span>
+                              )}
+                            </span>
                           ))
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between border-t pt-4 text-sm">
-                      <span className="text-muted-foreground">
-                        Estimated total
-                      </span>
-
-                      <span className="font-semibold text-foreground">
-                        ₱
-                        {estimatedTotal.toLocaleString(
-                          'en-PH',
-                          {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          }
-                        )}
-                      </span>
+                    {/* TOTAL */}
+                    <div className="space-y-1 border-t border-[#E8D2D2] pt-4 text-sm">
+                      <div className="flex justify-between text-[#2A1B1F]/70">
+                        <span>Food</span>
+                        <span>{peso(foodTotal)}</span>
+                      </div>
+                      {deliveryFee > 0 && (
+                        <div className="flex justify-between text-[#2A1B1F]/70">
+                          <span>Delivery</span>
+                          <span>{peso(deliveryFee)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="font-semibold text-[#2A1B1F]">Estimated total</span>
+                        <span className="text-xl font-bold text-[#9B1C2C]">{peso(estimatedTotal)}</span>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
+
+                    {(statusKey === 'pending' || statusKey === 'confirmed') && (
+                      <p className="rounded-lg bg-[#FDECEC] p-3 text-sm text-[#2A1B1F]">
+                        Need to cancel or change this booking? Please contact the caterer at{' '}
+                        <a href={`mailto:${OWNER_CONTACT}`} className="font-semibold text-[#9B1C2C] underline">
+                          {OWNER_CONTACT}
+                        </a>
+                        .
+                      </p>
+                    )}
+                  </div>
+                </article>
               );
             })}
           </div>

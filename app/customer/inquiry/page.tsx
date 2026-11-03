@@ -20,6 +20,23 @@ import {
 } from '@/lib/rules/bookingValidation';
 import { useRouter } from 'next/navigation';
 
+import { EventTypePicker } from '@/components/booking/EventTypePicker';
+import { AllergenPicker } from '@/components/booking/AllergenPicker';
+import { TimePicker } from '@/components/booking/TimePicker';
+import { OptionCardPicker } from '@/components/booking/OptionCardPicker';
+import { NumberStepper } from '@/components/booking/NumberStepper';
+import { LocationPicker } from '@/components/booking/LocationPicker';
+import { AvailabilityCalendar } from '@/components/booking/AvailabilityCalendar';
+import {
+  MEAL_TYPES,
+  TERM_OPTIONS,
+  frequencyLabel,
+  planTitle,
+  termEndDate,
+  weekdayName,
+  type MealType,
+  type TermCycles,
+} from '@/lib/meal-plan';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -30,6 +47,7 @@ import {
   UtensilsCrossed,
   AlertTriangle,
   Sparkles,
+  Repeat,
 } from 'lucide-react';
 
 const ALLERGEN_OPTIONS: AllergenType[] = [
@@ -223,7 +241,8 @@ export default function InquiryPage() {
   });
 
   const [mealPrepForm, setMealPrepForm] = useState({
-    planName: '',
+    mealType: 'lunch' as MealType,
+    termCycles: 4 as TermCycles,
     startDate: '',
     fulfillmentTime: '10:00',
     frequency: 'weekly' as MealPrepFrequency,
@@ -551,7 +570,7 @@ export default function InquiryPage() {
         orderType: 'meal_prep',
 
         eventType:
-          mealPrepForm.planName,
+          planTitle(mealPrepForm.mealType),
 
         eventDate:
           mealPrepForm.startDate,
@@ -579,6 +598,12 @@ export default function InquiryPage() {
 
         specialRequests:
           mealPrepForm.specialRequests,
+
+        // subscription details; read back with readMealPlanDraft()
+        ...({
+          mealType: mealPrepForm.mealType,
+          termCycles: mealPrepForm.termCycles,
+        } as object),
       });
 
       router.push(
@@ -631,7 +656,7 @@ export default function InquiryPage() {
    */
 
   const inputClass =
-    'w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent';
+    'w-full px-4 py-2.5 bg-white text-[#2A1B1F] border border-[#E8D2D2] rounded-lg placeholder:text-[#2A1B1F]/40 focus:outline-none focus:ring-2 focus:ring-[#9B1C2C]/40 focus:border-[#9B1C2C]';
 
   /*
    * ============================================================
@@ -642,16 +667,16 @@ export default function InquiryPage() {
   const availabilityBanner =
     dateAvailability &&
     !dateAvailability.available && (
-      <div className="flex flex-col gap-2 rounded-lg border border-yellow-300 bg-yellow-50 p-4">
+      <div className="flex flex-col gap-2 rounded-lg border border-[#E8B4B4] bg-[#FDECEC] p-4">
         <div className="flex gap-2">
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-yellow-700" />
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#9B1C2C]" />
 
           <div className="space-y-1">
-            <p className="text-sm font-medium text-yellow-900">
+            <p className="text-sm font-medium text-[#2A1B1F]">
               This date is not available.
             </p>
 
-            <p className="text-sm text-yellow-800">
+            <p className="text-sm text-[#2A1B1F]/80">
               {dateAvailability.reason ??
                 'The operator cannot accept bookings for this date.'}
             </p>
@@ -660,7 +685,7 @@ export default function InquiryPage() {
 
         {suggestedDate && (
           <div className="flex items-center justify-between gap-3 rounded-md bg-white/60 px-3 py-2">
-            <p className="flex items-center gap-2 text-sm text-yellow-900">
+            <p className="flex items-center gap-2 text-sm text-[#2A1B1F]">
               <Sparkles className="h-4 w-4" />
 
               Nearest open date:
@@ -698,13 +723,16 @@ export default function InquiryPage() {
         {/* PAGE HEADER */}
 
         <div>
-          <h1 className="font-heading text-3xl font-bold text-surface-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9B1C2C] mb-2">
+            {isMealPrep ? 'Step 1 of 3' : 'Step 1 of 2'} · Plan your order
+          </p>
+          <h1 className="font-heading uppercase text-4xl font-bold text-[#2A1B1F]">
             {isMealPrep
               ? 'Start Meal Prep Plan'
               : 'Book Catering'}
           </h1>
 
-          <p className="text-surface-muted-foreground mt-2">
+          <p className="text-[#2A1B1F]/70 mt-2">
             {isMealPrep
               ? 'Set up a recurring weekly or bi-weekly meal prep order'
               : 'Tell us about your one-time catering event'}
@@ -720,15 +748,15 @@ export default function InquiryPage() {
             onClick={() =>
               switchOrderType('catering')
             }
-            className={`p-4 rounded-xl border-2 text-left transition-all ${
+            className={`p-5 rounded-xl border-2 text-left transition-all ${
               !isMealPrep
-                ? 'border-primary bg-primary/10'
-                : 'border-border bg-card hover:border-primary/40'
+                ? 'border-[#9B1C2C] bg-[#FDECEC] shadow-sm'
+                : 'border-[#E8D2D2] bg-white hover:border-[#9B1C2C]/50'
             }`}
           >
-            <CalendarDays className="w-6 h-6 text-primary mb-2" />
+            <CalendarDays className="w-6 h-6 text-[#9B1C2C] mb-2" />
 
-            <p className="font-heading font-bold text-card-foreground">
+            <p className="font-heading uppercase font-bold text-[#2A1B1F]">
               Catering Event
             </p>
 
@@ -742,15 +770,15 @@ export default function InquiryPage() {
             onClick={() =>
               switchOrderType('meal_prep')
             }
-            className={`p-4 rounded-xl border-2 text-left transition-all ${
+            className={`p-5 rounded-xl border-2 text-left transition-all ${
               isMealPrep
-                ? 'border-primary bg-primary/10'
-                : 'border-border bg-card hover:border-primary/40'
+                ? 'border-[#9B1C2C] bg-[#FDECEC] shadow-sm'
+                : 'border-[#E8D2D2] bg-white hover:border-[#9B1C2C]/50'
             }`}
           >
-            <UtensilsCrossed className="w-6 h-6 text-secondary mb-2" />
+            <UtensilsCrossed className="w-6 h-6 text-[#9B1C2C] mb-2" />
 
-            <p className="font-heading font-bold text-card-foreground">
+            <p className="font-heading uppercase font-bold text-[#2A1B1F]">
               Meal Prep Plan
             </p>
 
@@ -763,7 +791,7 @@ export default function InquiryPage() {
 
         {/* FORM */}
 
-        <Card className="p-8">
+        <Card className="p-6 sm:p-8 rounded-2xl border border-[#E8D2D2] bg-white shadow-sm">
           <form
             onSubmit={handleSubmit}
             className="space-y-8"
@@ -776,118 +804,116 @@ export default function InquiryPage() {
             {!isMealPrep ? (
               <div className="space-y-6">
 
-                <h2 className="text-lg font-bold text-card-foreground">
+                <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#9B1C2C]">
                   Event Details
                 </h2>
 
                 {/* EVENT TYPE */}
 
                 <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-2">
+                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
                     Event Type *
                   </label>
 
+                  <EventTypePicker
+                    value={cateringForm.eventType}
+                    inputClass={inputClass}
+                    onChange={(eventType) =>
+                      setCateringForm((f) => ({ ...f, eventType }))
+                    }
+                  />
                   <input
                     type="text"
-                    placeholder="Wedding, Corporate Lunch, Birthday Party, etc."
-                    value={
-                      cateringForm.eventType
-                    }
-                    onChange={(e) =>
-                      setCateringForm({
-                        ...cateringForm,
-                        eventType:
-                          e.target.value,
-                      })
-                    }
+                    value={cateringForm.eventType}
+                    onChange={() => {}}
                     required
-                    className={inputClass}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="sr-only"
                   />
                 </div>
 
                 {/* DATE / TIME / GUESTS */}
 
-                <div className="grid md:grid-cols-3 gap-6">
+                {/* DATE */}
 
-                  {/* DATE */}
+                <div>
+                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                    Event Date *
+                  </label>
 
-                  <div>
-                    <label className="block text-sm font-medium text-card-foreground mb-2">
-                      Event Date *
-                    </label>
+                  <AvailabilityCalendar
+                    value={cateringForm.eventDate}
+                    onChange={(date) =>
+                      setCateringForm({
+                        ...cateringForm,
+                        eventDate: date,
+                      })
+                    }
+                    orderType={customerOrderType}
+                    settings={operatorSettings}
+                    bookings={availabilityBookings}
+                      fill
+                  />
+                  <input
+                    type="text"
+                    value={cateringForm.eventDate}
+                    onChange={() => {}}
+                    required
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="sr-only"
+                  />
+                </div>
 
-                    <input
-                      type="date"
-                      value={
-                        cateringForm.eventDate
-                      }
-                      onChange={(e) =>
-                        setCateringForm({
-                          ...cateringForm,
-                          eventDate:
-                            e.target.value,
-                        })
-                      }
-                      required
-                      className={inputClass}
-                    />
-                  </div>
+                {/* TIME / GUESTS */}
 
-                  {/* TIME */}
+                <div className="grid items-stretch gap-6 sm:grid-cols-2">
 
-                  <div>
-                    <label className="block text-sm font-medium text-card-foreground mb-2">
+                  <div className="flex flex-col">
+                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
                       Event Time *
                     </label>
 
+                    <div className="flex-1">
+                      <TimePicker
+                        value={cateringForm.eventTime}
+                        start={operatorSettings.operatingHoursStart}
+                        end={operatorSettings.operatingHoursEnd}
+                        onChange={(time) =>
+                          setCateringForm((f) => ({ ...f, eventTime: time }))
+                        }
+                      />
+                    </div>
                     <input
-                      type="time"
-                      value={
-                        cateringForm.eventTime
-                      }
-                      onChange={(e) =>
-                        setCateringForm({
-                          ...cateringForm,
-                          eventTime:
-                            e.target.value,
-                        })
-                      }
+                      type="text"
+                      value={cateringForm.eventTime}
+                      onChange={() => {}}
                       required
-                      className={inputClass}
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      className="sr-only"
                     />
                   </div>
 
-                  {/* GUEST COUNT */}
-
-                  <div>
-                    <label className="block text-sm font-medium text-card-foreground mb-2">
+                  <div className="flex flex-col">
+                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
                       Number of Guests *
                     </label>
 
-                    <input
-                      type="number"
-                      min="1"
-                      max={operatorSettings.maxGuestsPerEvent}
-                      value={cateringForm.guestCount}
-                      onChange={(e) =>
-                        setCateringForm({
-                          ...cateringForm,
-                          guestCount: e.target.value,
-                        })
-                      }
-                      required
-                      className={inputClass}
-                    />
-
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Maximum: {operatorSettings.maxGuestsPerEvent} guests
-                    </p>
-
-                    {guestCountError && (
-                      <p className="mt-1 text-xs text-red-600">
-                        {guestCountError}
-                      </p>
-                    )}
+                    <div className="flex-1">
+                      <NumberStepper
+                        title="Guests"
+                        unit="guests"
+                        min={1}
+                        max={operatorSettings.maxGuestsPerEvent}
+                        value={cateringForm.guestCount}
+                        error={guestCountError}
+                        onChange={(guestCount) =>
+                          setCateringForm((f) => ({ ...f, guestCount }))
+                        }
+                      />
+                    </div>
                   </div>
 
                 </div>
@@ -906,32 +932,32 @@ export default function InquiryPage() {
                 {/* VENUE */}
 
                 <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-2">
-                    Venue *
+                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                    Drop-off Location *
                   </label>
 
+                  <LocationPicker
+                    value={cateringForm.venue}
+                    inputClass={inputClass}
+                    onChange={(venue) =>
+                      setCateringForm((f) => ({ ...f, venue }))
+                    }
+                  />
                   <input
                     type="text"
-                    placeholder="Location of your event"
-                    value={
-                      cateringForm.venue
-                    }
-                    onChange={(e) =>
-                      setCateringForm({
-                        ...cateringForm,
-                        venue:
-                          e.target.value,
-                      })
-                    }
+                    value={cateringForm.venue}
+                    onChange={() => {}}
                     required
-                    className={inputClass}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="sr-only"
                   />
                 </div>
 
                 {/* SPECIAL REQUESTS */}
 
                 <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-2">
+                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
                     Special Requests
                   </label>
 
@@ -960,7 +986,7 @@ export default function InquiryPage() {
 
               <div className="space-y-6">
 
-                <h2 className="text-lg font-bold text-card-foreground">
+                <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#9B1C2C]">
                   Meal Prep Plan
                 </h2>
 
@@ -971,76 +997,104 @@ export default function InquiryPage() {
                   events.
                 </p>
 
-                {/* PLAN NAME */}
+                {/* MEAL TYPE / PLAN LENGTH */}
 
-                <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-2">
-                    Plan Name *
-                  </label>
+                <div className="grid items-stretch gap-6 md:grid-cols-2">
+                  <div className="flex flex-col">
+                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                      Meal plan *
+                    </label>
+                    <div className="flex-1">
+                      <OptionCardPicker<MealType>
+                        title="Which meal?"
+                        icon={UtensilsCrossed}
+                        value={mealPrepForm.mealType}
+                        onChange={(mealType) =>
+                          setMealPrepForm((f) => ({ ...f, mealType }))
+                        }
+                        options={MEAL_TYPES}
+                      />
+                    </div>
+                  </div>
 
-                  <input
-                    type="text"
-                    placeholder="e.g. Weekly Fitness Meals, Family Lunch Prep"
-                    value={
-                      mealPrepForm.planName
-                    }
-                    onChange={(e) =>
-                      setMealPrepForm({
-                        ...mealPrepForm,
-                        planName:
-                          e.target.value,
-                      })
-                    }
-                    required
-                    className={inputClass}
-                  />
+                  <div className="flex flex-col">
+                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                      Plan length *
+                    </label>
+                    <div className="flex-1">
+                      <OptionCardPicker<`${TermCycles}`>
+                        title="How many deliveries?"
+                        icon={CalendarDays}
+                        value={`${mealPrepForm.termCycles}`}
+                        onChange={(v) =>
+                          setMealPrepForm((f) => ({ ...f, termCycles: Number(v) as TermCycles }))
+                        }
+                        options={TERM_OPTIONS.map((n) => ({
+                          value: `${n}` as `${TermCycles}`,
+                          label: `${n} deliveries`,
+                          hint:
+                            mealPrepForm.frequency === 'biweekly'
+                              ? `about ${Math.round((n * 2) / 4.3)} months`
+                              : `about ${Math.round(n / 4.3)} ${Math.round(n / 4.3) === 1 ? 'month' : 'months'}`,
+                        }))}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* DATE / TIME */}
 
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid items-start md:grid-cols-2 gap-6">
 
                   <div>
-                    <label className="block text-sm font-medium text-card-foreground mb-2">
+                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
                       First Fulfillment Date *
                     </label>
 
-                    <input
-                      type="date"
-                      value={
-                        mealPrepForm.startDate
-                      }
-                      onChange={(e) =>
+                    <AvailabilityCalendar
+                      value={mealPrepForm.startDate}
+                      onChange={(date) =>
                         setMealPrepForm({
                           ...mealPrepForm,
-                          startDate:
-                            e.target.value,
+                          startDate: date,
                         })
                       }
+                      orderType={customerOrderType}
+                      settings={operatorSettings}
+                      bookings={availabilityBookings}
+                    />
+                    <input
+                      type="text"
+                      value={mealPrepForm.startDate}
+                      onChange={() => {}}
                       required
-                      className={inputClass}
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      className="sr-only"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-card-foreground mb-2">
+                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
                       Pickup / Delivery Time *
                     </label>
 
+                    <TimePicker
+                      value={mealPrepForm.fulfillmentTime}
+                      start={operatorSettings.operatingHoursStart}
+                      end={operatorSettings.operatingHoursEnd}
+                      onChange={(time) =>
+                        setMealPrepForm((f) => ({ ...f, fulfillmentTime: time }))
+                      }
+                    />
                     <input
-                      type="time"
-                      value={
-                        mealPrepForm.fulfillmentTime
-                      }
-                      onChange={(e) =>
-                        setMealPrepForm({
-                          ...mealPrepForm,
-                          fulfillmentTime:
-                            e.target.value,
-                        })
-                      }
+                      type="text"
+                      value={mealPrepForm.fulfillmentTime}
+                      onChange={() => {}}
                       required
-                      className={inputClass}
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      className="sr-only"
                     />
                   </div>
 
@@ -1052,66 +1106,80 @@ export default function InquiryPage() {
 
                 {/* FREQUENCY / SERVINGS */}
 
-                <div className="grid md:grid-cols-2 gap-6">
+                <div className="grid items-stretch md:grid-cols-2 gap-6">
 
-                  <div>
-                    <label className="block text-sm font-medium text-card-foreground mb-2">
+                  <div className="flex flex-col">
+                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
                       Frequency *
                     </label>
 
-                    <select
-                      value={
-                        mealPrepForm.frequency
-                      }
-                      onChange={(e) =>
-                        setMealPrepForm({
-                          ...mealPrepForm,
-                          frequency:
-                            e.target.value as MealPrepFrequency,
-                        })
-                      }
-                      className={inputClass}
-                    >
-                      <option value="weekly">
-                        Weekly
-                      </option>
-
-                      <option value="biweekly">
-                        Every 2 weeks
-                      </option>
-                    </select>
+                    <div className="flex-1">
+                      <OptionCardPicker<MealPrepFrequency>
+                        title="Repeat"
+                        icon={Repeat}
+                        value={mealPrepForm.frequency}
+                        onChange={(frequency) =>
+                          setMealPrepForm((f) => ({ ...f, frequency }))
+                        }
+                        options={[
+                          { value: 'weekly', label: 'Weekly', hint: 'Every week' },
+                          { value: 'biweekly', label: 'Every 2 weeks', hint: 'Every other week' },
+                        ]}
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-card-foreground mb-2">
+                  <div className="flex flex-col">
+                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
                       Servings per Cycle *
                     </label>
 
-                    <input
-                      type="number"
-                      min="1"
-                      placeholder="Meals per fulfillment"
-                      value={
-                        mealPrepForm.servingsPerCycle
-                      }
-                      onChange={(e) =>
-                        setMealPrepForm({
-                          ...mealPrepForm,
-                          servingsPerCycle:
-                            e.target.value,
-                        })
-                      }
-                      required
-                      className={inputClass}
-                    />
+                    <div className="flex-1">
+                      <NumberStepper
+                        title="Servings"
+                        unit="meals"
+                        min={1}
+                        value={mealPrepForm.servingsPerCycle}
+                        onChange={(servingsPerCycle) =>
+                          setMealPrepForm((f) => ({ ...f, servingsPerCycle }))
+                        }
+                      />
+                    </div>
                   </div>
 
                 </div>
 
+                {/* SCHEDULE SUMMARY */}
+
+                {mealPrepForm.startDate && (
+                  <div className="rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4 text-sm text-[#2A1B1F]">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#9B1C2C]">
+                      Your delivery schedule
+                    </p>
+                    <p className="mt-1 font-semibold">
+                      {frequencyLabel(mealPrepForm.frequency)} on {weekdayName(mealPrepForm.startDate)}s,{' '}
+                      starting{' '}
+                      {new Date(`${mealPrepForm.startDate}T12:00:00`).toLocaleDateString('en-PH', {
+                        month: 'long',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                      .
+                    </p>
+                    <p className="mt-1 text-[#2A1B1F]/70">
+                      {mealPrepForm.termCycles} deliveries, last one on{' '}
+                      {new Date(
+                        `${termEndDate(mealPrepForm.startDate, mealPrepForm.frequency, mealPrepForm.termCycles)}T12:00:00`
+                      ).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
+                      . You can pause, skip a delivery, or renew anytime from Meal Plans.
+                    </p>
+                  </div>
+                )}
+
                 {/* FULFILLMENT METHOD */}
 
                 <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-2">
+                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
                     Fulfillment Method *
                   </label>
 
@@ -1125,10 +1193,15 @@ export default function InquiryPage() {
                     ).map((method) => (
                       <label
                         key={method}
-                        className="flex items-center gap-2 cursor-pointer text-sm text-card-foreground"
+                        className={`flex-1 flex items-center justify-center gap-2 cursor-pointer rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
+                          mealPrepForm.fulfillmentMethod === method
+                            ? 'border-[#9B1C2C] bg-[#FDECEC] text-[#9B1C2C]'
+                            : 'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/50'
+                        }`}
                       >
                         <input
                           type="radio"
+                          className="sr-only"
                           name="fulfillmentMethod"
                           checked={
                             mealPrepForm.fulfillmentMethod ===
@@ -1157,25 +1230,25 @@ export default function InquiryPage() {
                 {mealPrepForm.fulfillmentMethod ===
                   'delivery' && (
                   <div>
-                    <label className="block text-sm font-medium text-card-foreground mb-2">
+                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
                       Delivery Address *
                     </label>
 
+                    <LocationPicker
+                      value={mealPrepForm.address}
+                      inputClass={inputClass}
+                      onChange={(address) =>
+                        setMealPrepForm((f) => ({ ...f, address }))
+                      }
+                    />
                     <input
                       type="text"
-                      placeholder="Street, city, delivery notes"
-                      value={
-                        mealPrepForm.address
-                      }
-                      onChange={(e) =>
-                        setMealPrepForm({
-                          ...mealPrepForm,
-                          address:
-                            e.target.value,
-                        })
-                      }
+                      value={mealPrepForm.address}
+                      onChange={() => {}}
                       required
-                      className={inputClass}
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      className="sr-only"
                     />
                   </div>
                 )}
@@ -1183,7 +1256,7 @@ export default function InquiryPage() {
                 {/* SPECIAL REQUESTS */}
 
                 <div>
-                  <label className="block text-sm font-medium text-card-foreground mb-2">
+                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
                     Special Requests
                   </label>
 
@@ -1210,51 +1283,25 @@ export default function InquiryPage() {
             {/* DIETARY RESTRICTIONS */}
             {/* ================================================= */}
 
-            <div className="space-y-6 pt-6 border-t border-border">
+            <div className="space-y-6 pt-6 border-t border-[#E8D2D2]">
 
-              <h2 className="text-lg font-bold text-card-foreground">
+              <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#9B1C2C]">
                 Dietary Restrictions
               </h2>
 
-              <div className="grid md:grid-cols-2 gap-4">
-
-                {allergenOptions.map(
-                  (allergen) => (
-                    <label
-                      key={allergen}
-                      className="flex items-center gap-3 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={dietary.includes(
-                          allergen
-                        )}
-                        onChange={() =>
-                          toggleAllergen(
-                            allergen
-                          )
-                        }
-                        className="w-4 h-4 border-border rounded"
-                      />
-
-                      <span className="text-sm text-card-foreground capitalize">
-                        {allergen.replace(
-                          '_',
-                          ' '
-                        )}
-                      </span>
-                    </label>
-                  )
-                )}
-
-              </div>
+              <AllergenPicker
+                options={allergenOptions}
+                selected={dietary}
+                onToggle={(a) => toggleAllergen(a as AllergenType)}
+                onClear={() => setDietary([])}
+              />
             </div>
 
             {/* ================================================= */}
             {/* BUTTONS */}
             {/* ================================================= */}
 
-            <div className="flex gap-4 pt-6 border-t border-border">
+            <div className="flex gap-4 pt-6 border-t border-[#E8D2D2]">
 
               <Button
                 type="submit"
@@ -1268,7 +1315,7 @@ export default function InquiryPage() {
                     guestCountError
                   )
                 }
-                className="flex-1 bg-primary text-white font-medium hover:bg-brand disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 h-11 rounded-lg bg-[#9B1C2C] text-white font-semibold hover:bg-[#7F1623] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Continue to Menu Selection
               </Button>
@@ -1276,7 +1323,7 @@ export default function InquiryPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="flex-1"
+                className="flex-1 h-11 rounded-lg border-[#9B1C2C] text-[#9B1C2C] hover:bg-[#FDECEC] hover:text-[#7F1623]"
                 onClick={() =>
                   router.back()
                 }

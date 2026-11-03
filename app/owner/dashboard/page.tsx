@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { DashboardLayout } from '@/app/dashboard-layout'
 import { Card } from '@/components/ui/card'
 import { RevenueActivity } from '@/components/owner/RevenueActivity'
+import { DateRangePicker } from '@/components/owner/DateRangePicker'
+import type { RangeInput, ResolvedRange } from '@/lib/date-range'
 import { getOwnerDashboardData } from '@/app/actions/dashboard-actions'
 import {
   AlertCircle,
@@ -37,6 +39,7 @@ type DashboardData = {
     date: string
     revenue: number
   }[]
+  range: ResolvedRange
 }
 
 function formatPrice(value: number) {
@@ -51,27 +54,41 @@ export default function OwnerDashboard() {
     useState<DashboardData | null>(null)
 
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [rangeError, setRangeError] = useState('')
+  const [range, setRange] = useState<RangeInput>({ preset: '30d' })
 
   useEffect(() => {
-    async function loadDashboard() {
-      setLoading(true)
-      setErrorMessage('')
+    let cancelled = false
 
-      const result = await getOwnerDashboardData()
+    async function loadDashboard() {
+      setRefreshing(true)
+      setRangeError('')
+
+      const result = await getOwnerDashboardData(range)
+      if (cancelled) return
 
       if (!result.ok) {
-        setErrorMessage(result.error)
-        setLoading(false)
-        return
+        // First load failure blocks the page; a bad range keeps the old data.
+        if (dashboard) setRangeError(result.error)
+        else setErrorMessage(result.error)
+      } else {
+        setErrorMessage('')
+        setDashboard(result.data)
       }
 
-      setDashboard(result.data)
       setLoading(false)
+      setRefreshing(false)
     }
 
     void loadDashboard()
-  }, [])
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range])
 
   if (loading) {
     return (
@@ -98,7 +115,7 @@ export default function OwnerDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
+      <div className={`space-y-8 transition-opacity ${refreshing ? 'opacity-70' : ''}`}>
         {/* Header */}
         <div>
           <h1 className="font-heading mt-2 text-3xl font-bold text-surface-foreground">
@@ -107,6 +124,29 @@ export default function OwnerDashboard() {
 
           <p className="mt-2 text-surface-muted-foreground">
             Welcome back! Here&apos;s your catering business overview.
+          </p>
+        </div>
+
+        {/* Date range */}
+        <div className="space-y-2">
+          <DateRangePicker
+            value={range}
+            onChange={setRange}
+            disabled={refreshing}
+          />
+
+          <p className="text-sm text-surface-muted-foreground">
+            Showing <span className="font-semibold">{dashboard.range.label}</span>
+            {refreshing && ' · updating…'}
+          </p>
+
+          {rangeError && (
+            <p className="text-sm font-medium text-destructive">{rangeError}</p>
+          )}
+
+          <p className="text-xs text-surface-muted-foreground">
+            Bookings are counted by event date and revenue by payment date. Outstanding
+            balance, low stock and recent activity always show current figures.
           </p>
         </div>
 
@@ -200,6 +240,8 @@ export default function OwnerDashboard() {
         {/* Revenue + Recent Activity */}
         <RevenueActivity
           revenueData={dashboard.revenueData}
+          rangeLabel={dashboard.range.label}
+          bucket={dashboard.range.bucket}
           recentActivity={dashboard.recentActivity}
         />
 

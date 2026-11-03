@@ -1,126 +1,137 @@
 'use client';
 
+import { useEffect } from 'react';
 import { CustomerShell } from '@/app/customer/customer-shell';
 import { useAppState } from '@/lib/state';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getUpcomingFulfillmentDates } from '@/lib/rules/mealPrep';
-import { Calendar, MapPin, Users, Clock } from 'lucide-react';
+import { Calendar, MapPin, Users, Clock, CheckCircle2, Utensils } from 'lucide-react';
+import { mealTypeLabel, planTitle, readMealPlanDraft, remainingDeliveries, termEndDate } from '@/lib/meal-plan';
+import { parsePinnedAddress } from '@/lib/kitchen';
 
 export default function MealPrepPreviewPage() {
   const router = useRouter();
   const { customerBookingDraft, customerOrderType } = useAppState();
 
-  const isMealPrep = customerOrderType === 'meal_prep' && customerBookingDraft.orderType === 'meal_prep';
+  const isMealPrep =
+    customerOrderType === 'meal_prep' &&
+    customerBookingDraft.orderType === 'meal_prep';
+  const valid = isMealPrep && Boolean(customerBookingDraft.eventDate);
 
-  if (!isMealPrep || !customerBookingDraft.eventDate) {
-    router.push('/customer/inquiry');
-    return null;
-  }
+  useEffect(() => {
+    if (!valid) router.push('/customer/inquiry');
+  }, [valid, router]);
 
-  const fulfillmentDates = getUpcomingFulfillmentDates(
-    customerBookingDraft.eventDate,
-    customerBookingDraft.mealPrepFrequency || 'weekly',
-    8
-  );
+  if (!valid || !customerBookingDraft.eventDate) return null;
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(`${dateStr}T12:00:00`);
-    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const plan = readMealPlanDraft(customerBookingDraft);
+  const frequency = customerBookingDraft.mealPrepFrequency || 'weekly';
+  const lastDate = termEndDate(customerBookingDraft.eventDate, frequency, plan.termCycles);
+  const fulfillmentDates = remainingDeliveries(customerBookingDraft.eventDate, lastDate, frequency);
+
+  const formatDate = (dateStr: string) =>
+    new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    });
+
+  const delivery = customerBookingDraft.fulfillmentMethod === 'delivery';
+
+  const formatTime = (t: string) => {
+    const m = String(t ?? '').match(/^(\d{1,2}):(\d{2})/);
+    if (!m) return t;
+    const h = Number(m[1]);
+    return `${h % 12 === 0 ? 12 : h % 12}:${m[2]} ${h >= 12 ? 'PM' : 'AM'}`;
   };
+
+  const summary = [
+    { icon: Utensils, label: 'Meal', value: mealTypeLabel(plan.mealType) },
+    { icon: Users, label: 'Servings per cycle', value: String(customerBookingDraft.guestCount) },
+    { icon: Clock, label: delivery ? 'Delivery time' : 'Pickup time', value: formatTime(String(customerBookingDraft.eventTime ?? '')) },
+    {
+      icon: MapPin,
+      label: delivery ? 'Delivery address' : 'Pickup',
+      value: delivery ? (parsePinnedAddress(String(customerBookingDraft.venue ?? ''))?.address ?? String(customerBookingDraft.venue ?? '')) : 'Kitchen',
+    },
+    {
+      icon: Calendar,
+      label: 'Frequency',
+      value: customerBookingDraft.mealPrepFrequency === 'biweekly' ? 'Every 2 weeks' : 'Weekly',
+    },
+  ];
 
   return (
     <CustomerShell>
       <div className="max-w-3xl mx-auto space-y-8">
         <div>
-          <h1 className="font-heading text-3xl font-bold text-surface-foreground">
-            Meal Prep Schedule Preview
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9B1C2C] mb-2">
+            Step 2 of 3 · Review your plan
+          </p>
+          <h1 className="font-heading uppercase text-4xl font-bold text-[#2A1B1F]">
+            {planTitle(plan.mealType)}
           </h1>
-          <p className="text-surface-muted-foreground mt-2">
-            Here&apos;s your recurring fulfillment schedule. Confirm to continue with menu selection.
+          <p className="text-[#2A1B1F]/70 mt-2">
+            {plan.termCycles} deliveries, {frequency === 'biweekly' ? 'every 2 weeks' : 'every week'}. Review your schedule, then pick your dishes.
           </p>
         </div>
 
-        <Card className="p-8">
-          <div className="space-y-6">
-            {/* Plan Summary */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="flex items-start gap-3">
-                <Users className="w-5 h-5 text-primary mt-1" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Servings per cycle</p>
-                  <p className="text-lg font-bold text-card-foreground">{customerBookingDraft.guestCount}</p>
+        <Card className="p-6 sm:p-8 rounded-2xl border border-[#E8D2D2] bg-white shadow-sm space-y-8">
+          <div className="grid sm:grid-cols-2 gap-4">
+            {summary.map(({ icon: Icon, label, value }) => (
+              <div key={label} className="flex items-start gap-3 rounded-xl bg-[#FDECEC] p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#9B1C2C] text-white">
+                  <Icon className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">{label}</p>
+                  <p className="text-base font-bold text-[#2A1B1F] break-words">{value}</p>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <Clock className="w-5 h-5 text-primary mt-1" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Fulfillment time</p>
-                  <p className="text-lg font-bold text-card-foreground">{customerBookingDraft.eventTime}</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <MapPin className="w-5 h-5 text-primary mt-1" />
-                <div>
-                  <p className="text-sm text-muted-foreground">
-                    {customerBookingDraft.fulfillmentMethod === 'delivery' ? 'Delivery' : 'Pickup'}
-                  </p>
-                  <p className="text-lg font-bold text-card-foreground">
-                    {customerBookingDraft.fulfillmentMethod === 'delivery' 
-                      ? customerBookingDraft.venue 
-                      : 'Kitchen'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Calendar className="w-5 h-5 text-primary mt-1" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Frequency</p>
-                  <p className="text-lg font-bold text-card-foreground">
-                    {customerBookingDraft.mealPrepFrequency === 'biweekly' ? 'Every 2 weeks' : 'Weekly'}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <hr className="border-border" />
-
-            {/* Fulfillment Schedule */}
-            <div>
-              <h2 className="text-lg font-bold text-card-foreground mb-4">Upcoming fulfillment dates</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {fulfillmentDates.map((date) => (
-                  <div key={date} className="p-3 bg-muted/50 rounded-lg text-center">
-                    <p className="text-sm font-medium text-card-foreground">{formatDate(date)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {customerBookingDraft.specialRequests && (
-              <>
-                <hr className="border-border" />
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">Special requests</p>
-                  <p className="text-card-foreground">{customerBookingDraft.specialRequests}</p>
-                </div>
-              </>
-            )}
+            ))}
           </div>
+
+          <div>
+            <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#9B1C2C] mb-4">
+              Your {fulfillmentDates.length} delivery dates
+            </h2>
+            <ol className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {fulfillmentDates.map((date, i) => (
+                <li
+                  key={date}
+                  className="rounded-lg border border-[#E8D2D2] bg-white p-3 text-center"
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#9B1C2C] flex items-center justify-center gap-1">
+                    <CheckCircle2 className="h-3 w-3" /> Delivery {i + 1} of {fulfillmentDates.length}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-[#2A1B1F]">{formatDate(date)}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          {customerBookingDraft.specialRequests && (
+            <div className="border-t border-[#E8D2D2] pt-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60 mb-2">
+                Special requests
+              </p>
+              <p className="text-[#2A1B1F]">{customerBookingDraft.specialRequests}</p>
+            </div>
+          )}
         </Card>
 
         <div className="flex gap-4">
           <Button
             variant="outline"
             onClick={() => router.push('/customer/inquiry')}
-            className="flex-1"
+            className="flex-1 h-11 rounded-lg border-[#9B1C2C] text-[#9B1C2C] hover:bg-[#FDECEC] hover:text-[#7F1623]"
           >
             Back
           </Button>
           <Button
             onClick={() => router.push('/customer/browse')}
-            className="flex-1"
+            className="flex-1 h-11 rounded-lg bg-[#9B1C2C] text-white font-semibold hover:bg-[#7F1623]"
           >
             Continue to menu selection
           </Button>

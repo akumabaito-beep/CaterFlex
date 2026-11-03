@@ -36,6 +36,8 @@ type Activity = {
 }
 
 type RevenueActivityProps = {
+  rangeLabel?: string
+  bucket?: 'day' | 'week' | 'month'
   revenueData: RevenuePoint[]
   recentActivity: Activity[]
 }
@@ -43,7 +45,7 @@ type RevenueActivityProps = {
 const chartConfig = {
   revenue: {
     label: 'Revenue',
-    color: '#BA6A4C',
+    color: '#9B1C2C',
   },
 } satisfies ChartConfig
 
@@ -127,6 +129,8 @@ function activityText(activity: Activity) {
 }
 
 export function RevenueActivity({
+  rangeLabel = 'the past 30 days',
+  bucket = 'day',
   revenueData,
   recentActivity,
 }: RevenueActivityProps) {
@@ -143,7 +147,8 @@ export function RevenueActivity({
             </h2>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Actual paid revenue over the past 30 days.
+              Actual paid revenue, {rangeLabel.toLowerCase()}
+              {bucket === 'week' ? ' (weekly totals)' : bucket === 'month' ? ' (monthly totals)' : ''}.
             </p>
           </div>
 
@@ -206,17 +211,19 @@ export function RevenueActivity({
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                interval={3}
+                interval="preserveStartEnd"
+                minTickGap={24}
                 tickFormatter={(value) => {
-                  const date = new Date(value)
+                  const date = new Date(`${value}T00:00:00Z`)
 
                   if (Number.isNaN(date.getTime())) {
                     return value
                   }
 
                   return date.toLocaleDateString('en-PH', {
+                    timeZone: 'UTC',
                     month: 'short',
-                    day: 'numeric',
+                    ...(bucket === 'month' ? { year: '2-digit' } : { day: 'numeric' }),
                   })
                 }}
               />
@@ -236,17 +243,18 @@ export function RevenueActivity({
                 content={
                   <ChartTooltipContent
                     labelFormatter={(value) => {
-                      const date = new Date(String(value))
+                      const date = new Date(`${String(value)}T00:00:00Z`)
 
                       if (Number.isNaN(date.getTime())) {
                         return String(value)
                       }
 
                       return date.toLocaleDateString('en-PH', {
+                        timeZone: 'UTC',
                         year: 'numeric',
                         month: 'long',
-                        day: 'numeric',
-                      })
+                        ...(bucket === 'month' ? {} : { day: 'numeric' }),
+                      }) + (bucket === 'week' ? ' (week of)' : '')
                     }}
                     formatter={(value, name) => (
                       <span className="flex w-full justify-between gap-4">

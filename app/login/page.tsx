@@ -59,7 +59,7 @@ function LoginForm() {
       if (result.code === 'unverified') setNeedsVerification(email);
       return;
     }
-    router.replace(result.user.role === 'owner' ? '/owner/dashboard' : '/customer/inquiry');
+    router.replace(result.user.role === 'owner' ? '/owner/dashboard' : '/customer/home');
   }
 
   return (

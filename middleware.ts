@@ -5,7 +5,7 @@ import { decodeSession, SESSION_COOKIE } from '@/lib/session-cookie'
 function homeForRole(role: string) {
   if (role === 'admin') return '/admin/dashboard'
   if (role === 'owner') return '/owner/dashboard'
-  return '/customer/inquiry'
+  return '/customer/home'
 }
 
 export async function middleware(request: NextRequest) {

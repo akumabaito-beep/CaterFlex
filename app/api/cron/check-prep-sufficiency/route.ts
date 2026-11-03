@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
 
   const { data: mealPrepOrders, error: mealPrepError } = await admin
     .from('MEAL_PREP_ORDER')
-    .select('MealPrepOrderID, OperatorID, RecurrencePattern, MealsPerCycle, NextFulfillmentDate')
+    .select('MealPrepOrderID, OperatorID, RecurrencePattern, MealsPerCycle, NextFulfillmentDate, TermEndDate')
     // Only orders that can still be fulfilled are checked.
     .in('Status', ['pending', 'confirmed', 'active'])
     .not('NextFulfillmentDate', 'is', null)
@@ -110,7 +110,11 @@ export async function GET(request: NextRequest) {
     if (nextDate !== fulfillmentDate) {
       const { error: updateError } = await admin
         .from('MEAL_PREP_ORDER')
-        .update({ NextFulfillmentDate: nextDate })
+        .update(
+          order.TermEndDate && nextDate > String(order.TermEndDate).slice(0, 10)
+            ? { NextFulfillmentDate: nextDate, Status: 'ended' } // term finished: customer can renew
+            : { NextFulfillmentDate: nextDate }
+        )
         .eq('MealPrepOrderID', order.MealPrepOrderID)
       if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
     }

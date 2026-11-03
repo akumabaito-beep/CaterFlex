@@ -1,0 +1,63 @@
+'use client'
+
+import type { LucideIcon } from 'lucide-react'
+
+/**
+ * Choose one of a few options. Same card, heading and colors as AvailabilityCalendar.
+ * Used instead of a native dropdown.
+ */
+export function OptionCardPicker<T extends string>({
+  title,
+  icon: Icon,
+  value,
+  onChange,
+  options,
+}: {
+  title: string
+  icon: LucideIcon
+  value: T
+  onChange: (value: T) => void
+  options: { value: T; label: string; hint?: string }[]
+}) {
+  const selectedOption = options.find((o) => o.value === value)
+
+  return (
+    <div className="h-full w-full rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <Icon className="size-5 text-[#8E1F2C]" aria-hidden="true" />
+        <p className="font-heading text-lg font-bold uppercase tracking-tight text-[#2A1B1F]">{title}</p>
+      </div>
+
+      <div className="mt-3 grid gap-2" role="radiogroup" aria-label={title}>
+        {options.map((option) => {
+          const selected = option.value === value
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => onChange(option.value)}
+              className={`flex h-14 items-center justify-between rounded-lg border px-4 text-left font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8E1F2C] ${
+                selected
+                  ? 'border-[#8E1F2C] bg-[#8E1F2C] text-white'
+                  : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+              }`}
+            >
+              <span className="font-heading text-lg uppercase tracking-tight">{option.label}</span>
+              {option.hint && (
+                <span className={`text-xs font-medium ${selected ? 'text-white/80' : 'text-emerald-900/70'}`}>
+                  {option.hint}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      <p className="mt-3 min-h-5 text-sm text-[#2A1B1F]" aria-live="polite">
+        {selectedOption ? `Selected: ${selectedOption.label}.` : ''}
+      </p>
+    </div>
+  )
+}

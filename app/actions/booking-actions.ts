@@ -6,9 +6,10 @@ import { validateBooking } from '@/lib/rules/bookingValidation'
 import type { Booking, DayOfWeek, OperatorSettings } from '@/lib/types'
 import { createNotification } from '@/lib/notifications'
 import { computeBookingTotal, servingsForBookingItem } from '@/lib/rules/allocation'
+import { deliveryFeeForVenue } from '../../lib/pricing'
 import { revalidatePath } from 'next/cache'
 
-const BOOKING_FIELDS = 'BookingID, CustomerID, OperatorID, EventDate, EventTime, Venue, GuestCount, Status, AllergenConflictFlag, IsArchived, ArchivedAt'
+const BOOKING_FIELDS = 'BookingID, EventType, CustomerID, OperatorID, EventDate, EventTime, Venue, GuestCount, Status, AllergenConflictFlag, IsArchived, ArchivedAt, DeliveryFee'
 const BOOKING_ITEM_FIELDS = 'BookingItemID, BookingID, MenuItemID, Quantity'
 
 type BookingDetails = {
@@ -394,9 +395,12 @@ const { data: booking, error } = await admin
     EventDate: eventDate,
     EventTime: eventTime,
     Venue: venue,
+    EventType: String(bookingDetails.eventType ?? '').trim().slice(0, 100) || null,
     GuestCount: guestCount,
     Status: 'pending',
     AllergenConflictFlag: hasAllergenConflict,
+    // Calculated on the server from the pinned location, never trusted from the browser.
+    DeliveryFee: deliveryFeeForVenue(venue)?.fee ?? 0,
   })
   .select('BookingID')
   .single()
@@ -603,7 +607,7 @@ export async function updateBookingStatus(bookingId: number, newStatus: 'confirm
   if (!owner) return { ok: false as const, error: 'Owner access required.' }
 
   const admin = createAdminClient()
-  const { data: booking, error: fetchError } = await admin.from('BOOKING').select('BookingID, OperatorID').eq('BookingID', bookingId).maybeSingle()
+  const { data: booking, error: fetchError } = await admin.from('BOOKING').select('BookingID, OperatorID, DeliveryFee').eq('BookingID', bookingId).maybeSingle()
   if (fetchError) return { ok: false as const, error: fetchError.message }
   if (!booking || booking.OperatorID !== Number(owner.id)) return { ok: false as const, error: 'You are not authorized to update this booking.' }
 
@@ -632,7 +636,7 @@ export async function updateBookingStatus(bookingId: number, newStatus: 'confirm
       const totalAmount = computeBookingTotal(
         (bookingItems ?? []).map((item) => ({ menuItemId: Number(item.MenuItemID), quantity: Number(item.Quantity ?? 0) })),
         pricesByMenuItemId,
-      )
+      ) + Number(booking.DeliveryFee ?? 0)
 
       const { error: invoiceInsertError } = await admin.from('INVOICE').insert({
         BookingID: bookingId,

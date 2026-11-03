@@ -1,171 +1,164 @@
 'use client';
 
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  AlertCircle,
+  Calendar,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  Edit2,
+  MapPin,
+  Pause,
+  Play,
+  RefreshCw,
+  SkipForward,
+  Users,
+  Utensils,
+  X,
+} from 'lucide-react';
+
 import { CustomerShell } from '@/app/customer/customer-shell';
 import { useAppState } from '@/lib/state';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { getUpcomingFulfillmentDates } from '@/lib/rules/mealPrep';
+import { TimePicker } from '@/components/booking/TimePicker';
+import { LocationPicker } from '@/components/booking/LocationPicker';
+import { OptionCardPicker } from '@/components/booking/OptionCardPicker';
 import {
   cancelMealPrepOrder,
-  getCustomerMealPrepOrders,
   pauseMealPrepOrder,
   resumeMealPrepOrder,
 } from '@/app/actions/booking-actions';
-import { Calendar, MapPin, Users, Clock, Pause, Play, Edit2, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import {
+  getMyMealPlans,
+  renewMealPlan,
+  skipNextDelivery,
+  updateMealPlanDelivery,
+  type MealPlan,
+} from '@/app/actions/meal-plan-actions';
+import { parsePinnedAddress } from '@/lib/kitchen';
+import {
+  TERM_OPTIONS,
+  cycleTotal,
+  frequencyLabel,
+  planState,
+  planTitle,
+  remainingDeliveries,
+  type PlanState,
+  type TermCycles,
+} from '@/lib/meal-plan';
 
-export default function ActiveOrdersPage() {
+const peso = (n: number) =>
+  `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const formatDate = (d: string) =>
+  new Date(`${d}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+const formatLongDate = (d: string) =>
+  new Date(`${d}T12:00:00`).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
+const formatTime = (t: string | null) => {
+  const m = String(t ?? '').match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return '—';
+  const h = Number(m[1]);
+  return `${h % 12 === 0 ? 12 : h % 12}:${m[2]} ${h >= 12 ? 'PM' : 'AM'}`;
+};
+
+const STATE_BADGE: Record<PlanState, { label: string; cls: string }> = {
+  pending: { label: 'Waiting for approval', cls: 'border-amber-300 bg-amber-100 text-amber-900' },
+  active: { label: 'Active', cls: 'border-emerald-300 bg-emerald-100 text-emerald-900' },
+  paused: { label: 'Paused', cls: 'border-amber-300 bg-amber-100 text-amber-900' },
+  ended: { label: 'Ended · renew to continue', cls: 'border-[#E8B4B4] bg-[#FDECEC] text-[#7F1623]' },
+  cancelled: { label: 'Cancelled', cls: 'border-neutral-300 bg-neutral-100 text-neutral-700' },
+  rejected: { label: 'Declined', cls: 'border-red-300 bg-red-100 text-red-800' },
+};
+
+const outlineBtn =
+  'h-10 gap-2 rounded-lg border-[#9B1C2C] text-[#9B1C2C] hover:bg-[#FDECEC] hover:text-[#7F1623]';
+const solidBtn = 'h-10 gap-2 rounded-lg bg-[#9B1C2C] font-semibold text-white hover:bg-[#7F1623]';
+
+export default function MealPlansPage() {
   const router = useRouter();
-  const { currentUser, bookings, menuItems, updateBooking } = useAppState();
-  const [mealPrepOrders, setMealPrepOrders] = useState<Array<{
-    id: string;
-    customerId: string;
-    customerName: string;
-    customerEmail: string;
-    orderType: 'meal_prep';
-    eventDate: string;
-    eventTime: string;
-    eventType: string;
-    venue: string;
-    guestCount: number;
-    mealPrepFrequency: 'weekly' | 'biweekly';
-    nextFulfillmentDate: string | null;
-    fulfillmentMethod: 'pickup';
-    mealPrepStatus: 'active' | 'paused';
-    specialRequests: string;
-    status: 'pending' | 'confirmed';
-    selectedMenuItemIds: string[];
-  }>>([]);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState({ servings: '', time: '', frequency: 'weekly', method: 'pickup', address: '', notes: '', dishIds: [] as string[] });
+  const { operatorSettings } = useAppState();
 
-  const refreshMealPrepOrders = async () => {
-    const result = await getCustomerMealPrepOrders();
-    if (!result.ok) return;
-    setMealPrepOrders(result.orders
-      .filter((order) => order.Status === 'pending' || order.Status === 'active' || order.Status === 'confirmed' || order.Status === 'paused')
-      .map((order) => ({
-          id: `meal-prep-${order.MealPrepOrderID}`,
-          customerId: String(order.CustomerID),
-          customerName: currentUser?.name ?? 'Customer',
-          customerEmail: currentUser?.email ?? '',
-          orderType: 'meal_prep' as const,
-          eventDate: order.NextFulfillmentDate ?? new Date().toISOString().slice(0, 10),
-          eventTime: '12:00',
-          eventType: 'Meal prep plan',
-          venue: 'Kitchen',
-  guestCount: Number(order.MealsPerCycle ?? 0),
-  mealPrepFrequency: order.RecurrencePattern === 'biweekly' ? 'biweekly' as const : 'weekly' as const,
-  nextFulfillmentDate: order.NextFulfillmentDate,
-          fulfillmentMethod: 'pickup' as const,
-          mealPrepStatus: order.Status === 'active' || order.Status === 'confirmed' ? 'active' as const : 'paused' as const,
-          specialRequests: '',
-          status: order.Status === 'active' || order.Status === 'confirmed' ? 'confirmed' as const : 'pending' as const,
-          selectedMenuItemIds: (result.items ?? [])
-            .filter((item) => item.MealPrepOrderID === order.MealPrepOrderID)
-            .map((item) => String(item.MenuItemID)),
-      })));
-  };
+  const [plans, setPlans] = useState<MealPlan[]>([]);
+  const [today, setToday] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [renewingId, setRenewingId] = useState<number | null>(null);
+  const [renewCycles, setRenewCycles] = useState<TermCycles>(4);
+  const [edit, setEdit] = useState({ time: '', method: 'pickup' as 'pickup' | 'delivery', address: '' });
+
+  const refresh = useCallback(async () => {
+    const result = await getMyMealPlans();
+    if (result.ok) {
+      setPlans(result.plans.filter((p) => p.status !== 'cancelled' && p.status !== 'rejected'));
+      setToday(result.today);
+    } else {
+      setNotice({ kind: 'error', text: result.error });
+    }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
-    void refreshMealPrepOrders();
-  }, [currentUser?.email, currentUser?.name]);
+    void refresh();
+  }, [refresh]);
 
-  // Keep the tab scoped to the signed-in customer before applying meal-plan filters.
-  const customerBookings = currentUser
-    ? bookings.filter(
-        (booking) =>
-          booking.customerId === currentUser.id ||
-          booking.customerEmail.toLowerCase() === currentUser.email.toLowerCase()
-      )
-    : [];
-
-  const activeMealPrepOrders = [
-    ...customerBookings.filter(
-      (booking) => booking.orderType === 'meal_prep' && (booking.status === 'confirmed' || booking.status === 'pending')
-    ),
-    ...mealPrepOrders,
-  ];
-
-  const toggleOrderStatus = async (bookingId: string, currentStatus: 'active' | 'paused') => {
-    const mealPrepOrderId = Number(bookingId.replace('meal-prep-', ''));
-    if (!Number.isInteger(mealPrepOrderId)) return;
-
-    const result = currentStatus === 'active'
-      ? await pauseMealPrepOrder(mealPrepOrderId)
-      : await resumeMealPrepOrder(mealPrepOrderId);
-    if (result.ok) {
-      await refreshMealPrepOrders();
-      router.refresh();
-      window.alert('Meal prep order updated.');
-    } else {
-      window.alert(result.error);
+  const run = async (action: () => Promise<{ ok: boolean; error?: string }>, success: string) => {
+    if (busy) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      const result = await action();
+      if (result.ok) {
+        setNotice({ kind: 'ok', text: success });
+        await refresh();
+        router.refresh();
+        return true;
+      }
+      setNotice({ kind: 'error', text: result.error ?? 'Something went wrong.' });
+    } finally {
+      setBusy(false);
     }
+    return false;
   };
 
-  const handleCancelOrder = async (bookingId: string) => {
-    if (!window.confirm('Cancel this meal prep order? This action cannot be undone.')) return;
-    const mealPrepOrderId = Number(bookingId.replace('meal-prep-', ''));
-    if (!Number.isInteger(mealPrepOrderId)) return;
+  const header = (
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#9B1C2C]">Subscriptions</p>
+      <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">Meal plans</h1>
+      <p className="mt-2 text-[#2A1B1F]/70">
+        Your breakfast, lunch and dinner subscriptions. Pause, skip a delivery, or renew anytime.
+      </p>
+    </div>
+  );
 
-    const result = await cancelMealPrepOrder(mealPrepOrderId);
-    if (result.ok) {
-      setExpandedId(null);
-      await refreshMealPrepOrders();
-      router.refresh();
-      window.alert('Meal prep order cancelled.');
-    } else {
-      window.alert(result.error);
-    }
-  };
-
-  const startEditing = (booking: (typeof activeMealPrepOrders)[number]) => {
-    setEditingId(booking.id);
-    setEditDraft({
-      servings: String(booking.guestCount),
-      time: booking.eventTime,
-      frequency: booking.mealPrepFrequency || 'weekly',
-      method: booking.fulfillmentMethod || 'pickup',
-      address: booking.fulfillmentMethod === 'delivery' ? booking.venue : '',
-      notes: booking.specialRequests || '',
-      dishIds: booking.selectedMenuItemIds || [],
-    });
-  };
-
-  const saveChanges = (bookingId: string) => {
-    const servings = Number.parseInt(editDraft.servings, 10);
-    if (!Number.isInteger(servings) || servings < 1) return;
-    updateBooking(bookingId, {
-      guestCount: servings,
-      eventTime: editDraft.time,
-      mealPrepFrequency: editDraft.frequency as 'weekly' | 'biweekly',
-      fulfillmentMethod: editDraft.method as 'pickup' | 'delivery',
-      venue: editDraft.method === 'delivery' ? editDraft.address : 'Pickup at kitchen',
-      specialRequests: editDraft.notes,
-      selectedMenuItemIds: editDraft.dishIds,
-    });
-    setEditingId(null);
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(`${dateStr}T12:00:00`);
-    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  };
-
-  if (activeMealPrepOrders.length === 0) {
+  if (loading) {
     return (
       <CustomerShell>
         <div className="space-y-8">
-          <div>
-            <h1 className="font-heading text-3xl font-bold text-surface-foreground">Active Orders</h1>
-            <p className="text-surface-muted-foreground mt-2">Your recurring meal prep subscriptions</p>
+          {header}
+          <div className="rounded-xl border border-[#E8D2D2] bg-white p-12 text-center text-[#2A1B1F]/60">
+            Loading your meal plans...
           </div>
-          <Card className="p-12 text-center">
-            <p className="text-muted-foreground mb-4">You don&apos;t have any active meal prep orders yet.</p>
-            <Button onClick={() => router.push('/customer/inquiry')}>Start a meal prep plan</Button>
-          </Card>
+        </div>
+      </CustomerShell>
+    );
+  }
+
+  if (plans.length === 0) {
+    return (
+      <CustomerShell>
+        <div className="space-y-8">
+          {header}
+          <div className="rounded-xl border border-dashed border-[#E8D2D2] bg-white p-12 text-center">
+            <p className="mb-4 text-[#2A1B1F]/60">You don&apos;t have a meal plan yet.</p>
+            <Button className={`${solidBtn} px-6`} onClick={() => router.push('/customer/inquiry')}>
+              Start a meal plan
+            </Button>
+          </div>
         </div>
       </CustomerShell>
     );
@@ -174,179 +167,393 @@ export default function ActiveOrdersPage() {
   return (
     <CustomerShell>
       <div className="space-y-8">
-        <div>
-          <h1 className="font-heading text-3xl font-bold text-surface-foreground">Active Orders</h1>
-          <p className="text-surface-muted-foreground mt-2">Your recurring meal prep subscriptions</p>
-        </div>
+        {header}
 
-        <div className="space-y-4">
-          {activeMealPrepOrders.map((booking) => {
-            const fulfillmentDates = getUpcomingFulfillmentDates(
-              booking.eventDate,
-              booking.mealPrepFrequency || 'weekly',
-              4
-            );
-            const isActive = booking.mealPrepStatus === 'active';
+        {notice && (
+          <div
+            role="status"
+            className={`flex items-start gap-2 rounded-lg border p-3 text-sm font-medium ${
+              notice.kind === 'ok'
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+                : 'border-red-200 bg-red-50 text-red-800'
+            }`}
+          >
+            {notice.kind === 'ok' ? (
+              <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+            ) : (
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            )}
+            <span className="flex-1">{notice.text}</span>
+            <button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}>
+              <X className="size-4" />
+            </button>
+          </div>
+        )}
+
+        <div className="space-y-5">
+          {plans.map((plan) => {
+            const state = planState(plan.status, plan.termEnd, today);
+            const badge = STATE_BADGE[state];
+            const left = plan.termEnd ? remainingDeliveries(plan.nextDate, plan.termEnd, plan.frequency) : [];
+            const total = plan.termCycles ?? left.length;
+            const progress = total > 0 ? Math.max(0, Math.min(100, ((total - left.length) / total) * 100)) : 0;
+            const expanded = expandedId === plan.id;
+            const pinned = parsePinnedAddress(plan.address ?? '');
+            const perDelivery =
+              plan.pricePerServing !== null
+                ? cycleTotal(plan.pricePerServing, plan.servings, plan.method === 'delivery' ? plan.deliveryFee : 0)
+                : null;
+            const needsRenewal = state === 'ended' || ((state === 'active' || state === 'paused') && left.length <= 2);
+            const canChange = state === 'pending' || state === 'active' || state === 'paused';
 
             return (
-              <Card key={booking.id} className="overflow-hidden">
+              <article
+                key={plan.id}
+                className="overflow-hidden rounded-xl border border-[#E8D2D2] bg-white shadow-sm"
+              >
                 <button
-                  onClick={() => setExpandedId(expandedId === booking.id ? null : booking.id)}
-                  className="w-full p-6 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => setExpandedId(expanded ? null : plan.id)}
+                  className="flex w-full items-center gap-4 bg-[#FDECEC] p-6 text-left transition-colors hover:bg-[#FBE0E0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#9B1C2C]"
                 >
-                  <div className="flex items-center gap-4 flex-1 text-left">
-                    <div>
-                      <p className="font-semibold text-card-foreground">{booking.eventType}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {booking.guestCount} servings • {booking.mealPrepFrequency === 'biweekly' ? 'Every 2 weeks' : 'Weekly'}
-                      </p>
-                      <div className="mt-2">
-                        <span
-                          className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                            isActive
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                          }`}
-                        >
-                          {isActive ? 'Active' : 'Paused'}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="ml-auto text-right">
-                      <p className="text-sm text-muted-foreground">Next fulfillment</p>
-                      <p className="font-medium text-card-foreground">{formatDate(fulfillmentDates[0])}</p>
-                    </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-heading text-2xl font-bold uppercase leading-tight text-[#2A1B1F]">
+                      {planTitle(plan.mealType)}
+                    </p>
+                    <p className="mt-1 text-sm text-[#2A1B1F]/70">
+                      {plan.servings} servings · {frequencyLabel(plan.frequency)} · {plan.dishes.length}{' '}
+                      {plan.dishes.length === 1 ? 'dish' : 'dishes'}
+                    </p>
+                    <span className={`mt-3 inline-block rounded-lg border px-3 py-1 text-xs font-semibold ${badge.cls}`}>
+                      {badge.label}
+                    </span>
                   </div>
+                  {state !== 'ended' && plan.nextDate && (
+                    <div className="hidden text-right sm:block">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">Next delivery</p>
+                      <p className="font-bold text-[#9B1C2C]">{formatDate(plan.nextDate)}</p>
+                    </div>
+                  )}
+                  <ChevronDown
+                    className={`size-5 shrink-0 text-[#9B1C2C] transition-transform ${expanded ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
+                  />
                 </button>
 
-                {expandedId === booking.id && (
-                  <div className="border-t border-border p-6 bg-muted/20">
-                    <div className="grid md:grid-cols-2 gap-4 mb-6">
-                      <div className="flex items-start gap-3">
-                        <Users className="w-5 h-5 text-primary mt-1" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Servings per cycle</p>
-                          <p className="font-medium text-card-foreground">{booking.guestCount}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <Clock className="w-5 h-5 text-primary mt-1" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Fulfillment time</p>
-                          <p className="font-medium text-card-foreground">{booking.eventTime}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <MapPin className="w-5 h-5 text-primary mt-1" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">
-                            {booking.fulfillmentMethod === 'delivery' ? 'Delivery' : 'Pickup'}
-                          </p>
-                          <p className="font-medium text-card-foreground">
-                            {booking.fulfillmentMethod === 'delivery' ? booking.venue : 'Kitchen'}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <Calendar className="w-5 h-5 text-primary mt-1" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Frequency</p>
-                          <p className="font-medium text-card-foreground">
-                            {booking.mealPrepFrequency === 'biweekly' ? 'Every 2 weeks' : 'Weekly'}
-                          </p>
-                        </div>
-                      </div>
+                {/* PROGRESS + RENEWAL PROMPT (always visible) */}
+                {plan.termEnd && state !== 'pending' && (
+                  <div className="space-y-3 border-t border-[#E8D2D2] px-6 py-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-semibold text-[#2A1B1F]">
+                        {state === 'ended'
+                          ? 'All deliveries completed'
+                          : `${left.length} ${left.length === 1 ? 'delivery' : 'deliveries'} left`}
+                      </span>
+                      <span className="text-[#2A1B1F]/60">Ends {formatLongDate(plan.termEnd)}</span>
                     </div>
-
-                    <hr className="border-border mb-6" />
-
-                    <div className="mb-6">
-                      <h3 className="font-semibold text-card-foreground mb-3">Upcoming fulfillments</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        {fulfillmentDates.map((date) => (
-                          <div key={date} className="p-2 bg-primary/5 rounded text-center text-sm text-card-foreground">
-                            {formatDate(date)}
-                          </div>
-                        ))}
-                      </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-neutral-200" aria-hidden="true">
+                      <div className="h-full rounded-full bg-[#9B1C2C]" style={{ width: `${progress}%` }} />
                     </div>
-
-                    {editingId === booking.id && (
-                      <>
-                        <div className="mb-6 rounded-xl border border-border bg-primary/5 p-3 text-card-foreground">
-                        <p className="mb-3 text-xs font-medium text-card-foreground">Dishes in this meal plan</p>
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          {menuItems.map((dish) => (
-                            <label key={dish.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-[#241f1b] bg-[#f7f3ed] p-3 text-sm text-card-foreground hover:bg-[#eee7dd]">
-                              <input type="checkbox" checked={editDraft.dishIds.includes(dish.id)} onChange={(event) => setEditDraft({ ...editDraft, dishIds: event.target.checked ? [...editDraft.dishIds, dish.id] : editDraft.dishIds.filter((id) => id !== dish.id) })} className="size-4 accent-[#c86e4b]" />
-                              <span>{dish.name}</span>
-                            </label>
-                          ))}
-                        </div>
+                    {needsRenewal && renewingId !== plan.id && (
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#FDECEC] p-3">
+                        <p className="text-sm text-[#2A1B1F]">
+                          {state === 'ended'
+                            ? 'Your plan has ended. Renew to keep your deliveries coming.'
+                            : 'Your plan is almost over. Renew now so you do not miss a delivery.'}
+                        </p>
+                        <Button
+                          className={solidBtn}
+                          onClick={() => {
+                            setRenewingId(plan.id);
+                            setExpandedId(plan.id);
+                          }}
+                        >
+                          <RefreshCw className="size-4" /> Renew plan
+                        </Button>
                       </div>
-                      <div className="mb-6 grid gap-4 rounded-xl border border-border bg-primary/5 p-3 text-card-foreground md:grid-cols-2">
-                        <label className="text-xs font-medium text-card-foreground">Servings
-                          <input type="number" min="1" value={editDraft.servings} onChange={(e) => setEditDraft({ ...editDraft, servings: e.target.value })} className="mt-2 w-full rounded-lg border border-[#241f1b] bg-[#f7f3ed] px-3 py-2 text-sm text-card-foreground outline-none focus:ring-2 focus:ring-[#c86e4b]" />
-                        </label>
-                        <label className="text-xs font-medium text-card-foreground">Fulfillment time
-                          <input type="time" value={editDraft.time} onChange={(e) => setEditDraft({ ...editDraft, time: e.target.value })} className="mt-2 w-full rounded-lg border border-[#241f1b] bg-[#f7f3ed] px-3 py-2 text-sm text-card-foreground outline-none focus:ring-2 focus:ring-[#c86e4b]" />
-                        </label>
-                        <label className="text-xs font-medium text-card-foreground">Frequency
-                          <select value={editDraft.frequency} onChange={(e) => setEditDraft({ ...editDraft, frequency: e.target.value })} className="mt-2 w-full rounded-lg border border-[#241f1b] bg-[#f7f3ed] px-3 py-2 text-sm text-card-foreground outline-none focus:ring-2 focus:ring-[#c86e4b]"><option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option></select>
-                        </label>
-                        <label className="text-xs font-medium text-card-foreground">Fulfillment method
-                          <select value={editDraft.method} onChange={(e) => setEditDraft({ ...editDraft, method: e.target.value })} className="mt-2 w-full rounded-lg border border-[#241f1b] bg-[#f7f3ed] px-3 py-2 text-sm text-card-foreground outline-none focus:ring-2 focus:ring-[#c86e4b]"><option value="pickup">Pickup</option><option value="delivery">Delivery</option></select>
-                        </label>
-                        {editDraft.method === 'delivery' && <label className="text-xs font-medium text-card-foreground md:col-span-2">Delivery address
-                          <input value={editDraft.address} onChange={(e) => setEditDraft({ ...editDraft, address: e.target.value })} required className="mt-2 w-full rounded-lg border border-[#241f1b] bg-[#f7f3ed] px-3 py-2 text-sm text-card-foreground outline-none focus:ring-2 focus:ring-[#c86e4b]" />
-                        </label>}
-                        <label className="text-xs font-medium text-card-foreground md:col-span-2">Special requests
-                          <textarea value={editDraft.notes} onChange={(e) => setEditDraft({ ...editDraft, notes: e.target.value })} rows={3} className="mt-2 w-full rounded-lg border border-[#241f1b] bg-[#f7f3ed] px-3 py-2 text-sm text-card-foreground outline-none focus:ring-2 focus:ring-[#c86e4b]" />
-                        </label>
-                      </div>
-                      </>
                     )}
-
-                    <div className="flex gap-3 pt-6 border-t border-border">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 gap-2"
-                        onClick={() => toggleOrderStatus(booking.id, booking.mealPrepStatus || 'active')}
-                      >
-                        {isActive ? (
-                          <>
-                            <Pause className="w-4 h-4" />
-                            Pause Order
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-4 h-4" />
-                            Resume Order
-                          </>
-                        )}
-                      </Button>
-                      {editingId === booking.id ? (
-                        <>
-                          <Button variant="outline" size="sm" className="flex-1" onClick={() => setEditingId(null)}>Cancel</Button>
-                          <Button size="sm" className="flex-1" onClick={() => saveChanges(booking.id)}>Save changes</Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={() => startEditing(booking)}>
-                            <Edit2 className="w-4 h-4" />
-                            Modify
-                          </Button>
-                          <Button variant="destructive" size="sm" className="flex-1 gap-2" onClick={() => handleCancelOrder(booking.id)}>
-                            <X className="w-4 h-4" />
-                            Cancel Order
-                          </Button>
-                        </>
-                      )}
-                    </div>
                   </div>
                 )}
-              </Card>
+
+                {state === 'pending' && (
+                  <p className="border-t border-[#E8D2D2] px-6 py-4 text-sm text-[#2A1B1F]/70">
+                    The caterer is reviewing your plan. You will see your deliveries here once it is approved.
+                  </p>
+                )}
+
+                {expanded && (
+                  <div className="space-y-6 border-t border-[#E8D2D2] bg-white p-6">
+                    {/* RENEW */}
+                    {renewingId === plan.id && (
+                      <div className="space-y-3 rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4">
+                        <OptionCardPicker<`${TermCycles}`>
+                          title="Renew for how long?"
+                          icon={RefreshCw}
+                          value={`${renewCycles}`}
+                          onChange={(v) => setRenewCycles(Number(v) as TermCycles)}
+                          options={TERM_OPTIONS.map((n) => ({ value: `${n}` as `${TermCycles}`, label: `${n} more deliveries` }))}
+                        />
+                        <p className="text-sm text-[#2A1B1F]/70">
+                          {state === 'ended'
+                            ? 'A new term starts on your next scheduled delivery. Prices are updated to the current menu prices when a plan is renewed after it ended.'
+                            : 'Your current price stays locked while you add deliveries.'}
+                        </p>
+                        <div className="flex gap-3">
+                          <Button variant="outline" className={`${outlineBtn} flex-1`} onClick={() => setRenewingId(null)} disabled={busy}>
+                            Not now
+                          </Button>
+                          <Button
+                            className={`${solidBtn} flex-1`}
+                            disabled={busy}
+                            onClick={async () => {
+                              if (await run(() => renewMealPlan(plan.id, renewCycles), 'Meal plan renewed.')) setRenewingId(null);
+                            }}
+                          >
+                            Confirm renewal
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* DETAILS */}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {[
+                        { icon: Utensils, label: 'Dishes', value: plan.dishes.map((d) => d.name).join(', ') || '—' },
+                        { icon: Users, label: 'Servings per delivery', value: String(plan.servings) },
+                        { icon: Clock, label: plan.method === 'delivery' ? 'Delivery time' : 'Pickup time', value: formatTime(plan.time) },
+                        { icon: Calendar, label: 'Schedule', value: frequencyLabel(plan.frequency) },
+                        {
+                          icon: MapPin,
+                          label: plan.method === 'delivery' ? 'Delivery address' : 'Pickup',
+                          value: plan.method === 'delivery' ? (pinned?.address ?? plan.address ?? '—') : 'Kitchen',
+                        },
+                      ].map(({ icon: Icon, label, value }) => (
+                        <div key={label} className="flex items-start gap-3 rounded-xl bg-[#FDECEC] p-4">
+                          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#9B1C2C] text-white">
+                            <Icon className="size-5" aria-hidden="true" />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">{label}</p>
+                            <p className="break-words font-bold text-[#2A1B1F]">{value}</p>
+                            {label === 'Delivery address' && pinned && (
+                              <a
+                                href={`https://www.openstreetmap.org/?mlat=${pinned.lat}&mlon=${pinned.lng}#map=17/${pinned.lat}/${pinned.lng}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm font-semibold text-[#9B1C2C] underline"
+                              >
+                                View pin on map
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* PRICE */}
+                    {plan.pricePerServing !== null && perDelivery !== null && (
+                      <div className="space-y-1 rounded-xl border border-[#E8D2D2] p-4 text-sm">
+                        <div className="flex justify-between text-[#2A1B1F]/70">
+                          <span>Price per serving (locked)</span>
+                          <span>{peso(plan.pricePerServing)}</span>
+                        </div>
+                        {plan.method === 'delivery' && (
+                          <div className="flex justify-between text-[#2A1B1F]/70">
+                            <span>Delivery fee per delivery</span>
+                            <span>{peso(plan.deliveryFee)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between pt-1">
+                          <span className="font-semibold text-[#2A1B1F]">Per delivery</span>
+                          <span className="font-bold text-[#9B1C2C]">{peso(perDelivery)}</span>
+                        </div>
+                        {left.length > 0 && (
+                          <div className="flex justify-between">
+                            <span className="font-semibold text-[#2A1B1F]">
+                              Remaining ({left.length} {left.length === 1 ? 'delivery' : 'deliveries'})
+                            </span>
+                            <span className="font-bold text-[#9B1C2C]">{peso(perDelivery * left.length)}</span>
+                          </div>
+                        )}
+                        <p className="pt-2 text-xs text-[#2A1B1F]/60">
+                          Menu price changes do not affect this plan until you renew it after it ends.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* UPCOMING */}
+                    {left.length > 0 && (
+                      <div>
+                        <h3 className="mb-3 font-heading text-lg font-bold uppercase tracking-wide text-[#9B1C2C]">
+                          Upcoming deliveries
+                        </h3>
+                        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                          {left.slice(0, 8).map((date, i) => (
+                            <div
+                              key={date}
+                              className={`rounded-lg border p-3 text-center text-sm font-semibold ${
+                                i === 0 && state === 'active'
+                                  ? 'border-[#9B1C2C] bg-[#9B1C2C] text-white'
+                                  : 'border-[#E8D2D2] bg-white text-[#2A1B1F]'
+                              }`}
+                            >
+                              {formatDate(date)}
+                            </div>
+                          ))}
+                        </div>
+                        {state === 'paused' && (
+                          <p className="mt-2 text-sm text-[#2A1B1F]/70">
+                            Deliveries are on hold while your plan is paused.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* EDIT DELIVERY */}
+                    {editingId === plan.id && (
+                      <div className="space-y-4 rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4">
+                        <TimePicker
+                          value={edit.time}
+                          start={operatorSettings.operatingHoursStart}
+                          end={operatorSettings.operatingHoursEnd}
+                          onChange={(time) => setEdit((e) => ({ ...e, time }))}
+                        />
+                        <div className="flex gap-3">
+                          {(['pickup', 'delivery'] as const).map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => setEdit((e) => ({ ...e, method: m }))}
+                              className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold capitalize ${
+                                edit.method === m
+                                  ? 'border-[#9B1C2C] bg-white text-[#9B1C2C]'
+                                  : 'border-[#E8D2D2] bg-white text-[#2A1B1F]'
+                              }`}
+                            >
+                              {m}
+                            </button>
+                          ))}
+                        </div>
+                        {edit.method === 'delivery' && (
+                          <LocationPicker
+                            value={edit.address}
+                            inputClass="w-full px-4 py-2.5 bg-white text-[#2A1B1F] border border-[#E8D2D2] rounded-lg"
+                            onChange={(address) => setEdit((e) => ({ ...e, address }))}
+                          />
+                        )}
+                        <div className="flex gap-3">
+                          <Button variant="outline" className={`${outlineBtn} flex-1`} onClick={() => setEditingId(null)} disabled={busy}>
+                            Cancel
+                          </Button>
+                          <Button
+                            className={`${solidBtn} flex-1`}
+                            disabled={busy || !edit.time || (edit.method === 'delivery' && !edit.address)}
+                            onClick={async () => {
+                              if (
+                                await run(
+                                  () =>
+                                    updateMealPlanDelivery(plan.id, {
+                                      fulfillmentTime: edit.time,
+                                      fulfillmentMethod: edit.method,
+                                      deliveryAddress: edit.method === 'delivery' ? edit.address : null,
+                                    }),
+                                  'Delivery details updated.'
+                                )
+                              )
+                                setEditingId(null);
+                            }}
+                          >
+                            Save changes
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ACTIONS */}
+                    {canChange && (
+                      <div className="flex flex-wrap gap-3 border-t border-[#E8D2D2] pt-6">
+                        {(state === 'active' || state === 'paused') && (
+                          <Button
+                            variant="outline"
+                            className={outlineBtn}
+                            disabled={busy}
+                            onClick={() =>
+                              run(
+                                async () => {
+                                  const r =
+                                    state === 'active' ? await pauseMealPrepOrder(plan.id) : await resumeMealPrepOrder(plan.id);
+                                  return r.ok ? { ok: true } : { ok: false, error: r.error };
+                                },
+                                state === 'active' ? 'Meal plan paused.' : 'Meal plan resumed.'
+                              )
+                            }
+                          >
+                            {state === 'active' ? (
+                              <>
+                                <Pause className="size-4" /> Pause plan
+                              </>
+                            ) : (
+                              <>
+                                <Play className="size-4" /> Resume plan
+                              </>
+                            )}
+                          </Button>
+                        )}
+                        {state === 'active' && left.length > 0 && (
+                          <Button
+                            variant="outline"
+                            className={outlineBtn}
+                            disabled={busy}
+                            onClick={() => {
+                              if (window.confirm(`Skip your ${formatDate(plan.nextDate)} delivery? Your plan will end one cycle later instead.`))
+                                void run(() => skipNextDelivery(plan.id), 'Next delivery skipped.');
+                            }}
+                          >
+                            <SkipForward className="size-4" /> Skip next delivery
+                          </Button>
+                        )}
+                        {(state === 'active' || state === 'paused') && renewingId !== plan.id && (
+                          <Button variant="outline" className={outlineBtn} onClick={() => setRenewingId(plan.id)}>
+                            <RefreshCw className="size-4" /> Renew
+                          </Button>
+                        )}
+                        {editingId !== plan.id && (
+                          <Button
+                            variant="outline"
+                            className={outlineBtn}
+                            onClick={() => {
+                              setEditingId(plan.id);
+                              setEdit({
+                                time: (plan.time ?? '').slice(0, 5),
+                                method: plan.method,
+                                address: plan.method === 'delivery' ? (plan.address ?? '') : '',
+                              });
+                            }}
+                          >
+                            <Edit2 className="size-4" /> Change delivery
+                          </Button>
+                        )}
+                        <Button
+                          variant="destructive"
+                          className="h-10 gap-2 rounded-lg"
+                          disabled={busy}
+                          onClick={async () => {
+                            if (!window.confirm('Cancel this meal plan? This cannot be undone.')) return;
+                            const done = await run(async () => {
+                              const r = await cancelMealPrepOrder(plan.id);
+                              return r.ok ? { ok: true } : { ok: false, error: r.error };
+                            }, 'Meal plan cancelled.');
+                            if (done) setExpandedId(null);
+                          }}
+                        >
+                          <X className="size-4" /> Cancel plan
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </article>
             );
           })}
         </div>

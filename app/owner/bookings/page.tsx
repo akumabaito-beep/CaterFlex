@@ -18,6 +18,7 @@ import {
   restoreMealPrepOrder,
 } from '@/app/actions/booking-actions';
 import { computeBookingTotal } from '@/lib/rules/allocation';
+import { parsePinnedAddress } from '@/lib/kitchen';
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,7 @@ type Booking = {
   AllergenConflictFlag: boolean | null;
   IsArchived?: boolean | null;
   ArchivedAt?: string | null;
+  DeliveryFee?: number | null;
 };
 
 type MealPrepOrder = {
@@ -669,9 +671,12 @@ export default function BookingsPage() {
     item.bookingItemId !== undefined && draft[item.bookingItemId] !== undefined &&
     Number(draft[item.bookingItemId]) !== Number(item.quantity)
   );
-  const totalCost = booking.OrderType === 'catering'
+  const deliveryFee = booking.OrderType === 'catering' ? Number(booking.DeliveryFee ?? 0) : 0;
+  const pinned = parsePinnedAddress(booking.Venue ?? '');
+  const foodCost = booking.OrderType === 'catering'
                             ? computeBookingTotal(booking.items.map((item) => ({ menuItemId: item.bookingItemId ?? 0, quantity: Number(draft[item.bookingItemId ?? 0] ?? item.quantity) })), new Map(booking.items.map((item) => [item.bookingItemId ?? 0, item.price])))
                             : booking.items.reduce((total, item) => total + item.price * item.quantity, 0);
+  const totalCost = foodCost + deliveryFee;
 
                           return (
                             <Card
@@ -809,9 +814,21 @@ export default function BookingsPage() {
                                       </p>
 
                                       <p className="font-medium text-card-foreground">
-                                        {booking.Venue ||
+                                        {pinned?.address ||
+                                          booking.Venue ||
                                           'No venue provided'}
                                       </p>
+
+                                      {pinned && (
+                                        <a
+                                          href={`https://www.openstreetmap.org/?mlat=${pinned.lat}&mlon=${pinned.lng}#map=17/${pinned.lat}/${pinned.lng}`}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="mt-1 inline-block text-sm font-semibold text-[#9B1C2C] underline"
+                                        >
+                                          View pin on map
+                                        </a>
+                                      )}
 
                                       <p className="text-sm text-muted-foreground mt-2">
                                         Event time:{' '}
@@ -878,6 +895,15 @@ export default function BookingsPage() {
                                   ================================================== */}
 
                                   <div className="border-t border-border pt-6 mb-6">
+
+                                    {deliveryFee > 0 && (
+                                      <div className="mb-2 flex justify-between text-sm text-muted-foreground">
+                                        <span>Delivery fee</span>
+                                        <span>
+                                          ₱{deliveryFee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                                        </span>
+                                      </div>
+                                    )}
 
                                     <div className="flex justify-between items-center">
 

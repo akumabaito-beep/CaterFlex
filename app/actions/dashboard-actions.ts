@@ -2,6 +2,14 @@
 
 import { requireRole } from '@/app/actions/auth'
 import { createAdminClient } from '@/lib/supabase-admin'
+import {
+  buildSeries,
+  inRange,
+  manilaToday,
+  resolveRange,
+  toManilaDate,
+  type RangeInput,
+} from '@/lib/date-range'
 
 type DashboardAlert = {
   id: string
@@ -22,7 +30,7 @@ type RevenuePoint = {
   revenue: number
 }
 
-export async function getOwnerDashboardData() {
+export async function getOwnerDashboardData(rangeInput: RangeInput = { preset: '30d' }) {
   const owner = await requireRole('owner')
 
   if (!owner) {
@@ -50,14 +58,14 @@ export async function getOwnerDashboardData() {
       throw bookingError
     }
 
-    const bookings = bookingRows ?? []
+    const allBookings = bookingRows ?? []
 
     // --------------------------------------------------
     // CUSTOMERS
     // --------------------------------------------------
     const customerIds = [
       ...new Set(
-        bookings.map((booking) => Number(booking.CustomerID))
+        allBookings.map((booking) => Number(booking.CustomerID))
       ),
     ]
 
@@ -150,6 +158,29 @@ export async function getOwnerDashboardData() {
     const payments = paymentRows ?? []
 
     // --------------------------------------------------
+    // DATE RANGE (Asia/Manila)
+    // --------------------------------------------------
+    const paidPayments = payments.filter(
+      (payment) => String(payment.Status).toLowerCase() === 'paid'
+    )
+    const dataDates = [
+      ...allBookings.map((b) => String(b.EventDate ?? '').slice(0, 10)),
+      ...paidPayments.map((p) => toManilaDate(String(p.DatePaid))),
+    ].filter(Boolean)
+    const earliest = dataDates.length > 0 ? dataDates.reduce((a, b) => (a < b ? a : b)) : null
+
+    const resolved = resolveRange(rangeInput, manilaToday(), earliest)
+    if ('error' in resolved) {
+      return { ok: false as const, error: resolved.error }
+    }
+
+    // Bookings and revenue follow the selected range.
+    // Outstanding balance, low stock and recent activity stay current.
+    const bookings = allBookings.filter((booking) =>
+      inRange(String(booking.EventDate ?? '').slice(0, 10), resolved.from, resolved.to)
+    )
+
+    // --------------------------------------------------
     // PAYMENT TOTALS PER INVOICE
     // --------------------------------------------------
     const paymentsByInvoice = new Map<number, number>()
@@ -186,12 +217,11 @@ export async function getOwnerDashboardData() {
     // --------------------------------------------------
     // TOTAL REVENUE
     // --------------------------------------------------
-    const totalRevenue = payments.reduce((sum, payment) => {
-      if (String(payment.Status).toLowerCase() !== 'paid') {
-        return sum
-      }
-
-      return sum + Number(payment.Amount ?? 0)
+    const totalRevenue = paidPayments.reduce((sum, payment) => {
+      const paidOn = toManilaDate(String(payment.DatePaid))
+      return inRange(paidOn, resolved.from, resolved.to)
+        ? sum + Number(payment.Amount ?? 0)
+        : sum
     }, 0)
 
     // --------------------------------------------------
@@ -223,7 +253,7 @@ export async function getOwnerDashboardData() {
     // RECENT ACTIVITY
     // --------------------------------------------------
 
-    const recentActivity: DashboardActivity[] = [...bookings]
+    const recentActivity: DashboardActivity[] = [...allBookings]
     .sort((a, b) => {
     const dateA = new Date(
         String(a.CreatedAt)
@@ -264,37 +294,21 @@ export async function getOwnerDashboardData() {
 
 const revenueMap = new Map<string, number>()
 
-for (const payment of payments) {
-  if (String(payment.Status).toLowerCase() !== 'paid') {
-    continue
-  }
-
-  const date = String(payment.DatePaid).split('T')[0]
+for (const payment of paidPayments) {
+  const date = toManilaDate(String(payment.DatePaid))
 
   revenueMap.set(
     date,
-    (revenueMap.get(date) ?? 0) +
-      Number(payment.Amount ?? 0)
+    (revenueMap.get(date) ?? 0) + Number(payment.Amount ?? 0)
   )
 }
 
-const revenueData: RevenuePoint[] = []
-
-const today = new Date()
-
-for (let i = 29; i >= 0; i--) {
-  const date = new Date(today)
-
-  date.setHours(0, 0, 0, 0)
-  date.setDate(today.getDate() - i)
-
-  const dateKey = date.toISOString().split('T')[0]
-
-  revenueData.push({
-    date: dateKey,
-    revenue: revenueMap.get(dateKey) ?? 0,
-  })
-}
+const revenueData: RevenuePoint[] = buildSeries(
+  revenueMap,
+  resolved.from,
+  resolved.to,
+  resolved.bucket
+)
 
 return {
   ok: true as const,
@@ -309,6 +323,7 @@ return {
     recentActivity,
     alerts,
     revenueData,
+    range: resolved,
   },
 }
   } catch (error) {
