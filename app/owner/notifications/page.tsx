@@ -285,7 +285,7 @@ export default function OwnerNotificationsPage() {
 
         <div className="flex items-center justify-between gap-6">
           <div>
-            <h1 className="font-heading text-3xl font-bold text-surface-foreground">
+            <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
               Notifications
             </h1>
 
@@ -306,7 +306,7 @@ export default function OwnerNotificationsPage() {
                 setSearch(event.target.value)
               }
               placeholder="Search notifications"
-              className="h-10 w-full rounded-full border bg-muted/40 pl-10 pr-4 text-sm outline-none transition focus:border-primary focus:bg-[#FAF6F0]"
+              className="h-10 w-full rounded-full border bg-muted/40 pl-10 pr-4 text-sm outline-none transition focus:border-primary focus:bg-[#FFFFFF]"
             />
           </div>
         </div>
@@ -441,7 +441,7 @@ export default function OwnerNotificationsPage() {
               return (
                 <article
                   key={item.NotificationID}
-                  className={`group flex items-center gap-3 rounded-md border border-border bg-[#FAF6F0] px-4 py-3 transition ${
+                  className={`group flex items-center gap-3 rounded-md border border-border bg-[#FFFFFF] px-4 py-3 transition ${
                     isOld
                       ? 'opacity-60'
                       : ''

@@ -26,28 +26,41 @@ import { TimePicker } from '@/components/booking/TimePicker';
 import { LocationPicker } from '@/components/booking/LocationPicker';
 import { OptionCardPicker } from '@/components/booking/OptionCardPicker';
 import {
-  cancelMealPrepOrder,
-  pauseMealPrepOrder,
-  resumeMealPrepOrder,
-} from '@/app/actions/booking-actions';
-import {
+  cancelMealPlan,
   getMyMealPlans,
+  pauseMealPlan,
+  previewMealPlanCancellation,
   renewMealPlan,
+  resumeMealPlan,
   skipNextDelivery,
   updateMealPlanDelivery,
   type MealPlan,
 } from '@/app/actions/meal-plan-actions';
 import { parsePinnedAddress } from '@/lib/kitchen';
 import {
-  TERM_OPTIONS,
+  MAX_PAUSE_DAYS,
+  PLAN_WEEKS,
+  PAUSE_CUTOFF_DAYS,
+  addDaysISO,
   cycleTotal,
+  daysBetween,
+  deliveryDaysLabel,
   frequencyLabel,
   planState,
   planTitle,
-  remainingDeliveries,
+  scheduleDates,
   type PlanState,
-  type TermCycles,
+  type PlanWeeks,
 } from '@/lib/meal-plan';
+
+const scheduleLabel = (plan: MealPlan) =>
+  plan.days.length ? `${deliveryDaysLabel(plan.days)}${plan.planWeeks ? ` · ${plan.planWeeks} ${plan.planWeeks === 1 ? 'week' : 'weeks'}` : ''}` : frequencyLabel(plan.frequency);
+
+const PAUSE_CHOICES = [
+  { value: '3', label: '3 days' },
+  { value: '7', label: '1 week' },
+  { value: '14', label: '2 weeks' },
+] as const;
 
 const peso = (n: number) =>
   `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -88,13 +101,16 @@ export default function MealPlansPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [renewingId, setRenewingId] = useState<number | null>(null);
-  const [renewCycles, setRenewCycles] = useState<TermCycles>(4);
+  const [renewWeeks, setRenewWeeks] = useState<PlanWeeks>(2);
+  const [pausingId, setPausingId] = useState<number | null>(null);
+  const [pauseLength, setPauseLength] = useState<'3' | '7' | '14'>('7');
+  const [cancelling, setCancelling] = useState<{ id: number; refund: number; refunded: number; committed: number } | null>(null);
   const [edit, setEdit] = useState({ time: '', method: 'pickup' as 'pickup' | 'delivery', address: '' });
 
   const refresh = useCallback(async () => {
     const result = await getMyMealPlans();
     if (result.ok) {
-      setPlans(result.plans.filter((p) => p.status !== 'cancelled' && p.status !== 'rejected'));
+      setPlans(result.plans.filter((p) => p.status !== 'rejected'));
       setToday(result.today);
     } else {
       setNotice({ kind: 'error', text: result.error });
@@ -194,7 +210,7 @@ export default function MealPlansPage() {
           {plans.map((plan) => {
             const state = planState(plan.status, plan.termEnd, today);
             const badge = STATE_BADGE[state];
-            const left = plan.termEnd ? remainingDeliveries(plan.nextDate, plan.termEnd, plan.frequency) : [];
+            const left = plan.termEnd && state !== 'cancelled' ? scheduleDates(plan.nextDate, plan.termEnd, plan.days, plan.frequency) : [];
             const total = plan.termCycles ?? left.length;
             const progress = total > 0 ? Math.max(0, Math.min(100, ((total - left.length) / total) * 100)) : 0;
             const expanded = expandedId === plan.id;
@@ -222,14 +238,14 @@ export default function MealPlansPage() {
                       {planTitle(plan.mealType)}
                     </p>
                     <p className="mt-1 text-sm text-[#2A1B1F]/70">
-                      {plan.servings} servings · {frequencyLabel(plan.frequency)} · {plan.dishes.length}{' '}
+                      {plan.servings} servings · {scheduleLabel(plan)} · {plan.dishes.length}{' '}
                       {plan.dishes.length === 1 ? 'dish' : 'dishes'}
                     </p>
                     <span className={`mt-3 inline-block rounded-lg border px-3 py-1 text-xs font-semibold ${badge.cls}`}>
                       {badge.label}
                     </span>
                   </div>
-                  {state !== 'ended' && plan.nextDate && (
+                  {state !== 'ended' && state !== 'cancelled' && plan.nextDate && (
                     <div className="hidden text-right sm:block">
                       <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">Next delivery</p>
                       <p className="font-bold text-[#9B1C2C]">{formatDate(plan.nextDate)}</p>
@@ -242,7 +258,7 @@ export default function MealPlansPage() {
                 </button>
 
                 {/* PROGRESS + RENEWAL PROMPT (always visible) */}
-                {plan.termEnd && state !== 'pending' && (
+                {plan.termEnd && state !== 'pending' && state !== 'cancelled' && (
                   <div className="space-y-3 border-t border-[#E8D2D2] px-6 py-4">
                     <div className="flex items-center justify-between text-sm">
                       <span className="font-semibold text-[#2A1B1F]">
@@ -255,6 +271,11 @@ export default function MealPlansPage() {
                     <div className="h-2 overflow-hidden rounded-full bg-neutral-200" aria-hidden="true">
                       <div className="h-full rounded-full bg-[#9B1C2C]" style={{ width: `${progress}%` }} />
                     </div>
+                    {state === 'paused' && plan.pausedUntil && (
+                      <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                        Paused. Deliveries start again on or after {formatLongDate(plan.pausedUntil)}. Your end date will move out by the length of the pause so you do not lose a delivery.
+                      </p>
+                    )}
                     {needsRenewal && renewingId !== plan.id && (
                       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#FDECEC] p-3">
                         <p className="text-sm text-[#2A1B1F]">
@@ -276,6 +297,15 @@ export default function MealPlansPage() {
                   </div>
                 )}
 
+                {state === 'cancelled' && (
+                  <p className="border-t border-[#E8D2D2] px-6 py-4 text-sm text-[#2A1B1F]/70">
+                    This plan was cancelled.
+                    {plan.refund !== null && plan.refund > 0
+                      ? ` Refund due to you: ${peso(plan.refund)}. The caterer will send it back to you.`
+                      : ' No refund was due.'}
+                  </p>
+                )}
+
                 {state === 'pending' && (
                   <p className="border-t border-[#E8D2D2] px-6 py-4 text-sm text-[#2A1B1F]/70">
                     The caterer is reviewing your plan. You will see your deliveries here once it is approved.
@@ -287,16 +317,20 @@ export default function MealPlansPage() {
                     {/* RENEW */}
                     {renewingId === plan.id && (
                       <div className="space-y-3 rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4">
-                        <OptionCardPicker<`${TermCycles}`>
+                        <OptionCardPicker<`${PlanWeeks}`>
                           title="Renew for how long?"
                           icon={RefreshCw}
-                          value={`${renewCycles}`}
-                          onChange={(v) => setRenewCycles(Number(v) as TermCycles)}
-                          options={TERM_OPTIONS.map((n) => ({ value: `${n}` as `${TermCycles}`, label: `${n} more deliveries` }))}
+                          value={`${renewWeeks}`}
+                          onChange={(v) => setRenewWeeks(Number(v) as PlanWeeks)}
+                          options={PLAN_WEEKS.map((n) => ({
+                            value: `${n}` as `${PlanWeeks}`,
+                            label: `${n} more ${n === 1 ? 'week' : 'weeks'}`,
+                            hint: plan.days.length ? `${n * plan.days.length} deliveries` : undefined,
+                          }))}
                         />
                         <p className="text-sm text-[#2A1B1F]/70">
                           {state === 'ended'
-                            ? 'A new term starts on your next scheduled delivery. Prices are updated to the current menu prices when a plan is renewed after it ended.'
+                            ? 'A new term starts on your next delivery day. Prices are updated to the current menu prices when a plan is renewed after it ended.'
                             : 'Your current price stays locked while you add deliveries.'}
                         </p>
                         <div className="flex gap-3">
@@ -307,7 +341,7 @@ export default function MealPlansPage() {
                             className={`${solidBtn} flex-1`}
                             disabled={busy}
                             onClick={async () => {
-                              if (await run(() => renewMealPlan(plan.id, renewCycles), 'Meal plan renewed.')) setRenewingId(null);
+                              if (await run(() => renewMealPlan(plan.id, renewWeeks), 'Meal plan renewed.')) setRenewingId(null);
                             }}
                           >
                             Confirm renewal
@@ -322,7 +356,7 @@ export default function MealPlansPage() {
                         { icon: Utensils, label: 'Dishes', value: plan.dishes.map((d) => d.name).join(', ') || '—' },
                         { icon: Users, label: 'Servings per delivery', value: String(plan.servings) },
                         { icon: Clock, label: plan.method === 'delivery' ? 'Delivery time' : 'Pickup time', value: formatTime(plan.time) },
-                        { icon: Calendar, label: 'Schedule', value: frequencyLabel(plan.frequency) },
+                        { icon: Calendar, label: 'Schedule', value: scheduleLabel(plan) },
                         {
                           icon: MapPin,
                           label: plan.method === 'delivery' ? 'Delivery address' : 'Pickup',
@@ -404,9 +438,78 @@ export default function MealPlansPage() {
                         </div>
                         {state === 'paused' && (
                           <p className="mt-2 text-sm text-[#2A1B1F]/70">
-                            Deliveries are on hold while your plan is paused.
+                            Deliveries are on hold while your plan is paused. When you are back, the same number of deliveries will start again and your end date moves out by the length of the pause.
                           </p>
                         )}
+                      </div>
+                    )}
+
+                    {/* PAUSE */}
+                    {pausingId === plan.id && (
+                      <div className="space-y-3 rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4">
+                        <OptionCardPicker<'3' | '7' | '14'>
+                          title="Pause for how long?"
+                          icon={Pause}
+                          value={pauseLength}
+                          onChange={setPauseLength}
+                          options={PAUSE_CHOICES.map((c) => ({ ...c }))}
+                        />
+                        <p className="text-sm text-[#2A1B1F]/70">
+                          Deliveries restart on or after {formatLongDate(addDaysISO(today, Number(pauseLength)))}. You keep every paid delivery, so your
+                          end date moves out by the pause. Pauses are limited to {MAX_PAUSE_DAYS} days, and a delivery less than {PAUSE_CUTOFF_DAYS} days away
+                          is already being prepared.
+                        </p>
+                        <div className="flex gap-3">
+                          <Button variant="outline" className={`${outlineBtn} flex-1`} onClick={() => setPausingId(null)} disabled={busy}>
+                            Not now
+                          </Button>
+                          <Button
+                            className={`${solidBtn} flex-1`}
+                            disabled={busy}
+                            onClick={async () => {
+                              if (await run(() => pauseMealPlan(plan.id, addDaysISO(today, Number(pauseLength))), 'Meal plan paused.')) setPausingId(null);
+                            }}
+                          >
+                            Confirm pause
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* CANCEL */}
+                    {cancelling?.id === plan.id && (
+                      <div className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+                        <p className="font-semibold">Cancel this meal plan? This cannot be undone.</p>
+                        <p>
+                          {cancelling.refunded} {cancelling.refunded === 1 ? 'delivery' : 'deliveries'} will be cancelled.
+                          {cancelling.committed > 0 &&
+                            ` ${cancelling.committed} ${cancelling.committed === 1 ? 'delivery is' : 'deliveries are'} less than ${PAUSE_CUTOFF_DAYS} days away and already being prepared, so they still go ahead.`}
+                        </p>
+                        <p className="text-base font-bold">Refund: {peso(cancelling.refund)}</p>
+                        <p className="text-xs text-red-900/70">
+                          The refund is calculated at your locked price. The caterer sends it back to you manually.
+                        </p>
+                        <div className="flex gap-3">
+                          <Button variant="outline" className={`${outlineBtn} flex-1`} onClick={() => setCancelling(null)} disabled={busy}>
+                            Keep my plan
+                          </Button>
+                          <Button
+                            className="h-10 flex-1 rounded-lg bg-[#9B1C2C] font-semibold text-white hover:bg-[#7F1623]"
+                            disabled={busy}
+                            onClick={async () => {
+                              const done = await run(async () => {
+                                const r = await cancelMealPlan(plan.id);
+                                return r.ok ? { ok: true } : { ok: false, error: r.error };
+                              }, cancelling.refund > 0 ? `Meal plan cancelled. Refund due: ${peso(cancelling.refund)}.` : 'Meal plan cancelled.');
+                              if (done) {
+                                setCancelling(null);
+                                setExpandedId(null);
+                              }
+                            }}
+                          >
+                            Yes, cancel plan
+                          </Button>
+                        </div>
                       </div>
                     )}
 
@@ -473,31 +576,25 @@ export default function MealPlansPage() {
                     {/* ACTIONS */}
                     {canChange && (
                       <div className="flex flex-wrap gap-3 border-t border-[#E8D2D2] pt-6">
-                        {(state === 'active' || state === 'paused') && (
+                        {state === 'active' && pausingId !== plan.id && (
+                          <Button
+                            variant="outline"
+                            className={outlineBtn}
+                            disabled={busy || daysBetween(today, plan.nextDate) < PAUSE_CUTOFF_DAYS}
+                            title={daysBetween(today, plan.nextDate) < PAUSE_CUTOFF_DAYS ? 'Your next delivery is already being prepared. You can pause after it.' : undefined}
+                            onClick={() => setPausingId(plan.id)}
+                          >
+                            <Pause className="size-4" /> Pause plan
+                          </Button>
+                        )}
+                        {state === 'paused' && (
                           <Button
                             variant="outline"
                             className={outlineBtn}
                             disabled={busy}
-                            onClick={() =>
-                              run(
-                                async () => {
-                                  const r =
-                                    state === 'active' ? await pauseMealPrepOrder(plan.id) : await resumeMealPrepOrder(plan.id);
-                                  return r.ok ? { ok: true } : { ok: false, error: r.error };
-                                },
-                                state === 'active' ? 'Meal plan paused.' : 'Meal plan resumed.'
-                              )
-                            }
+                            onClick={() => run(() => resumeMealPlan(plan.id), 'Meal plan resumed.')}
                           >
-                            {state === 'active' ? (
-                              <>
-                                <Pause className="size-4" /> Pause plan
-                              </>
-                            ) : (
-                              <>
-                                <Play className="size-4" /> Resume plan
-                              </>
-                            )}
+                            <Play className="size-4" /> Resume plan
                           </Button>
                         )}
                         {state === 'active' && left.length > 0 && (
@@ -506,7 +603,7 @@ export default function MealPlansPage() {
                             className={outlineBtn}
                             disabled={busy}
                             onClick={() => {
-                              if (window.confirm(`Skip your ${formatDate(plan.nextDate)} delivery? Your plan will end one cycle later instead.`))
+                              if (window.confirm(`Skip your ${formatDate(plan.nextDate)} delivery? Your plan will end one delivery later instead.`))
                                 void run(() => skipNextDelivery(plan.id), 'Next delivery skipped.');
                             }}
                           >
@@ -537,14 +634,14 @@ export default function MealPlansPage() {
                         <Button
                           variant="destructive"
                           className="h-10 gap-2 rounded-lg"
-                          disabled={busy}
+                          disabled={busy || cancelling?.id === plan.id}
                           onClick={async () => {
-                            if (!window.confirm('Cancel this meal plan? This cannot be undone.')) return;
-                            const done = await run(async () => {
-                              const r = await cancelMealPrepOrder(plan.id);
-                              return r.ok ? { ok: true } : { ok: false, error: r.error };
-                            }, 'Meal plan cancelled.');
-                            if (done) setExpandedId(null);
+                            const preview = await previewMealPlanCancellation(plan.id);
+                            if (!preview.ok) {
+                              setNotice({ kind: 'error', text: preview.error });
+                              return;
+                            }
+                            setCancelling({ id: plan.id, refund: preview.refund, refunded: preview.refundedDeliveries, committed: preview.committedDeliveries });
                           }}
                         >
                           <X className="size-4" /> Cancel plan

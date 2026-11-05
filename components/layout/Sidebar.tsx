@@ -2,83 +2,122 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAppState } from '@/lib/state';
 import {
-  LayoutDashboard,
+  Activity,
   Calendar,
-  UtensilsCrossed,
-  Package,
+  ClipboardList,
   Clock,
   DollarSign,
-  ClipboardList,
-  Home,
+  LayoutDashboard,
+  Package,
   Settings,
-  Activity,
-  Users,
-  Shield,
+  UtensilsCrossed,
+  X,
 } from 'lucide-react';
 
-export function Sidebar() {
+const sections = [
+  {
+    title: 'Overview',
+    links: [{ href: '/owner/dashboard', label: 'Dashboard', icon: LayoutDashboard }],
+  },
+  {
+    title: 'Orders',
+    links: [
+      { href: '/owner/bookings', label: 'Bookings', icon: ClipboardList },
+      { href: '/owner/calendar', label: 'Calendar', icon: Calendar },
+      { href: '/owner/prep-schedule', label: 'Prep Schedule', icon: Clock },
+    ],
+  },
+  {
+    title: 'Kitchen',
+    links: [
+      { href: '/menu-management', label: 'Menu Management', icon: UtensilsCrossed },
+      { href: '/owner/inventory', label: 'Inventory', icon: Package },
+      { href: '/macroflex', label: 'MacroFlex', icon: Activity },
+    ],
+  },
+  {
+    title: 'Business',
+    links: [
+      { href: '/owner/payments', label: 'Payments', icon: DollarSign },
+      { href: '/owner/settings', label: 'Operating Rules', icon: Settings },
+    ],
+  },
+];
+
+/**
+ * Owner sidebar. Fixed on large screens, a slide-in drawer on small ones.
+ * `open` / `onClose` only matter below the lg breakpoint.
+ */
+export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: () => void }) {
   const pathname = usePathname();
-  const { currentRole } = useAppState();
-  const isOwnerRoute = pathname === '/owner' || pathname.startsWith('/owner/') || pathname === '/menu-management' || pathname.startsWith('/menu-management/') || pathname === '/macroflex' || pathname.startsWith('/macroflex/');
-  const isCustomerRoute = pathname === '/customer' || pathname.startsWith('/customer/');
-
-  const ownerLinks = [
-    { href: '/owner/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/owner/bookings', label: 'Bookings', icon: ClipboardList },
-    { href: '/owner/calendar', label: 'Calendar', icon: Calendar },
-    { href: '/menu-management', label: 'Menu Management', icon: UtensilsCrossed },
-    { href: '/macroflex', label: 'MacroFlex', icon: Activity },
-    { href: '/owner/inventory', label: 'Inventory', icon: Package },
-    { href: '/owner/prep-schedule', label: 'Prep Schedule', icon: Clock },
-    { href: '/owner/payments', label: 'Payments', icon: DollarSign },
-    { href: '/owner/settings', label: 'Operating Rules', icon: Settings },
-  ];
-
-  const customerLinks = [
-    { href: '/customer/inquiry', label: 'New Booking', icon: Home },
-    { href: '/customer/browse', label: 'Browse Menu', icon: UtensilsCrossed },
-    { href: '/customer/status', label: 'My Bookings', icon: Activity },
-  ];
-
-  const adminLinks = [
-    { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/admin/users', label: 'Users', icon: Users },
-    { href: '/admin/settings', label: 'Settings', icon: Shield },
-  ];
-
-  const links = currentRole === 'owner' ? ownerLinks : currentRole === 'admin' ? adminLinks : customerLinks;
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <aside
-      className="fixed top-0 left-0 z-30 w-64 h-screen overflow-y-auto border-r border-sidebar-border p-6 bg-repeat"
-      style={{
-        backgroundColor: '#7B2525',
-        backgroundImage:
-          'url(https://hebbkx1anhila5yf.public.blob.vercel-storage.com/sidebar-bg-DwHu1DKQ3WqCsvm9bMcmzbss6zNvL1.png)',
-        backgroundSize: '600px auto',
-      }}
-    >
-      <div className="mb-12 flex items-center justify-center">
-        <img src="/logo.png" alt="CaterFlex" className="h-24 w-24 object-contain" />
-      </div>
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
 
-      <nav className="space-y-2">
-        {links.map((link) => {
-          const Icon = link.icon;
-          return (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium text-white/90 hover:bg-white/10 hover:text-white transition-colors"
-            >
-              <Icon className="w-5 h-5" />
-              {link.label}
-            </Link>
-          );
-        })}
-      </nav>
-    </aside>
+      <aside
+        aria-label="Owner navigation"
+        className={`fixed left-0 top-0 z-50 flex h-screen w-64 flex-col overflow-y-auto bg-[#8E1F2C] px-4 py-6 text-white transition-transform duration-200 lg:z-30 lg:translate-x-0 ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="mb-8 flex items-center justify-between px-2">
+          <Link href="/owner/dashboard" onClick={onClose} aria-label="CaterFlex dashboard">
+            <img src="/logo.png" alt="CaterFlex" className="h-16 w-16 object-contain" />
+          </Link>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close menu"
+            className="rounded-lg p-2 text-white/80 hover:bg-white/10 lg:hidden"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+
+        <nav className="flex-1 space-y-6">
+          {sections.map((section) => (
+            <div key={section.title}>
+              <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">
+                {section.title}
+              </p>
+              <ul className="space-y-1">
+                {section.links.map((link) => {
+                  const Icon = link.icon;
+                  const active = isActive(link.href);
+                  return (
+                    <li key={link.href}>
+                      <Link
+                        href={link.href}
+                        onClick={onClose}
+                        aria-current={active ? 'page' : undefined}
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+                          active
+                            ? 'bg-white text-[#8E1F2C] shadow-sm'
+                            : 'text-white/85 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        <Icon className="size-5 shrink-0" aria-hidden="true" />
+                        {link.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </nav>
+
+        <p className="mt-6 px-3 text-xs text-white/50">CaterFlex · Owner</p>
+      </aside>
+    </>
   );
 }

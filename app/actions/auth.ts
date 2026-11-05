@@ -93,8 +93,8 @@ export async function signUpCustomer(input: {
   const name = input.name?.trim() || email.split('@')[0]
   const contact = input.contact?.trim() ?? ''
 
-  if (!email || !name || password.length < 6) {
-    return { ok: false, error: 'Enter your email and a password with at least 6 characters.' }
+  if (!email || !name || password.length < 8) {
+    return { ok: false, error: 'Enter your email and a password with at least 8 characters.' }
   }
 
   const admin = createAdminClient()

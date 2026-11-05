@@ -18,7 +18,6 @@ import {
   restoreMealPrepOrder,
 } from '@/app/actions/booking-actions';
 import { computeBookingTotal } from '@/lib/rules/allocation';
-import { parsePinnedAddress } from '@/lib/kitchen';
 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,6 +32,7 @@ import {
   Utensils,
   PackageCheck,
 } from 'lucide-react';
+import { parsePinnedAddress } from '@/lib/kitchen';
 
 type Booking = {
   BookingID: number;
@@ -516,7 +516,7 @@ export default function BookingsPage() {
         {/* PAGE HEADER */}
 
         <div>
-          <h1 className="font-heading text-3xl font-bold text-surface-foreground">
+          <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
             Bookings
           </h1>
 
@@ -851,21 +851,9 @@ const totalCost =
                                       </p>
 
                                       <p className="font-medium text-card-foreground">
-                                        {pinned?.address ||
-                                          booking.Venue ||
+                                        {booking.Venue ||
                                           'No venue provided'}
                                       </p>
-
-                                      {pinned && (
-                                        <a
-                                          href={`https://www.openstreetmap.org/?mlat=${pinned.lat}&mlon=${pinned.lng}#map=17/${pinned.lat}/${pinned.lng}`}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="mt-1 inline-block text-sm font-semibold text-[#9B1C2C] underline"
-                                        >
-                                          View pin on map
-                                        </a>
-                                      )}
 
                                       <p className="text-sm text-muted-foreground mt-2">
                                         Event time:{' '}
@@ -944,15 +932,6 @@ const totalCost =
                                   ================================================== */}
 
                                   <div className="border-t border-border pt-6 mb-6">
-
-                                    {deliveryFee > 0 && (
-                                      <div className="mb-2 flex justify-between text-sm text-muted-foreground">
-                                        <span>Delivery fee</span>
-                                        <span>
-                                          ₱{deliveryFee.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
-                                        </span>
-                                      </div>
-                                    )}
 
                                     <div className="flex justify-between items-center">
 

@@ -672,7 +672,7 @@ export default function MenuPage() {
         {/* HEADER */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-heading font-bold text-card-foreground">
+            <h1 className="text-4xl font-heading font-bold uppercase text-[#2A1B1F]">
               Menu Management
             </h1>
 

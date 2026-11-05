@@ -609,7 +609,7 @@ export default function InventoryPage() {
       <DashboardLayout>
         <div className="space-y-8">
           <div>
-            <h1 className="font-heading text-3xl font-bold text-surface-foreground">
+            <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
               Ingredient inventory
             </h1>
 
@@ -634,7 +634,7 @@ export default function InventoryPage() {
       <DashboardLayout>
         <div className="space-y-8">
           <div>
-            <h1 className="font-heading text-3xl font-bold text-surface-foreground">
+            <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
               Ingredient inventory
             </h1>
 
@@ -671,7 +671,7 @@ export default function InventoryPage() {
         {/* PAGE HEADER */}
         <div className="flex items-end justify-between gap-4">
           <div>
-            <h1 className="font-heading text-3xl font-bold text-surface-foreground">
+            <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
               Ingredient inventory
             </h1>
 
@@ -872,8 +872,8 @@ export default function InventoryPage() {
                   }
                   className={`flex-1 min-w-48 rounded-2xl border-2 p-5 text-left transition-all ${
                     ingredientCategory === value
-                      ? 'border-primary bg-[#FAF6F0]'
-                      : 'border-border bg-[#FAF6F0] hover:bg-[#F5F0E8]'
+                      ? 'border-primary bg-[#FFFFFF]'
+                      : 'border-border bg-[#FFFFFF] hover:bg-[#FDECEC]'
                   }`}
                 >
                   <div className="flex items-start justify-between">
@@ -1053,7 +1053,7 @@ export default function InventoryPage() {
           }}
         >
             <div
-              className="w-full max-w-md rounded-2xl border border-border bg-[#FAF6F0] p-6 text-card-foreground shadow-xl"
+              className="w-full max-w-md rounded-2xl border border-border bg-[#FFFFFF] p-6 text-card-foreground shadow-xl"
               onClick={(event) => event.stopPropagation()}
             >
               {/* HEADER */}
@@ -1094,7 +1094,7 @@ export default function InventoryPage() {
                     onChange={(event) =>
                       setFormName(event.target.value)
                     }
-                    className="w-full rounded-lg border border-border bg-[#FAF6F0] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    className="w-full rounded-lg border border-border bg-[#FFFFFF] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                     placeholder="Ingredient name"
                     required
                     disabled={formSaving}
@@ -1114,7 +1114,7 @@ export default function InventoryPage() {
                     onChange={(event) =>
                       setFormQuantity(event.target.value)
                     }
-                    className="w-full rounded-lg border border-border bg-[#FAF6F0] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    className="w-full rounded-lg border border-border bg-[#FFFFFF] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                     placeholder="0"
                     required
                     disabled={formSaving}
@@ -1129,7 +1129,7 @@ export default function InventoryPage() {
                   <select
                     value={formUnit}
                     onChange={(event) => setFormUnit(event.target.value)}
-                    className="w-full rounded-lg border border-border bg-[#FAF6F0] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    className="w-full rounded-lg border border-border bg-[#FFFFFF] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                     disabled={formSaving}
                   >
                     {measurementOptions.map((unit) => (
@@ -1152,7 +1152,7 @@ export default function InventoryPage() {
                         event.target.value as typeof formCategory
                       )
                     }
-                    className="w-full rounded-lg border border-border bg-[#FAF6F0] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    className="w-full rounded-lg border border-border bg-[#FFFFFF] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                     disabled={formSaving}
                   >
                     <option value="meats">Meats</option>
@@ -1206,35 +1206,35 @@ export default function InventoryPage() {
                 <thead>
                   <tr className="border-b border-border">
 
-                    <th className="text-left p-6 font-semibold text-card-foreground">
+                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                       Ingredient
                     </th>
 
-                    <th className="text-left p-6 font-semibold text-card-foreground">
+                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                       Current Stock
                     </th>
 
-                    <th className="text-left p-6 font-semibold text-card-foreground">
+                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                       Reserved
                       <span className="mt-1 block text-xs font-normal text-muted-foreground">All upcoming confirmed orders</span>
                     </th>
 
-                    <th className="text-left p-6 font-semibold text-card-foreground">
+                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                       Available
                     </th>
 
-                    <th className="text-left p-6 font-semibold text-card-foreground">
+                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                       Capacity
                     </th>
 
-                    <th className="text-left p-6 font-semibold text-card-foreground">
+                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                       Usage
                     </th>
 
-                    <th className="text-left p-6 font-semibold text-card-foreground">
+                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                       Status
                     </th>
-                    <th className="p-6" aria-label="Actions" />
+                    <th className="px-4 py-4" aria-label="Actions" />
 
                   </tr>
                 </thead>
@@ -1288,12 +1288,12 @@ export default function InventoryPage() {
                         >
 
                           {/* INGREDIENT NAME */}
-                          <td className="p-6 font-medium text-card-foreground">
+                          <td className="px-4 py-4 font-medium text-card-foreground">
                             {ingredient.name}
                           </td>
 
                           {/* CURRENT STOCK */}
-                            <td className="p-6 text-card-foreground">
+                            <td className="px-4 py-4 text-card-foreground">
                               {editingId === ingredient.id ? (
                                 <div className="flex items-center gap-2">
                                   <label className="flex items-center gap-2">
@@ -1353,7 +1353,7 @@ export default function InventoryPage() {
                             </td>
 
                           {/* RESERVED */}
-                          <td className="p-6 text-muted-foreground">
+                          <td className="px-4 py-4 text-muted-foreground">
                             {formatQuantity(reserved, ingredient.unit)}
                           </td>
 
@@ -1364,12 +1364,12 @@ export default function InventoryPage() {
                           </td>
 
                           {/* CAPACITY */}
-                          <td className="p-6 text-muted-foreground">
+                          <td className="px-4 py-4 text-muted-foreground">
                             {formatQuantity(ingredient.maxCapacity, ingredient.unit)}
                           </td>
 
                           {/* USAGE */}
-                          <td className="p-6">
+                          <td className="px-4 py-4">
 
                             <div className="flex items-center gap-3">
 
@@ -1403,7 +1403,7 @@ export default function InventoryPage() {
                           </td>
 
                           {/* STATUS */}
-                          <td className="p-6">
+                          <td className="px-4 py-4">
 
                             <span
                               className={`px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}
@@ -1412,13 +1412,13 @@ export default function InventoryPage() {
                             </span>
 
                           </td>
-                          <td className="p-6 text-right">
+                          <td className="px-4 py-4 text-right">
                             <button
                               type="button"
                               onClick={() => openEditIngredient(ingredient)}
                               className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-muted"
                             >
-                              Edit ingredient
+                              Edit
                             </button>
                           </td>
 

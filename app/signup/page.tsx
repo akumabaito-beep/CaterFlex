@@ -30,7 +30,7 @@ export default function SignupPage() {
     const password = String(form.get('password') || '');
     const confirm = String(form.get('confirmPassword') || '');
 
-    if (!email || password.length < 6) {
+    if (!email || password.length < 8) {
       setError('Enter your email and a password with at least 6 characters.');
       return;
     }
@@ -88,7 +88,7 @@ export default function SignupPage() {
           <label htmlFor="password" className="flex flex-col gap-2 text-sm font-semibold">
             Password
             <span className="relative">
-              <input id="password" name="password" type={showPassword ? 'text' : 'password'} required minLength={6} autoComplete="new-password" placeholder="At least 6 characters" className={`${fieldClass} pr-20`} />
+              <input id="password" name="password" type={showPassword ? 'text' : 'password'} required minLength={8} autoComplete="new-password" placeholder="At least 8 characters" className={`${fieldClass} pr-20`} />
               <button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#8E1F2C] hover:underline">
                 {showPassword ? 'Hide' : 'Show'}
               </button>
@@ -96,7 +96,7 @@ export default function SignupPage() {
           </label>
           <label htmlFor="confirmPassword" className="flex flex-col gap-2 text-sm font-semibold">
             Confirm password
-            <input id="confirmPassword" name="confirmPassword" type={showPassword ? 'text' : 'password'} required minLength={6} autoComplete="new-password" placeholder="Repeat your password" className={fieldClass} />
+            <input id="confirmPassword" name="confirmPassword" type={showPassword ? 'text' : 'password'} required minLength={8} autoComplete="new-password" placeholder="Repeat your password" className={fieldClass} />
           </label>
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           <Button type="submit" disabled={pending || !ready} className="mt-2 h-12 w-full justify-center rounded-lg bg-[#9B1C2C] text-base font-semibold text-white shadow-none hover:bg-[#7F1623]">

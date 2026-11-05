@@ -118,7 +118,7 @@ export default function OwnerDashboard() {
       <div className={`space-y-8 transition-opacity ${refreshing ? 'opacity-70' : ''}`}>
         {/* Header */}
         <div>
-          <h1 className="font-heading mt-2 text-3xl font-bold text-surface-foreground">
+          <h1 className="font-heading mt-2 text-4xl font-bold uppercase text-[#2A1B1F]">
             Dashboard
           </h1>
 
@@ -154,7 +154,7 @@ export default function OwnerDashboard() {
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Card
             className="tone-dark p-6"
-            style={{ backgroundColor: '#BA6A4C' }}
+            style={{ backgroundColor: '#9B1C2C' }}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -175,7 +175,7 @@ export default function OwnerDashboard() {
 
           <Card
             className="tone-dark p-6"
-            style={{ backgroundColor: '#607456' }}
+            style={{ backgroundColor: '#2F7D4F' }}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -196,7 +196,7 @@ export default function OwnerDashboard() {
 
           <Card
             className="tone-dark p-6"
-            style={{ backgroundColor: '#7B2525' }}
+            style={{ backgroundColor: '#8E1F2C' }}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -217,7 +217,7 @@ export default function OwnerDashboard() {
 
           <Card
             className="tone-light p-6"
-            style={{ backgroundColor: '#D9C39E' }}
+            style={{ backgroundColor: '#FDECEC' }}
           >
             <div className="flex items-center justify-between">
               <div>
@@ -249,7 +249,7 @@ export default function OwnerDashboard() {
         {dashboard.alerts.length > 0 && (
           <Card
             className="tone-dark border-accent/20 p-6"
-            style={{ backgroundColor: '#BA6A4C' }}
+            style={{ backgroundColor: '#9B1C2C' }}
           >
             <div className="mb-4 flex items-center gap-2">
               <AlertCircle className="h-5 w-5" />

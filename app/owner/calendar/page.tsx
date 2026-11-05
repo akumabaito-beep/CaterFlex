@@ -93,7 +93,7 @@ export default function CalendarPage() {
   const dateForDay = (day: number) => `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 
   return <DashboardLayout><main className="flex flex-col gap-8">
-    <header><h1 className="font-heading text-3xl font-bold text-surface-foreground">Calendar</h1><p className="mt-2 text-surface-muted-foreground">View all events scheduled for {monthName}</p></header>
+    <header><h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">Calendar</h1><p className="mt-2 text-surface-muted-foreground">View all events scheduled for {monthName}</p></header>
     {errorMessage && <Card className="border-destructive/40 bg-destructive/10 p-4"><p className="text-sm text-destructive">{errorMessage}</p></Card>}
     <Card className="p-8">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4"><h2 className="font-heading text-2xl font-bold text-card-foreground">{monthName}</h2><div className="flex items-center gap-2"><button type="button" aria-label="View previous month" onClick={() => setCurrentDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))} className="rounded-md border p-2"><ChevronLeft /></button><button type="button" onClick={() => { const d = new Date(); setCurrentDate(new Date(d.getFullYear(), d.getMonth(), 1)) }} className="rounded-md border px-3 py-2 text-sm">Today</button><button type="button" aria-label="View next month" onClick={() => setCurrentDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))} className="rounded-md border p-2"><ChevronRight /></button><Calendar className="ml-2 text-primary" /></div></div>

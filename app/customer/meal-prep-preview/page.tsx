@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar, MapPin, Users, Clock, CheckCircle2, Utensils } from 'lucide-react';
-import { mealTypeLabel, planTitle, readMealPlanDraft, remainingDeliveries, termEndDate } from '@/lib/meal-plan';
+import { deliveryDates, deliveryDaysLabel, mealTypeLabel, planTitle, readSubscriptionDraft, totalDeliveries } from '@/lib/meal-plan';
 import { parsePinnedAddress } from '@/lib/kitchen';
 
 export default function MealPrepPreviewPage() {
@@ -25,10 +25,12 @@ export default function MealPrepPreviewPage() {
 
   if (!valid || !customerBookingDraft.eventDate) return null;
 
-  const plan = readMealPlanDraft(customerBookingDraft);
-  const frequency = customerBookingDraft.mealPrepFrequency || 'weekly';
-  const lastDate = termEndDate(customerBookingDraft.eventDate, frequency, plan.termCycles);
-  const fulfillmentDates = remainingDeliveries(customerBookingDraft.eventDate, lastDate, frequency);
+  const plan = readSubscriptionDraft(customerBookingDraft);
+  const fulfillmentDates = deliveryDates(
+    customerBookingDraft.eventDate,
+    totalDeliveries(plan.planWeeks, plan.deliveryDays),
+    plan.deliveryDays
+  );
 
   const formatDate = (dateStr: string) =>
     new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', {
@@ -48,7 +50,7 @@ export default function MealPrepPreviewPage() {
 
   const summary = [
     { icon: Utensils, label: 'Meal', value: mealTypeLabel(plan.mealType) },
-    { icon: Users, label: 'Servings per cycle', value: String(customerBookingDraft.guestCount) },
+    { icon: Users, label: 'Servings per delivery', value: String(customerBookingDraft.guestCount) },
     { icon: Clock, label: delivery ? 'Delivery time' : 'Pickup time', value: formatTime(String(customerBookingDraft.eventTime ?? '')) },
     {
       icon: MapPin,
@@ -57,8 +59,8 @@ export default function MealPrepPreviewPage() {
     },
     {
       icon: Calendar,
-      label: 'Frequency',
-      value: customerBookingDraft.mealPrepFrequency === 'biweekly' ? 'Every 2 weeks' : 'Weekly',
+      label: 'Delivery days',
+      value: deliveryDaysLabel(plan.deliveryDays),
     },
   ];
 
@@ -73,7 +75,7 @@ export default function MealPrepPreviewPage() {
             {planTitle(plan.mealType)}
           </h1>
           <p className="text-[#2A1B1F]/70 mt-2">
-            {plan.termCycles} deliveries, {frequency === 'biweekly' ? 'every 2 weeks' : 'every week'}. Review your schedule, then pick your dishes.
+            {fulfillmentDates.length} deliveries over {plan.planWeeks} {plan.planWeeks === 1 ? 'week' : 'weeks'}, {deliveryDaysLabel(plan.deliveryDays)}. Review your schedule, then pick your dishes.
           </p>
         </div>
 

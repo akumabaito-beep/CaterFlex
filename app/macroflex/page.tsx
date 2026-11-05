@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { paginate } from '@/lib/pagination'
-import { WalkingLoader } from '@/components/ui/WalkingLoader'
 
 import {
   AlertTriangle,
@@ -127,57 +126,34 @@ export default function MacroFlexPage() {
 
         setOverPurchased(overPurchasedData)
 
-        // For each menu item, check sufficiency
-        // and get suggestions if insufficient.
-        const itemsWithStatus: MenuItemWithStatus[] = []
-
-        if (menuData) {
-          for (const item of menuData) {
-            const sufficiencyRes = await fetch(
-              `/api/macroflex/check?menuItemId=${item.MenuItemID}`
-            )
-
-            if (!sufficiencyRes.ok) {
-              throw new Error(
-                'Failed to check sufficiency'
-              )
-            }
-
-            const sufficiencyData: SufficiencyCheckResult =
-              await sufficiencyRes.json()
+        // Check every dish at the same time instead of one after another.
+        // Each dish is still checked on its own, so results are unchanged.
+        const itemsWithStatus: MenuItemWithStatus[] = await Promise.all(
+          (menuData ?? []).map(async (item) => {
+            const sufficiencyRes = await fetch(`/api/macroflex/check?menuItemId=${item.MenuItemID}`)
+            if (!sufficiencyRes.ok) throw new Error('Failed to check sufficiency')
+            const sufficiencyData: SufficiencyCheckResult = await sufficiencyRes.json()
 
             let suggestions: ScrapSuggestion[] = []
-
-            if (
-              !sufficiencyData.sufficient &&
-              !sufficiencyData.hasNoIngredients
-            ) {
-              const suggestionsRes = await fetch(
-                `/api/macroflex/suggestions/${item.MenuItemID}`
-              )
-
+            if (!sufficiencyData.sufficient && !sufficiencyData.hasNoIngredients) {
+              const suggestionsRes = await fetch(`/api/macroflex/suggestions/${item.MenuItemID}`)
               if (suggestionsRes.ok) {
-                const { alternatives } =
-                  await suggestionsRes.json()
-
+                const { alternatives } = await suggestionsRes.json()
                 suggestions = alternatives
               }
             }
 
-            itemsWithStatus.push({
+            return {
               menuItemId: item.MenuItemID,
               itemName: item.ItemName,
               category: item.Category,
               price: item.Price,
-              status: sufficiencyData.sufficient
-                ? 'available'
-                : 'insufficient',
-              shortfalls:
-                sufficiencyData.shortfalls,
+              status: sufficiencyData.sufficient ? 'available' : 'insufficient',
+              shortfalls: sufficiencyData.shortfalls,
               suggestions,
-            })
-          }
-        }
+            } as MenuItemWithStatus
+          })
+        )
 
         setMenuItems(itemsWithStatus)
       } catch (error) {
@@ -241,7 +217,7 @@ export default function MacroFlexPage() {
 
         {/* HEADER */}
         <div className="flex flex-col gap-2">
-          <h1 className="font-heading text-3xl font-bold text-surface-foreground">
+          <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
             MacroFlex
           </h1>
 
@@ -262,10 +238,11 @@ export default function MacroFlexPage() {
 
         {/* LOADING */}
         {loading ? (
-  <div className="flex items-center justify-center rounded-lg border border-dashed py-16">
-    <WalkingLoader height={160} label="Loading data" />
-  </div>
-) : (
+          <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed p-12 text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Loading MacroFlex data...
+          </div>
+        ) : (
           <>
             {/* MENU AVAILABILITY */}
             <Card>
@@ -292,7 +269,7 @@ export default function MacroFlexPage() {
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
 
                       {/* TOTAL */}
-                      <div className="rounded-2xl border border-border bg-[#FAF6F0] p-4">
+                      <div className="rounded-2xl border border-border bg-[#FFFFFF] p-4">
                         <p className="text-sm text-muted-foreground">
                           Total Items
                         </p>
@@ -369,7 +346,7 @@ export default function MacroFlexPage() {
                         return (
                           <div
                             key={item.menuItemId}
-                            className="overflow-hidden rounded-2xl border border-border bg-[#FAF6F0] transition-all hover:bg-[#F5F0E8] hover:shadow-sm"
+                            className="overflow-hidden rounded-2xl border border-border bg-[#FFFFFF] transition-all hover:bg-[#FDECEC] hover:shadow-sm"
                           >
 
                             {/* CLICKABLE CARD HEADER */}
