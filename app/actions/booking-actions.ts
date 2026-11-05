@@ -432,7 +432,7 @@ export async function createMealPrepOrder(
       FulfillmentMethod: fulfillmentMethod,
       FulfillmentTime: eventTime,
       DeliveryAddress: fulfillmentMethod === 'delivery' ? deliveryAddress : null,
-      PricePerServing: pricePerDelivery,
+      PricePerServing: pricePerDelivery / mealsPerCycle,
     })
     .select('MealPrepOrderID')
     .single()
