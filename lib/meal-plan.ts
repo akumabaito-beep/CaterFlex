@@ -1,4 +1,3 @@
-import type { MealPrepFrequency } from '@/lib/types'
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner'
 
@@ -7,6 +6,115 @@ export const MEAL_TYPES: { value: MealType; label: string; hint: string }[] = [
   { value: 'lunch', label: 'Lunch', hint: 'Midday meals' },
   { value: 'dinner', label: 'Dinner', hint: 'Evening meals' },
 ]
+
+
+export const SUBSCRIPTION_WEEK_OPTIONS = [1, 2, 4] as const
+export type SubscriptionWeeks = (typeof SUBSCRIPTION_WEEK_OPTIONS)[number]
+
+export const WEEKDAYS = [
+  { value: 0, label: 'Sunday' },
+  { value: 1, label: 'Monday' },
+  { value: 2, label: 'Tuesday' },
+  { value: 3, label: 'Wednesday' },
+  { value: 4, label: 'Thursday' },
+  { value: 5, label: 'Friday' },
+  { value: 6, label: 'Saturday' },
+] as const
+
+export type MealPlanSelection = {
+  mealType: MealType
+  menuItemId: number
+  quantity: number
+}
+
+export function isSubscriptionWeeks(
+  value: unknown
+): value is SubscriptionWeeks {
+  return SUBSCRIPTION_WEEK_OPTIONS.includes(
+    value as SubscriptionWeeks
+  )
+}
+
+export function isValidDeliveryDays(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(
+      (day) =>
+        Number.isInteger(day) &&
+        day >= 0 &&
+        day <= 6
+    ) &&
+    new Set(value).size === value.length
+  )
+}
+
+/** Generate delivery dates from a start date, selected weekdays, and term length. */
+
+/** Generate delivery dates based on the selected weekdays and subscription duration. */
+export function generateDeliveryDates(
+  startDate: string,
+  weekdays: number[],
+  subscriptionWeeks: SubscriptionWeeks
+): { date: string; subscriptionWeek: number }[] {
+  if (!isValidDeliveryDays(weekdays)) return []
+  if (!isSubscriptionWeeks(subscriptionWeeks)) return []
+
+  const dates: { date: string; subscriptionWeek: number }[] = []
+  const startDay = new Date(`${startDate}T12:00:00Z`).getUTCDay()
+
+  for (let week = 1; week <= subscriptionWeeks; week++) {
+    for (const weekday of weekdays) {
+      const offset = (weekday - startDay + 7) % 7
+      const date = addDaysISO(
+        addDaysISO(startDate, (week - 1) * 7),
+        offset
+      )
+
+      dates.push({
+        date,
+        subscriptionWeek: week,
+      })
+    }
+  }
+
+  return dates.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+
+export type DeliveryDate = {
+  date: string
+  subscriptionWeek: number
+}
+
+/** Calculate total servings for one dish across all scheduled deliveries. */
+export function totalDishServings(
+  quantityPerDelivery: number,
+  deliveryCount: number
+): number {
+  if (
+    !Number.isInteger(quantityPerDelivery) ||
+    quantityPerDelivery <= 0 ||
+    !Number.isInteger(deliveryCount) ||
+    deliveryCount < 0
+  ) {
+    return 0
+  }
+
+  return quantityPerDelivery * deliveryCount
+}
+
+/** Count generated deliveries for each subscription week. */
+export function countDeliveriesPerWeek(
+  deliveries: DeliveryDate[]
+): Record<number, number> {
+  return deliveries.reduce<Record<number, number>>((counts, delivery) => {
+    counts[delivery.subscriptionWeek] =
+      (counts[delivery.subscriptionWeek] ?? 0) + 1
+
+    return counts
+  }, {})
+}
 
 export const TERM_OPTIONS = [4, 8, 12] as const
 export type TermCycles = (typeof TERM_OPTIONS)[number]
@@ -42,7 +150,11 @@ export function addDaysISO(date: string, days: number): string {
 }
 
 /** Date of the last delivery in a term that starts on `start` and has `cycles` deliveries. */
-export function termEndDate(start: string, frequency: MealPrepFrequency | string, cycles: number): string {
+export function termEndDate(
+  start: string,
+  frequency: string,
+  cycles: number
+): string {
   return addDaysISO(start, (Math.max(cycles, 1) - 1) * stepDays(frequency))
 }
 

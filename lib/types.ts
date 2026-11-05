@@ -96,7 +96,6 @@ export interface OperatorSettings {
 
 // Booking Types
 export type OrderType = 'catering' | 'meal_prep';
-export type MealPrepFrequency = 'weekly' | 'biweekly';
 export type FulfillmentMethod = 'pickup' | 'delivery';
 export type BookingStatus = 'pending' | 'confirmed' | 'rejected' | 'completed';
 
@@ -111,9 +110,14 @@ export interface Booking {
   eventType: string;
   venue: string;
   guestCount: number;
-  mealPrepFrequency?: MealPrepFrequency;
+  subscriptionWeeks?: 1 | 2 | 4;
+  deliveryDays?: number[];
+  scheduledDeliveries?: {
+    date: string;
+    subscriptionWeek: number;
+  }[];
   fulfillmentMethod?: FulfillmentMethod;
-  mealPrepStatus?: 'active' | 'paused';
+  fulfillmentTime?: string;
   specialRequests: string;
   status: BookingStatus;
   selectedMenuItemIds: string[];
