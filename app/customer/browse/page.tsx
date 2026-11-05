@@ -11,7 +11,7 @@ import { estimateOrder, MAX_DELIVERY_KM } from '@/lib/pricing';
 import { supabase } from '@/lib/supabase';
 import { cancelMealPrepOrder, createBooking, createMealPrepOrder } from '@/app/actions/booking-actions';
 import { saveMealPlanDetails } from '@/app/actions/meal-plan-actions';
-import { readMealPlanDraft } from '@/lib/meal-plan';
+import { readSubscriptionDraft, deliveryDaysLabel, totalDeliveries } from '@/lib/meal-plan';
 import { getCustomerAllergies } from '@/app/actions/allergy-actions';
 import {
   checkAllergenConflict,
@@ -403,12 +403,13 @@ export default function BrowsePage() {
 
       if (isMealPrepOrder) {
         // Save the subscription details (meal type, term, delivery) and lock today's prices.
-        const plan = readMealPlanDraft(customerBookingDraft);
+        const plan = readSubscriptionDraft(customerBookingDraft);
         const saved = await saveMealPlanDetails(
           (result as { mealPrepOrderId: number }).mealPrepOrderId,
           {
             mealType: plan.mealType,
-            termCycles: plan.termCycles,
+            planWeeks: plan.planWeeks,
+            deliveryDays: plan.deliveryDays,
             fulfillmentMethod: String(customerBookingDraft.fulfillmentMethod ?? 'pickup'),
             fulfillmentTime: eventTime,
             deliveryAddress: customerBookingDraft.fulfillmentMethod === 'delivery' ? venue : null,
@@ -491,7 +492,7 @@ export default function BrowsePage() {
         }
       : null,
     isMealPrepDraft
-      ? { icon: Repeat, text: customerBookingDraft.mealPrepFrequency === 'biweekly' ? 'Every 2 weeks' : 'Weekly' }
+      ? { icon: Repeat, text: `${deliveryDaysLabel(readSubscriptionDraft(customerBookingDraft).deliveryDays)} · ${readSubscriptionDraft(customerBookingDraft).planWeeks} ${readSubscriptionDraft(customerBookingDraft).planWeeks === 1 ? 'week' : 'weeks'}` }
       : null,
   ].filter((x): x is { icon: typeof Clock; text: string } => Boolean(x));
 
@@ -764,10 +765,10 @@ export default function BrowsePage() {
                   {isMealPrepDraft && (
                     <div className="flex justify-between gap-2 pt-1">
                       <dt className="font-bold">
-                        Plan total ({readMealPlanDraft(customerBookingDraft).termCycles} deliveries)
+                        Plan total ({totalDeliveries(readSubscriptionDraft(customerBookingDraft).planWeeks, readSubscriptionDraft(customerBookingDraft).deliveryDays)} deliveries)
                       </dt>
                       <dd className="font-bold text-[#9B1C2C]">
-                        {peso(estimate.total * readMealPlanDraft(customerBookingDraft).termCycles)}
+                        {peso(estimate.total * totalDeliveries(readSubscriptionDraft(customerBookingDraft).planWeeks, readSubscriptionDraft(customerBookingDraft).deliveryDays))}
                       </dd>
                     </div>
                   )}

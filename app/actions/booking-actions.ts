@@ -1,5 +1,6 @@
 'use server'
 
+import { parseDeliveryDays } from '../../lib/meal-plan'
 import { requireRole } from '@/app/actions/auth'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { validateBooking } from '@/lib/rules/bookingValidation'
@@ -426,7 +427,7 @@ export async function getOwnerCalendarMealPrep() {
   const operatorId = Number(owner.id)
   const { data: orders, error } = await admin
     .from('MEAL_PREP_ORDER')
-    .select('MealPrepOrderID, CustomerID, OperatorID, Status, NextFulfillmentDate, RecurrencePattern, MealsPerCycle, IsArchived')
+    .select('MealPrepOrderID, CustomerID, OperatorID, Status, NextFulfillmentDate, RecurrencePattern, DeliveryDays, TermEndDate, MealsPerCycle, IsArchived')
     .eq('OperatorID', operatorId)
     .in('Status', ['pending', 'active', 'paused'])
     .or('IsArchived.is.null,IsArchived.eq.false')
@@ -449,6 +450,8 @@ export async function getOwnerCalendarMealPrep() {
       status: String(order.Status),
       nextFulfillmentDate: String(order.NextFulfillmentDate).slice(0, 10),
       recurrencePattern: String(order.RecurrencePattern ?? 'weekly'),
+      deliveryDays: parseDeliveryDays(order.DeliveryDays),
+      termEnd: order.TermEndDate ? String(order.TermEndDate).slice(0, 10) : null,
       mealsPerCycle: Number(order.MealsPerCycle),
       isArchived: Boolean(order.IsArchived),
     })),

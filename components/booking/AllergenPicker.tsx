@@ -5,6 +5,7 @@ import {
   Check,
   CircleHelp,
   Egg,
+  Fish,
   Milk,
   Nut,
   ShieldAlert,
@@ -15,6 +16,7 @@ import {
 
 const ICONS: Record<string, LucideIcon> = {
   shellfish: Shrimp,
+  fish: Fish,
   peanuts: Nut,
   tree_nuts: Nut,
   dairy: Milk,

@@ -1,3 +1,5 @@
+import { firstDeliveryOnOrAfter, nextDeliveryAfter } from '../meal-plan'
+
 export type CommitmentRef = { type: 'booking' | 'meal_prep'; id: number }
 
 export function roundQuantity(value: number, decimals = 3): number {
@@ -174,9 +176,22 @@ export function buildCommitment(
 }
 
 /** FR-8.3; thesis sections 3.2.3 and 3.2.4: model recurring meal-prep fulfillment windows. */
-export function expandRecurringDates(nextFulfillmentDate: string, pattern: 'weekly' | 'biweekly', horizonDays = 28): string[] {
+export function expandRecurringDates(
+  nextFulfillmentDate: string,
+  pattern: 'weekly' | 'biweekly',
+  horizonDays = 28,
+  deliveryDays: number[] = [],
+  termEnd: string | null = null
+): string[] {
   const dates: string[] = []
   const start = nextFulfillmentDate.slice(0, 10)
+  if (deliveryDays.length > 0) {
+    // Subscription plans: every chosen weekday until the term ends (or the horizon is reached).
+    const last = addDays(start, horizonDays)
+    const limit = termEnd && termEnd.slice(0, 10) < last ? termEnd.slice(0, 10) : last
+    for (let d = firstDeliveryOnOrAfter(start, deliveryDays); d <= limit && dates.length < 400; d = nextDeliveryAfter(d, deliveryDays)) dates.push(d)
+    return dates
+  }
   const step = pattern === 'weekly' ? 7 : 14
   for (let offset = 0; offset <= horizonDays; offset += step) dates.push(addDays(start, offset))
   return dates

@@ -1,7 +1,13 @@
+import { requireRole } from '@/app/actions/auth'
 import { checkOverPurchase } from '@/lib/macroflex'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
+  const owner = await requireRole('owner')
+  if (!owner) {
+    return NextResponse.json({ error: 'Owner access required.' }, { status: 403 })
+  }
+
   try {
     const { searchParams } = new URL(request.url)
     const operatorId = searchParams.get('operatorId')

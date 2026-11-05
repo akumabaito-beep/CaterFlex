@@ -61,7 +61,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  if (pathname.startsWith('/owner')) {
+  // MacroFlex and Menu Management are owner-only pages that live outside /owner.
+  if (pathname.startsWith('/owner') || pathname.startsWith('/macroflex') || pathname.startsWith('/menu-management')) {
     if (tableSession?.role === 'owner') {
       return NextResponse.next()
     }

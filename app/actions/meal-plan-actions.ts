@@ -5,16 +5,26 @@ import { requireRole } from '@/app/actions/auth'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { deliveryFeeForVenue } from '../../lib/pricing'
 import {
+  MAX_PAUSE_DAYS,
+  PAUSE_CUTOFF_DAYS,
   addDaysISO,
+  cancellationRefund,
+  daysBetween,
+  deliveryDaysToString,
+  deliveryDates,
+  firstDeliveryOnOrAfter,
   isMealType,
-  isTermCycles,
-  nextAlignedDate,
-  stepDays,
-  termEndDate,
+  isPlanWeeks,
+  nextDeliveryAfter,
+  parseDeliveryDays,
+  planEndDate,
+  scheduleDates,
+  totalDeliveries,
   type MealType,
 } from '../../lib/meal-plan'
+import { resumeDuePlans, resumePausedPlan } from '../../lib/meal-plan-resume'
 
-const SKIP_CUTOFF_DAYS = 2
+const SKIP_CUTOFF_DAYS = PAUSE_CUTOFF_DAYS
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
 function todayInManila() {
@@ -22,7 +32,7 @@ function todayInManila() {
 }
 
 const PLAN_FIELDS =
-  'MealPrepOrderID, CustomerID, OperatorID, RecurrencePattern, MealsPerCycle, Status, NextFulfillmentDate, MealType, TermCycles, TermEndDate, RenewedCount, FulfillmentMethod, FulfillmentTime, DeliveryAddress, DeliveryFee, PricePerServing, SkippedCount'
+  'MealPrepOrderID, CustomerID, OperatorID, RecurrencePattern, MealsPerCycle, Status, NextFulfillmentDate, MealType, TermCycles, TermEndDate, RenewedCount, FulfillmentMethod, FulfillmentTime, DeliveryAddress, DeliveryFee, PricePerServing, SkippedCount, PlanWeeks, DeliveryDays, PausedFrom, PausedUntil, PausedDays, RefundAmount, CancelledAt'
 
 type Fail = { ok: false; error: string }
 
@@ -57,7 +67,8 @@ async function currentPricePerServing(
 
 export type MealPlanDetailsInput = {
   mealType: string
-  termCycles: number
+  planWeeks: number
+  deliveryDays: number[]
   fulfillmentMethod: string
   fulfillmentTime: string
   deliveryAddress?: string | null
@@ -74,7 +85,9 @@ export async function saveMealPlanDetails(orderId: number, input: MealPlanDetail
 
   if (String(plan.Status) !== 'pending' || plan.MealType) return { ok: false, error: 'This meal plan was already set up.' }
   if (!isMealType(input.mealType)) return { ok: false, error: 'Choose breakfast, lunch or dinner.' }
-  if (!isTermCycles(input.termCycles)) return { ok: false, error: 'Choose how many deliveries the plan covers.' }
+  if (!isPlanWeeks(input.planWeeks)) return { ok: false, error: 'Choose a plan length of 1, 2 or 4 weeks.' }
+  const days = parseDeliveryDays(input.deliveryDays)
+  if (days.length === 0) return { ok: false, error: 'Choose at least one delivery day.' }
   if (!TIME_RE.test(input.fulfillmentTime)) return { ok: false, error: 'Choose a delivery time.' }
   const method = input.fulfillmentMethod === 'delivery' ? 'delivery' : 'pickup'
 
@@ -90,13 +103,18 @@ export async function saveMealPlanDetails(orderId: number, input: MealPlanDetail
   const priced = await currentPricePerServing(admin, orderId)
   if (priced.error !== undefined) return { ok: false, error: priced.error }
 
-  const start = String(plan.NextFulfillmentDate).slice(0, 10)
+  // the first delivery is the first chosen day on or after the date the customer picked
+  const start = firstDeliveryOnOrAfter(String(plan.NextFulfillmentDate).slice(0, 10), days)
   const { error } = await admin
     .from('MEAL_PREP_ORDER')
     .update({
       MealType: input.mealType as MealType,
-      TermCycles: input.termCycles,
-      TermEndDate: termEndDate(start, String(plan.RecurrencePattern), input.termCycles),
+      PlanWeeks: input.planWeeks,
+      DeliveryDays: deliveryDaysToString(days),
+      RecurrencePattern: 'weekly',
+      NextFulfillmentDate: start,
+      TermCycles: totalDeliveries(input.planWeeks, days),
+      TermEndDate: planEndDate(start, input.planWeeks, days),
       FulfillmentMethod: method,
       FulfillmentTime: input.fulfillmentTime,
       DeliveryAddress: address,
@@ -116,6 +134,10 @@ export type MealPlan = {
   nextDate: string
   mealType: string | null
   termCycles: number | null
+  planWeeks: number | null
+  days: number[]
+  pausedUntil: string | null
+  refund: number | null
   termEnd: string | null
   renewedCount: number
   skippedCount: number
@@ -131,6 +153,8 @@ export async function getMyMealPlans(): Promise<{ ok: true; plans: MealPlan[]; t
   const customer = await requireRole('customer')
   if (!customer) return { ok: false, error: 'Customer access required.', plans: [] }
   const admin = createAdminClient()
+  // plans whose planned return date has arrived start delivering again
+  await resumeDuePlans(admin, todayInManila(), Number(customer.id))
   const { data: orders, error } = await admin
     .from('MEAL_PREP_ORDER')
     .select(PLAN_FIELDS)
@@ -156,6 +180,10 @@ export async function getMyMealPlans(): Promise<{ ok: true; plans: MealPlan[]; t
     nextDate: String(o.NextFulfillmentDate ?? '').slice(0, 10),
     mealType: o.MealType ?? null,
     termCycles: o.TermCycles === null || o.TermCycles === undefined ? null : Number(o.TermCycles),
+    planWeeks: o.PlanWeeks === null || o.PlanWeeks === undefined ? null : Number(o.PlanWeeks),
+    days: parseDeliveryDays(o.DeliveryDays),
+    pausedUntil: o.PausedUntil ? String(o.PausedUntil).slice(0, 10) : null,
+    refund: o.RefundAmount === null || o.RefundAmount === undefined ? null : Number(o.RefundAmount),
     termEnd: o.TermEndDate ? String(o.TermEndDate).slice(0, 10) : null,
     renewedCount: Number(o.RenewedCount ?? 0),
     skippedCount: Number(o.SkippedCount ?? 0),
@@ -172,14 +200,15 @@ export async function getMyMealPlans(): Promise<{ ok: true; plans: MealPlan[]; t
 }
 
 /**
- * Renew: add more deliveries. If the plan already ended, a fresh term starts on the next
- * scheduled date and the price is locked again at the CURRENT menu prices (renewal is a new purchase).
+ * Renew: add more weeks. If the plan is still running, the new weeks are added after the last
+ * delivery and the price stays locked. If it already ended, a fresh term starts on the next chosen
+ * day and the price is locked again at the CURRENT menu prices (renewal is a new purchase).
  */
-export async function renewMealPlan(orderId: number, cycles: number): Promise<{ ok: true } | Fail> {
+export async function renewMealPlan(orderId: number, weeks: number): Promise<{ ok: true } | Fail> {
   const loaded = await loadOwnPlan(orderId)
   if (loaded.error !== undefined) return { ok: false, error: loaded.error }
   const { admin, plan } = loaded
-  if (!isTermCycles(cycles)) return { ok: false, error: 'Choose how many deliveries to add.' }
+  if (!isPlanWeeks(weeks)) return { ok: false, error: 'Choose 1, 2 or 4 more weeks.' }
   const status = String(plan.Status).toLowerCase()
   if (!['active', 'confirmed', 'paused', 'ended'].includes(status)) {
     return { ok: false, error: 'Only confirmed meal plans can be renewed.' }
@@ -187,16 +216,20 @@ export async function renewMealPlan(orderId: number, cycles: number): Promise<{ 
   if (!plan.TermEndDate) return { ok: false, error: 'This meal plan has no subscription term yet.' }
 
   const today = todayInManila()
+  const days = parseDeliveryDays(plan.DeliveryDays)
   const freq = String(plan.RecurrencePattern)
   const end = String(plan.TermEndDate).slice(0, 10)
+  const add = days.length ? totalDeliveries(weeks, days) : weeks
 
   if (end >= today && status !== 'ended') {
-    // extend the running term; price stays locked
+    let newEnd = end
+    for (let i = 0; i < add; i++) newEnd = nextDeliveryAfter(newEnd, days, freq)
     const { error } = await admin
       .from('MEAL_PREP_ORDER')
       .update({
-        TermEndDate: addDaysISO(end, cycles * stepDays(freq)),
-        TermCycles: Number(plan.TermCycles ?? 0) + cycles,
+        TermEndDate: newEnd,
+        TermCycles: Number(plan.TermCycles ?? 0) + add,
+        PlanWeeks: Number(plan.PlanWeeks ?? 0) + weeks,
         RenewedCount: Number(plan.RenewedCount ?? 0) + 1,
       })
       .eq('MealPrepOrderID', orderId)
@@ -204,14 +237,16 @@ export async function renewMealPlan(orderId: number, cycles: number): Promise<{ 
   } else {
     const priced = await currentPricePerServing(admin, orderId)
     if (priced.error !== undefined) return { ok: false, error: priced.error }
-    const start = nextAlignedDate(String(plan.NextFulfillmentDate).slice(0, 10), today, freq)
+    const earliest = addDaysISO(today, SKIP_CUTOFF_DAYS)
+    const dates = deliveryDates(earliest, add, days.length ? days : [new Date(`${String(plan.NextFulfillmentDate).slice(0, 10)}T00:00:00Z`).getUTCDay()])
     const { error } = await admin
       .from('MEAL_PREP_ORDER')
       .update({
         Status: 'active',
-        NextFulfillmentDate: start,
-        TermCycles: cycles,
-        TermEndDate: termEndDate(start, freq, cycles),
+        NextFulfillmentDate: dates[0],
+        TermCycles: add,
+        PlanWeeks: weeks,
+        TermEndDate: dates[dates.length - 1],
         RenewedCount: Number(plan.RenewedCount ?? 0) + 1,
         PricePerServing: priced.price,
       })
@@ -233,22 +268,121 @@ export async function skipNextDelivery(orderId: number): Promise<{ ok: true } | 
   if (!plan.TermEndDate) return { ok: false, error: 'This meal plan has no subscription term yet.' }
   const today = todayInManila()
   const next = String(plan.NextFulfillmentDate).slice(0, 10)
-  const days = Math.round((Date.parse(`${next}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000)
-  if (days < SKIP_CUTOFF_DAYS) {
+  if (daysBetween(today, next) < SKIP_CUTOFF_DAYS) {
     return { ok: false, error: `Deliveries can be skipped up to ${SKIP_CUTOFF_DAYS} days before the delivery date.` }
   }
-  const step = stepDays(String(plan.RecurrencePattern))
+  const days = parseDeliveryDays(plan.DeliveryDays)
+  const freq = String(plan.RecurrencePattern)
   const { error } = await admin
     .from('MEAL_PREP_ORDER')
     .update({
-      NextFulfillmentDate: addDaysISO(next, step),
-      TermEndDate: addDaysISO(String(plan.TermEndDate).slice(0, 10), step),
+      NextFulfillmentDate: nextDeliveryAfter(next, days, freq),
+      TermEndDate: nextDeliveryAfter(String(plan.TermEndDate).slice(0, 10), days, freq),
       SkippedCount: Number(plan.SkippedCount ?? 0) + 1,
     })
     .eq('MealPrepOrderID', orderId)
   if (error) return { ok: false, error: error.message }
   revalidatePath('/customer/active-orders')
   return { ok: true }
+}
+
+/**
+ * Pause until a return date (at most 14 days away). Every paid delivery is kept: when the plan
+ * resumes, the deliveries that are left start again and the end date moves out by the pause.
+ */
+export async function pauseMealPlan(orderId: number, returnDate: string): Promise<{ ok: true } | Fail> {
+  const loaded = await loadOwnPlan(orderId)
+  if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+  const { admin, plan } = loaded
+  if (!['active', 'confirmed'].includes(String(plan.Status).toLowerCase())) {
+    return { ok: false, error: 'Only active meal plans can be paused.' }
+  }
+  const today = todayInManila()
+  const next = String(plan.NextFulfillmentDate).slice(0, 10)
+  if (daysBetween(today, next) < PAUSE_CUTOFF_DAYS) {
+    return { ok: false, error: `Your next delivery is less than ${PAUSE_CUTOFF_DAYS} days away and is already being prepared. You can pause after it.` }
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(returnDate)) return { ok: false, error: 'Choose the date you want deliveries to start again.' }
+  const length = daysBetween(today, returnDate)
+  if (length < 1) return { ok: false, error: 'Choose a return date after today.' }
+  if (length > MAX_PAUSE_DAYS) return { ok: false, error: `A plan can be paused for up to ${MAX_PAUSE_DAYS} days at a time.` }
+
+  const { error } = await admin
+    .from('MEAL_PREP_ORDER')
+    .update({ Status: 'paused', PausedFrom: today, PausedUntil: returnDate })
+    .eq('MealPrepOrderID', orderId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/customer/active-orders')
+  return { ok: true }
+}
+
+/** Resume early. Deliveries restart on the first chosen day at least 2 days from now. */
+export async function resumeMealPlan(orderId: number): Promise<{ ok: true } | Fail> {
+  const loaded = await loadOwnPlan(orderId)
+  if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+  const { admin, plan } = loaded
+  if (String(plan.Status).toLowerCase() !== 'paused') return { ok: false, error: 'This meal plan is not paused.' }
+  const today = todayInManila()
+  const { error } = await resumePausedPlan(admin, plan, addDaysISO(today, SKIP_CUTOFF_DAYS), today)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/customer/active-orders')
+  return { ok: true }
+}
+
+async function refundFor(admin: ReturnType<typeof createAdminClient>, plan: Record<string, any>, orderId: number) {
+  const status = String(plan.Status).toLowerCase()
+  const today = todayInManila()
+  let price = plan.PricePerServing === null || plan.PricePerServing === undefined ? null : Number(plan.PricePerServing)
+  if (price === null) {
+    const priced = await currentPricePerServing(admin, orderId)
+    price = priced.error === undefined ? priced.price : 0
+  }
+  // a plan nobody has confirmed or paid for yet has nothing to refund
+  if (status === 'pending') return { refundedDeliveries: 0, committedDeliveries: 0, refund: 0 }
+  return cancellationRefund({
+    nextDate: String(plan.NextFulfillmentDate).slice(0, 10),
+    termEnd: plan.TermEndDate ? String(plan.TermEndDate).slice(0, 10) : null,
+    days: parseDeliveryDays(plan.DeliveryDays),
+    frequency: plan.RecurrencePattern,
+    today,
+    pricePerServing: price,
+    servings: Number(plan.MealsPerCycle ?? 0),
+    deliveryFee: Number(plan.DeliveryFee ?? 0),
+  })
+}
+
+/** What cancelling would do, shown before the customer confirms. */
+export async function previewMealPlanCancellation(
+  orderId: number
+): Promise<{ ok: true; refundedDeliveries: number; committedDeliveries: number; refund: number } | Fail> {
+  const loaded = await loadOwnPlan(orderId)
+  if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+  const r = await refundFor(loaded.admin, loaded.plan, orderId)
+  return { ok: true, ...r }
+}
+
+/**
+ * Cancel right away. Deliveries inside the 2-day cutoff are treated as committed; the unused
+ * deliveries after that are refunded at the LOCKED price. The system works out the amount and the
+ * owner pays it back manually (there is no payment gateway).
+ */
+export async function cancelMealPlan(
+  orderId: number
+): Promise<{ ok: true; refund: number; refundedDeliveries: number } | Fail> {
+  const loaded = await loadOwnPlan(orderId)
+  if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+  const { admin, plan } = loaded
+  if (!['pending', 'confirmed', 'active', 'paused'].includes(String(plan.Status).toLowerCase())) {
+    return { ok: false, error: 'This meal plan cannot be cancelled.' }
+  }
+  const r = await refundFor(admin, plan, orderId)
+  const { error } = await admin
+    .from('MEAL_PREP_ORDER')
+    .update({ Status: 'cancelled', RefundAmount: r.refund, CancelledAt: todayInManila(), PausedFrom: null, PausedUntil: null })
+    .eq('MealPrepOrderID', orderId)
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/customer/active-orders')
+  return { ok: true, refund: r.refund, refundedDeliveries: r.refundedDeliveries }
 }
 
 /** Change delivery time / method / address. The delivery fee is recalculated; food prices stay locked. */

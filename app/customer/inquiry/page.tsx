@@ -29,14 +29,16 @@ import { LocationPicker } from '@/components/booking/LocationPicker';
 import { AvailabilityCalendar } from '@/components/booking/AvailabilityCalendar';
 import {
   MEAL_TYPES,
-  TERM_OPTIONS,
-  frequencyLabel,
+  PLAN_WEEKS,
+  deliveryDaysLabel,
+  deliveryDates,
+  planEndDate,
   planTitle,
-  termEndDate,
-  weekdayName,
+  totalDeliveries,
   type MealType,
-  type TermCycles,
+  type PlanWeeks,
 } from '@/lib/meal-plan';
+import { DaysPicker } from '@/components/booking/DaysPicker';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -52,6 +54,7 @@ import {
 
 const ALLERGEN_OPTIONS: AllergenType[] = [
   'shellfish',
+  'fish',
   'peanuts',
   'dairy',
   'gluten',
@@ -242,7 +245,8 @@ export default function InquiryPage() {
 
   const [mealPrepForm, setMealPrepForm] = useState({
     mealType: 'lunch' as MealType,
-    termCycles: 4 as TermCycles,
+    planWeeks: 2 as PlanWeeks,
+    deliveryDays: [1, 2, 3, 4, 5] as number[],
     startDate: '',
     fulfillmentTime: '10:00',
     frequency: 'weekly' as MealPrepFrequency,
@@ -602,7 +606,8 @@ export default function InquiryPage() {
         // subscription details; read back with readMealPlanDraft()
         ...({
           mealType: mealPrepForm.mealType,
-          termCycles: mealPrepForm.termCycles,
+          planWeeks: mealPrepForm.planWeeks,
+          deliveryDays: mealPrepForm.deliveryDays,
         } as object),
       });
 
@@ -1022,20 +1027,17 @@ export default function InquiryPage() {
                       Plan length *
                     </label>
                     <div className="flex-1">
-                      <OptionCardPicker<`${TermCycles}`>
-                        title="How many deliveries?"
+                      <OptionCardPicker<`${PlanWeeks}`>
+                        title="How long?"
                         icon={CalendarDays}
-                        value={`${mealPrepForm.termCycles}`}
+                        value={`${mealPrepForm.planWeeks}`}
                         onChange={(v) =>
-                          setMealPrepForm((f) => ({ ...f, termCycles: Number(v) as TermCycles }))
+                          setMealPrepForm((f) => ({ ...f, planWeeks: Number(v) as PlanWeeks }))
                         }
-                        options={TERM_OPTIONS.map((n) => ({
-                          value: `${n}` as `${TermCycles}`,
-                          label: `${n} deliveries`,
-                          hint:
-                            mealPrepForm.frequency === 'biweekly'
-                              ? `about ${Math.round((n * 2) / 4.3)} months`
-                              : `about ${Math.round(n / 4.3)} ${Math.round(n / 4.3) === 1 ? 'month' : 'months'}`,
+                        options={PLAN_WEEKS.map((n) => ({
+                          value: `${n}` as `${PlanWeeks}`,
+                          label: `${n} ${n === 1 ? 'week' : 'weeks'}`,
+                          hint: `${totalDeliveries(n, mealPrepForm.deliveryDays)} deliveries`,
                         }))}
                       />
                     </div>
@@ -1104,34 +1106,37 @@ export default function InquiryPage() {
 
                 {availabilityBanner}
 
-                {/* FREQUENCY / SERVINGS */}
+                {/* DELIVERY DAYS / SERVINGS */}
 
                 <div className="grid items-stretch md:grid-cols-2 gap-6">
 
                   <div className="flex flex-col">
                     <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
-                      Frequency *
+                      Delivery days *
                     </label>
 
                     <div className="flex-1">
-                      <OptionCardPicker<MealPrepFrequency>
-                        title="Repeat"
-                        icon={Repeat}
-                        value={mealPrepForm.frequency}
-                        onChange={(frequency) =>
-                          setMealPrepForm((f) => ({ ...f, frequency }))
+                      <DaysPicker
+                        value={mealPrepForm.deliveryDays}
+                        onChange={(deliveryDays) =>
+                          setMealPrepForm((f) => ({ ...f, deliveryDays }))
                         }
-                        options={[
-                          { value: 'weekly', label: 'Weekly', hint: 'Every week' },
-                          { value: 'biweekly', label: 'Every 2 weeks', hint: 'Every other week' },
-                        ]}
+                      />
+                      <input
+                        type="text"
+                        value={mealPrepForm.deliveryDays.join(',')}
+                        onChange={() => {}}
+                        required
+                        tabIndex={-1}
+                        aria-hidden="true"
+                        className="sr-only"
                       />
                     </div>
                   </div>
 
                   <div className="flex flex-col">
                     <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
-                      Servings per Cycle *
+                      Servings per delivery *
                     </label>
 
                     <div className="flex-1">
@@ -1151,30 +1156,28 @@ export default function InquiryPage() {
 
                 {/* SCHEDULE SUMMARY */}
 
-                {mealPrepForm.startDate && (
-                  <div className="rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4 text-sm text-[#2A1B1F]">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#9B1C2C]">
-                      Your delivery schedule
-                    </p>
-                    <p className="mt-1 font-semibold">
-                      {frequencyLabel(mealPrepForm.frequency)} on {weekdayName(mealPrepForm.startDate)}s,{' '}
-                      starting{' '}
-                      {new Date(`${mealPrepForm.startDate}T12:00:00`).toLocaleDateString('en-PH', {
-                        month: 'long',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                      .
-                    </p>
-                    <p className="mt-1 text-[#2A1B1F]/70">
-                      {mealPrepForm.termCycles} deliveries, last one on{' '}
-                      {new Date(
-                        `${termEndDate(mealPrepForm.startDate, mealPrepForm.frequency, mealPrepForm.termCycles)}T12:00:00`
-                      ).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })}
-                      . You can pause, skip a delivery, or renew anytime from Meal Plans.
-                    </p>
-                  </div>
-                )}
+                {mealPrepForm.startDate && mealPrepForm.deliveryDays.length > 0 && (() => {
+                  const fmt = (d: string) =>
+                    new Date(`${d}T12:00:00`).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })
+                  const first = deliveryDates(mealPrepForm.startDate, 1, mealPrepForm.deliveryDays)[0]
+                  const last = planEndDate(mealPrepForm.startDate, mealPrepForm.planWeeks, mealPrepForm.deliveryDays)
+                  const count = totalDeliveries(mealPrepForm.planWeeks, mealPrepForm.deliveryDays)
+                  return (
+                    <div className="rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4 text-sm text-[#2A1B1F]">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#9B1C2C]">
+                        Your delivery schedule
+                      </p>
+                      <p className="mt-1 font-semibold">
+                        {deliveryDaysLabel(mealPrepForm.deliveryDays)} for {mealPrepForm.planWeeks}{' '}
+                        {mealPrepForm.planWeeks === 1 ? 'week' : 'weeks'}, starting {fmt(first)}.
+                      </p>
+                      <p className="mt-1 text-[#2A1B1F]/70">
+                        {count} deliveries, last one on {fmt(last)}. You can pause, skip a delivery,
+                        cancel or renew anytime from Meal Plans.
+                      </p>
+                    </div>
+                  )
+                })()}
 
                 {/* FULFILLMENT METHOD */}
 

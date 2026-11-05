@@ -7,9 +7,9 @@ import { getUnreadNotificationCount } from '@/app/actions/notification-actions';
 import { formatUnreadBadgeCount, NOTIFICATIONS_UPDATED_EVENT } from '@/lib/notification-client';
 import { signOutAccount } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import { Bell, LogOut, User } from 'lucide-react';
+import { Bell, LogOut, Menu, User } from 'lucide-react';
 
-export function TopNav() {
+export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
   const router = useRouter();
   const { currentRole, currentUser } = useAppState();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -56,34 +56,46 @@ export function TopNav() {
   };
 
   return (
-    <header className="border-b border-border sticky top-0 z-50 shadow-md bg-surface text-surface-foreground">
-      <div className="flex items-center justify-end h-16 px-6">
-          <div className="flex items-center gap-4">
+    <header className="sticky top-0 z-30 border-b border-border/80 bg-card/95 backdrop-blur">
+      <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:justify-end lg:px-8">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          aria-label="Open menu"
+          className="inline-flex size-10 items-center justify-center rounded-lg border border-border text-[#2A1B1F] lg:hidden"
+        >
+          <Menu className="size-5" />
+        </button>
+
+        <div className="flex items-center gap-3">
           {currentRole === 'owner' && (
             <button
               type="button"
               onClick={() => router.push('/owner/notifications')}
               aria-label={`Notifications, ${unreadCount} unread`}
-              className="relative flex size-10 items-center justify-center rounded-lg text-surface-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="relative flex size-10 items-center justify-center rounded-lg text-[#2A1B1F] transition hover:bg-[#FDECEC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C]"
             >
               <Bell className="size-5" aria-hidden="true" />
               {formatUnreadBadgeCount(unreadCount) && (
-                <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-600 px-1 text-center text-[10px] font-bold leading-5 text-white">
+                <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-[#9B1C2C] px-1 text-center text-[10px] font-bold leading-5 text-white">
                   {formatUnreadBadgeCount(unreadCount)}
                 </span>
               )}
             </button>
           )}
 
-          <div className="flex items-center gap-2 bg-muted rounded-lg px-3 py-1">
-            <User className="w-4 h-4 text-surface-muted-foreground" />
-            <span className="text-sm font-medium capitalize text-surface-foreground">
+          <div className="hidden items-center gap-2 rounded-lg bg-[#FDECEC] px-3 py-1.5 sm:flex">
+            <User className="size-4 text-[#9B1C2C]" />
+            <span className="text-sm font-semibold capitalize text-[#2A1B1F]">
               {currentUser?.name || currentRole}
             </span>
           </div>
 
-          <Button onClick={handleSignOut} variant="outline" size="sm" className="gap-2">
-            <LogOut className="w-4 h-4" />
+          <Button
+            onClick={handleSignOut}
+            className="h-9 gap-2 rounded-lg bg-[#9B1C2C] px-4 text-sm font-medium text-white hover:bg-[#7F1623]"
+          >
+            <LogOut className="size-4" />
             Sign out
           </Button>
         </div>

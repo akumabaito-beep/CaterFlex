@@ -321,7 +321,7 @@ export default function PaymentsPage() {
     <DashboardLayout>
       <div className="space-y-8">
         <div>
-          <h1 className="font-heading text-3xl font-bold text-surface-foreground">
+          <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
             Payments
           </h1>
 
@@ -344,7 +344,7 @@ export default function PaymentsPage() {
               Total Revenue
             </p>
 
-            <p className="text-3xl font-bold text-primary mt-2">
+            <p className="text-3xl font-bold text-[#9B1C2C] mt-2">
               ₱{totalRevenue.toFixed(2)}
             </p>
           </Card>
@@ -354,7 +354,7 @@ export default function PaymentsPage() {
               Outstanding Balance
             </p>
 
-            <p className="text-3xl font-bold text-accent mt-2">
+            <p className="text-3xl font-bold text-[#B7791F] mt-2">
               ₱{outstanding.toFixed(2)}
             </p>
           </Card>
@@ -364,7 +364,7 @@ export default function PaymentsPage() {
               Period Revenue
             </p>
 
-            <p className="text-3xl font-bold text-secondary mt-2">
+            <p className="text-3xl font-bold text-[#2F7D4F] mt-2">
               ₱{periodRevenue.toFixed(2)}
             </p>
           </Card>
@@ -418,27 +418,27 @@ export default function PaymentsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border">
-                  <th className="text-left p-6 font-semibold text-card-foreground">
+                  <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                     Customer
                   </th>
 
-                  <th className="text-left p-6 font-semibold text-card-foreground">
+                  <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                     Event
                   </th>
 
-                  <th className="text-left p-6 font-semibold text-card-foreground">
+                  <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                     Total
                   </th>
 
-                  <th className="text-left p-6 font-semibold text-card-foreground">
+                  <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                     Paid
                   </th>
 
-                  <th className="text-left p-6 font-semibold text-card-foreground">
+                  <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                     Outstanding
                   </th>
 
-                  <th className="text-left p-6 font-semibold text-card-foreground">
+                  <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
                     Actions
                   </th>
                 </tr>

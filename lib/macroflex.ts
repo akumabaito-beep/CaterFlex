@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { parseDeliveryDays } from './meal-plan'
 import { buildCommitment, computeAllocationShortfalls, computeOrderShortfalls, excludePrepared, expandRecurringDates, orderPrepWindow, roundQuantity, servingsForBookingItem, servingsForOrder, type AllocationCommitment, type CommitmentRef } from './rules/allocation'
 import { getScrapSuggestions as getPureScrapSuggestions, rankScrapSuggestions, type ScrapSuggestion as PureScrapSuggestion } from './rules/scrapSuggestions'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -16,7 +17,7 @@ interface Ingredient { IngredientID: number; IngredientName: string; UnitOfMeasu
 interface MenuRow { MenuItemID: number; PrepTimeDays: number }
 interface OrderItem { MenuItemID: number; Quantity: number }
 interface BookingRow { BookingID: number; EventDate: string; GuestCount: number; BOOKING_ITEM?: OrderItem[] }
-interface MealPrepRow { MealPrepOrderID: number; NextFulfillmentDate: string; RecurrencePattern: 'weekly' | 'biweekly'; MealsPerCycle: number; MEAL_PREP_ITEM?: OrderItem[] }
+interface MealPrepRow { MealPrepOrderID: number; NextFulfillmentDate: string; RecurrencePattern: 'weekly' | 'biweekly'; DeliveryDays?: string | null; TermEndDate?: string | null; MealsPerCycle: number; MEAL_PREP_ITEM?: OrderItem[] }
 
 async function getMenuIngredients(menuItemId: number, client = supabase) {
   return client.from('DISH_INGREDIENT').select('IngredientID, QuantityRequiredPerServing, INGREDIENT:INGREDIENT(IngredientID, IngredientName, UnitOfMeasure, CurrentStock)').eq('MenuItemID', menuItemId)
@@ -45,7 +46,7 @@ async function loadCommitments(
   candidateMenuItemIds: number[],
 ): Promise<AllocationCommitment[]> {
   const bookingsQuery = client.from('BOOKING').select('BookingID, EventDate, GuestCount, BOOKING_ITEM(MenuItemID, Quantity)').eq('Status', 'confirmed')
-  const mealPrepQuery = client.from('MEAL_PREP_ORDER').select('MealPrepOrderID, NextFulfillmentDate, RecurrencePattern, MealsPerCycle, MEAL_PREP_ITEM(MenuItemID, Quantity)').in('Status', ['pending', 'confirmed', 'active']).not('NextFulfillmentDate', 'is', null)
+  const mealPrepQuery = client.from('MEAL_PREP_ORDER').select('MealPrepOrderID, NextFulfillmentDate, RecurrencePattern, DeliveryDays, TermEndDate, MealsPerCycle, MEAL_PREP_ITEM(MenuItemID, Quantity)').in('Status', ['pending', 'confirmed', 'active']).not('NextFulfillmentDate', 'is', null)
   const preparationQuery = client.from('PREPARATION_LOG').select('BookingID, MealPrepOrderID, CycleDate')
   const [{ data: bookingData, error: bookingError }, { data: mealPrepData, error: mealPrepError }, { data: preparationData, error: preparationError }] = await Promise.all([bookingsQuery, mealPrepQuery, preparationQuery])
   if (bookingError) throw bookingError
@@ -80,7 +81,7 @@ async function loadCommitments(
   }
   const commitments: AllocationCommitment[] = []
   for (const booking of bookings) commitments.push(buildCommitment({ type: 'booking', id: Number(booking.BookingID) }, String(booking.EventDate), (booking.BOOKING_ITEM ?? []).map((i) => ({ menuItemId: Number(i.MenuItemID), servings: servingsForBookingItem(i.Quantity, booking.GuestCount) })), recipes, prepDays))
-  for (const order of mealPrepOrders) for (const date of expandRecurringDates(String(order.NextFulfillmentDate), order.RecurrencePattern)) commitments.push(buildCommitment({ type: 'meal_prep', id: Number(order.MealPrepOrderID) }, date, (order.MEAL_PREP_ITEM ?? []).map((i) => ({ menuItemId: Number(i.MenuItemID), servings: servingsForOrder('meal_prep', undefined, order.MealsPerCycle) })), recipes, prepDays))
+  for (const order of mealPrepOrders) for (const date of expandRecurringDates(String(order.NextFulfillmentDate), order.RecurrencePattern, 28, parseDeliveryDays(order.DeliveryDays), order.TermEndDate ?? null)) commitments.push(buildCommitment({ type: 'meal_prep', id: Number(order.MealPrepOrderID) }, date, (order.MEAL_PREP_ITEM ?? []).map((i) => ({ menuItemId: Number(i.MenuItemID), servings: servingsForOrder('meal_prep', undefined, order.MealsPerCycle) })), recipes, prepDays))
   return excludePrepared(commitments, preparedBookingIds, preparedMealPrepCycles)
 }
 
@@ -151,7 +152,7 @@ export async function getReservedIngredients(operatorId: number, client: Supabas
   const [{ data: ingredients, error: ingredientError }, { data: bookings, error: bookingError }, { data: orders, error: orderError }, { data: preparationData, error: preparationError }] = await Promise.all([
     client.from('INGREDIENT').select('IngredientID').eq('OperatorID', operatorId),
     client.from('BOOKING').select('BookingID, EventDate, GuestCount, BOOKING_ITEM(MenuItemID, Quantity)').eq('Status', 'confirmed').gte('EventDate', today),
-    client.from('MEAL_PREP_ORDER').select('MealPrepOrderID, NextFulfillmentDate, RecurrencePattern, MealsPerCycle, MEAL_PREP_ITEM(MenuItemID, Quantity)').in('Status', ['active', 'confirmed']).gte('NextFulfillmentDate', today),
+    client.from('MEAL_PREP_ORDER').select('MealPrepOrderID, NextFulfillmentDate, RecurrencePattern, DeliveryDays, TermEndDate, MealsPerCycle, MEAL_PREP_ITEM(MenuItemID, Quantity)').in('Status', ['active', 'confirmed']).gte('NextFulfillmentDate', today),
     client.from('PREPARATION_LOG').select('BookingID, MealPrepOrderID, CycleDate'),
   ])
   if (ingredientError) throw ingredientError
@@ -187,7 +188,7 @@ export async function getReservedIngredients(operatorId: number, client: Supabas
   const prepDays = new Map((menuItems ?? []).map((row) => [Number(row.MenuItemID), Number(row.PrepTimeDays ?? 0)]))
   const commitments: AllocationCommitment[] = []
   for (const booking of bookingRows) commitments.push(buildCommitment({ type: 'booking', id: Number(booking.BookingID) }, booking.EventDate, (booking.BOOKING_ITEM ?? []).map((item) => ({ menuItemId: Number(item.MenuItemID), servings: servingsForBookingItem(item.Quantity, booking.GuestCount) })), recipeMap, prepDays))
-  for (const order of orderRows) for (const date of expandRecurringDates(order.NextFulfillmentDate, order.RecurrencePattern)) commitments.push(buildCommitment({ type: 'meal_prep', id: Number(order.MealPrepOrderID) }, date, (order.MEAL_PREP_ITEM ?? []).map((item) => ({ menuItemId: Number(item.MenuItemID), servings: servingsForOrder('meal_prep', undefined, order.MealsPerCycle) })), recipeMap, prepDays))
+  for (const order of orderRows) for (const date of expandRecurringDates(order.NextFulfillmentDate, order.RecurrencePattern, 28, parseDeliveryDays((order as { DeliveryDays?: string | null }).DeliveryDays), (order as { TermEndDate?: string | null }).TermEndDate ?? null)) commitments.push(buildCommitment({ type: 'meal_prep', id: Number(order.MealPrepOrderID) }, date, (order.MEAL_PREP_ITEM ?? []).map((item) => ({ menuItemId: Number(item.MenuItemID), servings: servingsForOrder('meal_prep', undefined, order.MealsPerCycle) })), recipeMap, prepDays))
   return excludePrepared(commitments, preparedBookingIds, preparedMealPrepCycles).reduce<Record<number, number>>((reserved, commitment) => {
   for (const [ingredientId, quantity] of Object.entries(commitment.ingredientQuantities)) reserved[Number(ingredientId)] = roundQuantity((reserved[Number(ingredientId)] ?? 0) + quantity)
   return reserved

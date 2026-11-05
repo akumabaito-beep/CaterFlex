@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { requireRole } from '@/app/actions/auth'
 import { createAdminClient } from '@/lib/supabase-admin'
+import { parseDeliveryDays } from '../../lib/meal-plan'
 import { computeOrderIngredientUsage, expandRecurringDates, servingsForBookingItem, servingsForOrder } from '../../lib/rules/allocation'
 
 async function markPrepared(input: { bookingId?: number; mealPrepOrderId?: number; cycleDate?: string }) {
@@ -16,12 +17,12 @@ async function markPrepared(input: { bookingId?: number; mealPrepOrderId?: numbe
 
   const table = isBooking ? 'BOOKING' : 'MEAL_PREP_ORDER'
   const idField = isBooking ? 'BookingID' : 'MealPrepOrderID'
-  const { data: order, error: orderError } = await admin.from(table).select(isBooking ? 'BookingID, OperatorID, GuestCount, Status, EventDate' : 'MealPrepOrderID, OperatorID, MealsPerCycle, Status, NextFulfillmentDate').eq(idField, id).eq('OperatorID', operatorId).in('Status', isBooking ? ['confirmed'] : ['active', 'confirmed']).maybeSingle()
+  const { data: order, error: orderError } = await admin.from(table).select(isBooking ? 'BookingID, OperatorID, GuestCount, Status, EventDate' : 'MealPrepOrderID, OperatorID, MealsPerCycle, Status, NextFulfillmentDate, RecurrencePattern, DeliveryDays, TermEndDate' as string).eq(idField, id).eq('OperatorID', operatorId).in('Status', isBooking ? ['confirmed'] : ['active', 'confirmed']).maybeSingle()
   if (orderError || !order) return { ok: false as const, error: orderError?.message ?? 'Order was not found or is not ready.' }
-  const preparedOrder = order as Record<string, unknown>
+  const preparedOrder = order as unknown as Record<string, unknown>
   if (!isBooking) {
     const pattern = String(preparedOrder.RecurrencePattern) as 'weekly' | 'biweekly';
-    const cycleDates = expandRecurringDates(String(preparedOrder.NextFulfillmentDate), pattern);
+    const cycleDates = expandRecurringDates(String(preparedOrder.NextFulfillmentDate), pattern, 28, parseDeliveryDays(preparedOrder.DeliveryDays), preparedOrder.TermEndDate ? String(preparedOrder.TermEndDate) : null);
     if (!input.cycleDate || !cycleDates.some((date) => date.slice(0, 10) === input.cycleDate)) {
       return { ok: false as const, error: 'Choose a scheduled cycle for this order.' };
     }

@@ -1,3 +1,5 @@
+import { resumeDuePlans } from '../../../../lib/meal-plan-resume'
+import { nextDeliveryAfter, parseDeliveryDays } from '../../../../lib/meal-plan'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { checkOrderSufficiencyWithAllocations } from '@/lib/macroflex'
@@ -66,9 +68,11 @@ export async function GET(request: NextRequest) {
     if (await createNotification(Number(booking.OperatorID), type, message, metadata)) notified += 1
   }
 
+  await resumeDuePlans(admin) // paused plans whose return date has arrived
+
   const { data: mealPrepOrders, error: mealPrepError } = await admin
     .from('MEAL_PREP_ORDER')
-    .select('MealPrepOrderID, OperatorID, RecurrencePattern, MealsPerCycle, NextFulfillmentDate, TermEndDate')
+    .select('MealPrepOrderID, OperatorID, RecurrencePattern, MealsPerCycle, NextFulfillmentDate, TermEndDate, DeliveryDays')
     // Only orders that can still be fulfilled are checked.
     .in('Status', ['pending', 'confirmed', 'active'])
     .not('NextFulfillmentDate', 'is', null)
@@ -105,8 +109,8 @@ export async function GET(request: NextRequest) {
     }
 
     let nextDate = fulfillmentDate
-    const step = order.RecurrencePattern === 'biweekly' ? 14 : 7
-    while (nextDate <= today) nextDate = addDays(nextDate, step)
+    const planDays = parseDeliveryDays(order.DeliveryDays)
+    while (nextDate <= today) nextDate = nextDeliveryAfter(nextDate, planDays, order.RecurrencePattern)
     if (nextDate !== fulfillmentDate) {
       const { error: updateError } = await admin
         .from('MEAL_PREP_ORDER')

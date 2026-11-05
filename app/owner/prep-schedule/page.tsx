@@ -320,7 +320,7 @@ export default function PrepSchedulePage() {
         ====================================================== */}
 
         <div>
-          <h1 className="font-heading text-3xl font-bold text-surface-foreground">
+          <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
             Prep Schedule
           </h1>
 
