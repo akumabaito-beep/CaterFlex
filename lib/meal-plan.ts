@@ -1,6 +1,5 @@
-
-export type MealType = 'breakfast' | 'lunch' | 'dinner'
-
+import type { MealType, MealPrepSelection, ScheduledDelivery } from './types';
+export type { MealType } from './types';
 export const MEAL_TYPES: { value: MealType; label: string; hint: string }[] = [
   { value: 'breakfast', label: 'Breakfast', hint: 'Morning meals' },
   { value: 'lunch', label: 'Lunch', hint: 'Midday meals' },
@@ -21,11 +20,7 @@ export const WEEKDAYS = [
   { value: 6, label: 'Saturday' },
 ] as const
 
-export type MealPlanSelection = {
-  mealType: MealType
-  menuItemId: number
-  quantity: number
-}
+export type MealPlanSelection = MealPrepSelection;
 
 export function isSubscriptionWeeks(
   value: unknown
@@ -82,10 +77,7 @@ export function generateDeliveryDates(
 }
 
 
-export type DeliveryDate = {
-  date: string
-  subscriptionWeek: number
-}
+export type DeliveryDate = ScheduledDelivery;
 
 /** Calculate total servings for one dish across all scheduled deliveries. */
 export function totalDishServings(

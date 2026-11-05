@@ -613,6 +613,10 @@ export default function InquiryPage() {
         guestCount: 1,
         fulfillmentMethod: mealPrepForm.fulfillmentMethod,
         specialRequests: mealPrepForm.specialRequests,
+      
+        // New subscription details
+        subscriptionWeeks: mealPrepForm.subscriptionWeeks,
+        deliveryDays: mealPrepForm.deliveryDays,
         scheduledDeliveries,
       });
 

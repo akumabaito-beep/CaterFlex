@@ -22,6 +22,8 @@ import {
   syncMenuInventoryStatus,
 } from './alerts';
 
+import type { MealType, MealPlanSelection } from './meal-plan';
+
 const OPERATOR_ID = 2;
 
 const DAY_OF_WEEK_VALUES = [0, 1, 2, 3, 4, 5, 6] as const;
@@ -218,6 +220,7 @@ interface AppState {
   invoices: Invoice[];
 
   selectedMenuItemIds: string[];
+  mealPrepSelections: MealPlanSelection[];
   customerDietaryRestrictions: AllergenType[];
   customerBookingDraft: Partial<Booking>;
   customerOrderType: OrderType;
@@ -240,6 +243,22 @@ interface AppState {
 
   selectMenuItem: (itemId: string) => void;
   deselectMenuItem: (itemId: string) => void;
+
+  addMealPrepSelection: (
+    mealType: MealType,
+    menuItemId: number
+  ) => void;
+  
+  updateMealPrepQuantity: (
+    mealType: MealType,
+    menuItemId: number,
+    quantity: number
+  ) => void;
+  
+  removeMealPrepSelection: (
+    mealType: MealType,
+    menuItemId: number
+  ) => void;
 
   setDietaryRestrictions: (
     restrictions: AllergenType[]
@@ -274,6 +293,7 @@ export const useAppState = create<AppState>(
     alerts: [],
 
     selectedMenuItemIds: [],
+    mealPrepSelections: [],
     customerDietaryRestrictions: [],
     customerBookingDraft: {},
     customerOrderType: 'catering',
@@ -440,6 +460,53 @@ export const useAppState = create<AppState>(
           ),
       })),
 
+      addMealPrepSelection: (mealType, menuItemId) =>
+        set((state) => {
+          const exists = state.mealPrepSelections.some(
+            (item) =>
+              item.mealType === mealType &&
+              item.menuItemId === menuItemId
+          );
+      
+          if (exists) return state;
+      
+          return {
+            mealPrepSelections: [
+              ...state.mealPrepSelections,
+              {
+                mealType,
+                menuItemId,
+                quantity: 1,
+              },
+            ],
+          };
+        }),
+      
+      updateMealPrepQuantity: (mealType, menuItemId, quantity) =>
+        set((state) => {
+          if (!Number.isInteger(quantity) || quantity < 1) {
+            return state;
+          }
+      
+          return {
+            mealPrepSelections: state.mealPrepSelections.map((item) =>
+              item.mealType === mealType &&
+              item.menuItemId === menuItemId
+                ? { ...item, quantity }
+                : item
+            ),
+          };
+        }),
+      
+      removeMealPrepSelection: (mealType, menuItemId) =>
+        set((state) => ({
+          mealPrepSelections: state.mealPrepSelections.filter(
+            (item) =>
+              item.mealType !== mealType ||
+              item.menuItemId !== menuItemId
+          ),
+        })),
+
     /**
      * Save the customer's dietary restrictions
      * in the current booking session.
@@ -478,6 +545,7 @@ export const useAppState = create<AppState>(
     clearCustomerSession: () =>
       set({
         selectedMenuItemIds: [],
+        mealPrepSelections: [],
         customerDietaryRestrictions: [],
         customerBookingDraft: {},
         customerOrderType: 'catering',

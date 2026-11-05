@@ -39,24 +39,19 @@ export interface MenuItem {
   name: string;
   description: string;
   category: 'appetizers' | 'mains' | 'sides' | 'desserts' | 'beverages';
+  mealType?: MealType;
   price: number;
   prepTimeDays: number;
   availability?: boolean;
   photoUrl?: string;
-  
+  allergyTags: AllergenType[];
   macros: {
     carbs: number;
     protein: number;
     fat: number;
   };
-  allergyTags: AllergenType[];
-  requiredIngredients: Array<{
-    id: string;
-    name: string;
-    qty: number;
-    unit: string;
-  }>;
-  inventoryStatus: 'available' | 'limited' | 'insufficient';
+  requiredIngredients: string[];
+  inventoryStatus: 'available' | 'low' | 'out';
 }
 
 // Event Profile Types
@@ -97,6 +92,28 @@ export interface OperatorSettings {
 // Booking Types
 export type OrderType = 'catering' | 'meal_prep';
 export type FulfillmentMethod = 'pickup' | 'delivery';
+export type MealType = 'breakfast' | 'lunch' | 'dinner';
+export interface MealPrepSelection {
+  mealType: MealType;
+  menuItemId: number;
+  quantity: number;
+}
+
+export interface ScheduledDelivery {
+  date: string;
+  subscriptionWeek: number;
+}
+
+export interface MealPrepSelection {
+  mealType: MealType;
+  menuItemId: number;
+  quantity: number;
+}
+
+export interface ScheduledDelivery {
+  date: string;
+  subscriptionWeek: number;
+}
 export type BookingStatus = 'pending' | 'confirmed' | 'rejected' | 'completed';
 
 export interface Booking {
@@ -112,10 +129,7 @@ export interface Booking {
   guestCount: number;
   subscriptionWeeks?: 1 | 2 | 4;
   deliveryDays?: number[];
-  scheduledDeliveries?: {
-    date: string;
-    subscriptionWeek: number;
-  }[];
+  scheduledDeliveries?: ScheduledDelivery[];
   fulfillmentMethod?: FulfillmentMethod;
   fulfillmentTime?: string;
   specialRequests: string;
