@@ -50,8 +50,13 @@ export interface MenuItem {
     protein: number;
     fat: number;
   };
-  requiredIngredients: string[];
-  inventoryStatus: 'available' | 'low' | 'out';
+  requiredIngredients: Array<{
+    id: string;
+    name: string;
+    qty: number;
+    unit: string;
+  }>;
+  inventoryStatus: 'available' | 'limited' | 'insufficient';
 }
 
 // Event Profile Types
@@ -91,6 +96,7 @@ export interface OperatorSettings {
 
 // Booking Types
 export type OrderType = 'catering' | 'meal_prep';
+export type MealPrepFrequency = 'weekly' | 'biweekly';
 export type FulfillmentMethod = 'pickup' | 'delivery';
 export type MealType = 'breakfast' | 'lunch' | 'dinner';
 export interface MealPrepSelection {
@@ -127,6 +133,8 @@ export interface Booking {
   eventType: string;
   venue: string;
   guestCount: number;
+  mealPrepFrequency?: MealPrepFrequency;
+  mealPrepStatus?: 'active' | 'paused';
   subscriptionWeeks?: 1 | 2 | 4;
   deliveryDays?: number[];
   scheduledDeliveries?: ScheduledDelivery[];

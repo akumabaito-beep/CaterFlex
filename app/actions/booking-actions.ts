@@ -434,6 +434,13 @@ export async function createMealPrepOrder(
       FulfillmentTime: eventTime,
       DeliveryAddress: fulfillmentMethod === 'delivery' ? deliveryAddress : null,
       PricePerServing: pricePerDelivery / mealsPerCycle,
+      // Fields the pause / skip / cancel / renew screens and the owner calendar read.
+      PlanWeeks: subscriptionWeeks,
+      DeliveryDays: (orderDetails.deliveryDays ?? []).join(','),
+      TermEndDate: sortedDeliveries[sortedDeliveries.length - 1].date,
+      TermCycles: sortedDeliveries.length,
+      MealType: items[0]?.MealType ?? null,
+      DeliveryFee: fulfillmentMethod === 'delivery' ? (deliveryFeeForVenue(deliveryAddress)?.fee ?? 0) : 0,
     })
     .select('MealPrepOrderID')
     .single()

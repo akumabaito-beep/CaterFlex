@@ -10,15 +10,19 @@ export const MEAL_TYPES: { value: MealType; label: string; hint: string }[] = [
 export const SUBSCRIPTION_WEEK_OPTIONS = [1, 2, 4] as const
 export type SubscriptionWeeks = (typeof SUBSCRIPTION_WEEK_OPTIONS)[number]
 
+/** 0 = Sunday ... 6 = Saturday (same numbers as Date#getUTCDay). */
 export const WEEKDAYS = [
-  { value: 0, label: 'Sunday' },
-  { value: 1, label: 'Monday' },
-  { value: 2, label: 'Tuesday' },
-  { value: 3, label: 'Wednesday' },
-  { value: 4, label: 'Thursday' },
-  { value: 5, label: 'Friday' },
-  { value: 6, label: 'Saturday' },
+  { value: 0, short: 'Sun', label: 'Sunday' },
+  { value: 1, short: 'Mon', label: 'Monday' },
+  { value: 2, short: 'Tue', label: 'Tuesday' },
+  { value: 3, short: 'Wed', label: 'Wednesday' },
+  { value: 4, short: 'Thu', label: 'Thursday' },
+  { value: 5, short: 'Fri', label: 'Friday' },
+  { value: 6, short: 'Sat', label: 'Saturday' },
 ] as const
+
+/** Monday-first order for showing days to people. */
+export const WEEKDAYS_MON_FIRST = [...WEEKDAYS.slice(1), WEEKDAYS[0]] as const
 
 export type MealPlanSelection = MealPrepSelection;
 
@@ -206,16 +210,6 @@ export function isPlanWeeks(v: unknown): v is PlanWeeks {
   return PLAN_WEEKS.includes(v as PlanWeeks)
 }
 
-/** 0 = Sunday ... 6 = Saturday (same numbers as Date#getUTCDay). */
-export const WEEKDAYS = [
-  { value: 1, short: 'Mon', label: 'Monday' },
-  { value: 2, short: 'Tue', label: 'Tuesday' },
-  { value: 3, short: 'Wed', label: 'Wednesday' },
-  { value: 4, short: 'Thu', label: 'Thursday' },
-  { value: 5, short: 'Fri', label: 'Friday' },
-  { value: 6, short: 'Sat', label: 'Saturday' },
-  { value: 0, short: 'Sun', label: 'Sunday' },
-] as const
 
 export const PAUSE_CUTOFF_DAYS = 2 // same cutoff as skipping a delivery
 export const MAX_PAUSE_DAYS = 14
@@ -236,7 +230,7 @@ export function deliveryDaysLabel(days: number[]): string {
   if (d.length === 7) return 'Every day'
   const set = new Set(d)
   if ([1, 2, 3, 4, 5].every((x) => set.has(x)) && d.length === 5) return 'Mon to Fri'
-  return WEEKDAYS.filter((w) => set.has(w.value)).map((w) => w.short).join(', ')
+  return WEEKDAYS_MON_FIRST.filter((w) => set.has(w.value)).map((w) => w.short).join(', ')
 }
 
 export function weekdayOf(date: string): number {

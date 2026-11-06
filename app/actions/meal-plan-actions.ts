@@ -22,6 +22,13 @@ import {
   totalDeliveries,
   type MealType,
 } from '../../lib/meal-plan'
+import {
+  addRenewalPayments,
+  cancelDeliveries,
+  cancelPendingPayments,
+  markFirstSkipped,
+  syncDeliveries,
+} from '../../lib/meal-plan-deliveries'
 import { resumeDuePlans, resumePausedPlan } from '../../lib/meal-plan-resume'
 
 const SKIP_CUTOFF_DAYS = PAUSE_CUTOFF_DAYS
@@ -234,6 +241,14 @@ export async function renewMealPlan(orderId: number, weeks: number): Promise<{ o
       })
       .eq('MealPrepOrderID', orderId)
     if (error) return { ok: false, error: error.message }
+    const from = String(plan.NextFulfillmentDate).slice(0, 10)
+    const all = scheduleDates(from, newEnd, days, freq)
+    await syncDeliveries(admin, orderId, all, { time: plan.FulfillmentTime, perWeek: days.length || 1 })
+    await addRenewalPayments(admin, orderId, all.filter((d) => d > end), days.length || 1, {
+      pricePerServing: Number(plan.PricePerServing ?? 0),
+      servings: Number(plan.MealsPerCycle ?? 0),
+      deliveryFee: Number(plan.DeliveryFee ?? 0),
+    })
   } else {
     const priced = await currentPricePerServing(admin, orderId)
     if (priced.error !== undefined) return { ok: false, error: priced.error }
@@ -252,6 +267,12 @@ export async function renewMealPlan(orderId: number, weeks: number): Promise<{ o
       })
       .eq('MealPrepOrderID', orderId)
     if (error) return { ok: false, error: error.message }
+    await syncDeliveries(admin, orderId, dates, { time: plan.FulfillmentTime, perWeek: days.length || 1 })
+    await addRenewalPayments(admin, orderId, dates, days.length || 1, {
+      pricePerServing: priced.price,
+      servings: Number(plan.MealsPerCycle ?? 0),
+      deliveryFee: Number(plan.DeliveryFee ?? 0),
+    })
   }
   revalidatePath('/customer/active-orders')
   return { ok: true }
@@ -273,15 +294,15 @@ export async function skipNextDelivery(orderId: number): Promise<{ ok: true } | 
   }
   const days = parseDeliveryDays(plan.DeliveryDays)
   const freq = String(plan.RecurrencePattern)
+  const newNext = nextDeliveryAfter(next, days, freq)
+  const newEnd = nextDeliveryAfter(String(plan.TermEndDate).slice(0, 10), days, freq)
   const { error } = await admin
     .from('MEAL_PREP_ORDER')
-    .update({
-      NextFulfillmentDate: nextDeliveryAfter(next, days, freq),
-      TermEndDate: nextDeliveryAfter(String(plan.TermEndDate).slice(0, 10), days, freq),
-      SkippedCount: Number(plan.SkippedCount ?? 0) + 1,
-    })
+    .update({ NextFulfillmentDate: newNext, TermEndDate: newEnd, SkippedCount: Number(plan.SkippedCount ?? 0) + 1 })
     .eq('MealPrepOrderID', orderId)
   if (error) return { ok: false, error: error.message }
+  await markFirstSkipped(admin, orderId)
+  await syncDeliveries(admin, orderId, scheduleDates(newNext, newEnd, days, freq), { time: plan.FulfillmentTime, perWeek: days.length || 1 })
   revalidatePath('/customer/active-orders')
   return { ok: true }
 }
@@ -381,6 +402,8 @@ export async function cancelMealPlan(
     .update({ Status: 'cancelled', RefundAmount: r.refund, CancelledAt: todayInManila(), PausedFrom: null, PausedUntil: null })
     .eq('MealPrepOrderID', orderId)
   if (error) return { ok: false, error: error.message }
+  await cancelDeliveries(admin, orderId, todayInManila())
+  await cancelPendingPayments(admin, orderId, todayInManila())
   revalidatePath('/customer/active-orders')
   return { ok: true, refund: r.refund, refundedDeliveries: r.refundedDeliveries }
 }

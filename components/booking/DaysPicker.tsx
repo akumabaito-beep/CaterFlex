@@ -1,7 +1,7 @@
 'use client'
 
 import { CalendarDays } from 'lucide-react'
-import { WEEKDAYS, deliveryDaysLabel } from '@/lib/meal-plan'
+import { WEEKDAYS_MON_FIRST, deliveryDaysLabel } from '@/lib/meal-plan'
 
 /**
  * Choose the weekdays meals are delivered. Same card, heading and colors as the other pickers.
@@ -32,7 +32,7 @@ export function DaysPicker({
       </div>
 
       <div className="mt-3 grid grid-cols-7 gap-1.5" role="group" aria-label={title}>
-        {WEEKDAYS.map((w) => {
+        {WEEKDAYS_MON_FIRST.map((w) => {
           const on = selected.has(w.value)
           return (
             <button

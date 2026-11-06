@@ -4,7 +4,9 @@ import {
   daysBetween,
   parseDeliveryDays,
   rescheduleAfterPause,
+  scheduleDates,
 } from './meal-plan'
+import { syncDeliveries } from './meal-plan-deliveries'
 
 type Row = Record<string, any>
 
@@ -37,7 +39,12 @@ export async function resumePausedPlan(admin: any, plan: Row, resumeFrom: string
   update.PausedUntil = null
   update.PausedDays = Number(plan.PausedDays ?? 0) + (rescheduled ? pausedDays : 0)
   void pausedFrom
-  return admin.from('MEAL_PREP_ORDER').update(update).eq('MealPrepOrderID', plan.MealPrepOrderID)
+  const result = await admin.from('MEAL_PREP_ORDER').update(update).eq('MealPrepOrderID', plan.MealPrepOrderID)
+  if (!result.error && rescheduled && rescheduled.termEnd) {
+    const days = parseDeliveryDays(plan.DeliveryDays)
+    await syncDeliveries(admin, Number(plan.MealPrepOrderID), scheduleDates(rescheduled.nextDate, rescheduled.termEnd, days, plan.RecurrencePattern), { perWeek: days.length || 1 })
+  }
+  return result
 }
 
 /** Resume every paused plan whose return date has arrived. Safe to call often. */
