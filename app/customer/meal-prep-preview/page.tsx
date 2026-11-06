@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -6,8 +7,14 @@ import { useAppState } from '@/lib/state';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, MapPin, Users, Clock, CheckCircle2, Utensils } from 'lucide-react';
-import { deliveryDates, deliveryDaysLabel, mealTypeLabel, planTitle, readSubscriptionDraft, totalDeliveries } from '@/lib/meal-plan';
+import {
+  Calendar,
+  MapPin,
+  Clock,
+  CheckCircle2,
+  Utensils,
+} from 'lucide-react';
+import { WEEKDAYS } from '@/lib/meal-plan';
 import { parsePinnedAddress } from '@/lib/kitchen';
 
 export default function MealPrepPreviewPage() {
@@ -17,50 +24,77 @@ export default function MealPrepPreviewPage() {
   const isMealPrep =
     customerOrderType === 'meal_prep' &&
     customerBookingDraft.orderType === 'meal_prep';
-  const valid = isMealPrep && Boolean(customerBookingDraft.eventDate);
+
+  const scheduledDeliveries =
+    customerBookingDraft.scheduledDeliveries ?? [];
+
+  const valid =
+    isMealPrep &&
+    Boolean(customerBookingDraft.eventDate) &&
+    scheduledDeliveries.length > 0;
 
   useEffect(() => {
     if (!valid) router.push('/customer/inquiry');
   }, [valid, router]);
 
-  if (!valid || !customerBookingDraft.eventDate) return null;
+  if (!valid) return null;
 
-  const plan = readSubscriptionDraft(customerBookingDraft);
-  const fulfillmentDates = deliveryDates(
-    customerBookingDraft.eventDate,
-    totalDeliveries(plan.planWeeks, plan.deliveryDays),
-    plan.deliveryDays
-  );
+  const subscriptionWeeks = customerBookingDraft.subscriptionWeeks ?? 1;
+  const deliveryDays = customerBookingDraft.deliveryDays ?? [];
+
+  const selectedWeekdays = WEEKDAYS
+    .filter((day) => deliveryDays.includes(day.value))
+    .map((day) => day.label);
 
   const formatDate = (dateStr: string) =>
     new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
+      year: 'numeric',
     });
 
-  const delivery = customerBookingDraft.fulfillmentMethod === 'delivery';
+  const formatTime = (time: string) => {
+    const match = String(time ?? '').match(/^(\d{1,2}):(\d{2})/);
 
-  const formatTime = (t: string) => {
-    const m = String(t ?? '').match(/^(\d{1,2}):(\d{2})/);
-    if (!m) return t;
-    const h = Number(m[1]);
-    return `${h % 12 === 0 ? 12 : h % 12}:${m[2]} ${h >= 12 ? 'PM' : 'AM'}`;
+    if (!match) return time;
+
+    const hour = Number(match[1]);
+
+    return `${hour % 12 === 0 ? 12 : hour % 12}:${match[2]} ${
+      hour >= 12 ? 'PM' : 'AM'
+    }`;
   };
 
+  const delivery =
+    customerBookingDraft.fulfillmentMethod === 'delivery';
+
+  const address = String(customerBookingDraft.venue ?? '');
+
   const summary = [
-    { icon: Utensils, label: 'Meal', value: mealTypeLabel(plan.mealType) },
-    { icon: Users, label: 'Servings per delivery', value: String(customerBookingDraft.guestCount) },
-    { icon: Clock, label: delivery ? 'Delivery time' : 'Pickup time', value: formatTime(String(customerBookingDraft.eventTime ?? '')) },
-    {
-      icon: MapPin,
-      label: delivery ? 'Delivery address' : 'Pickup',
-      value: delivery ? (parsePinnedAddress(String(customerBookingDraft.venue ?? ''))?.address ?? String(customerBookingDraft.venue ?? '')) : 'Kitchen',
-    },
     {
       icon: Calendar,
-      label: 'Delivery days',
-      value: deliveryDaysLabel(plan.deliveryDays),
+      label: 'Subscription duration',
+      value: `${subscriptionWeeks} ${
+        subscriptionWeeks === 1 ? 'week' : 'weeks'
+      }`,
+    },
+    {
+      icon: Utensils,
+      label: 'Delivery weekdays',
+      value: selectedWeekdays.join(', ') || 'Not selected',
+    },
+    {
+      icon: Clock,
+      label: delivery ? 'Delivery time' : 'Pickup time',
+      value: formatTime(String(customerBookingDraft.eventTime ?? '')),
+    },
+    {
+      icon: MapPin,
+      label: delivery ? 'Delivery address' : 'Pickup location',
+      value: delivery
+        ? parsePinnedAddress(address)?.address ?? address
+        : 'Kitchen',
     },
   ];
 
@@ -71,24 +105,36 @@ export default function MealPrepPreviewPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9B1C2C] mb-2">
             Step 2 of 3 · Review your plan
           </p>
+
           <h1 className="font-heading uppercase text-4xl font-bold text-[#2A1B1F]">
-            {planTitle(plan.mealType)}
+            Your Meal Prep Subscription
           </h1>
+
           <p className="text-[#2A1B1F]/70 mt-2">
-            {fulfillmentDates.length} deliveries over {plan.planWeeks} {plan.planWeeks === 1 ? 'week' : 'weeks'}, {deliveryDaysLabel(plan.deliveryDays)}. Review your schedule, then pick your dishes.
+            Review your subscription details and delivery schedule before
+            selecting your meals.
           </p>
         </div>
 
         <Card className="p-6 sm:p-8 rounded-2xl border border-[#E8D2D2] bg-white shadow-sm space-y-8">
           <div className="grid sm:grid-cols-2 gap-4">
             {summary.map(({ icon: Icon, label, value }) => (
-              <div key={label} className="flex items-start gap-3 rounded-xl bg-[#FDECEC] p-4">
+              <div
+                key={label}
+                className="flex items-start gap-3 rounded-xl bg-[#FDECEC] p-4"
+              >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#9B1C2C] text-white">
                   <Icon className="h-5 w-5" />
                 </span>
+
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">{label}</p>
-                  <p className="text-base font-bold text-[#2A1B1F] break-words">{value}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">
+                    {label}
+                  </p>
+
+                  <p className="text-base font-bold text-[#2A1B1F] break-words">
+                    {value}
+                  </p>
                 </div>
               </div>
             ))}
@@ -96,18 +142,23 @@ export default function MealPrepPreviewPage() {
 
           <div>
             <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#9B1C2C] mb-4">
-              Your {fulfillmentDates.length} delivery dates
+              Your {scheduledDeliveries.length} scheduled deliveries
             </h2>
+
             <ol className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {fulfillmentDates.map((date, i) => (
+              {scheduledDeliveries.map((delivery, index) => (
                 <li
-                  key={date}
+                  key={`${delivery.date}-${index}`}
                   className="rounded-lg border border-[#E8D2D2] bg-white p-3 text-center"
                 >
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-[#9B1C2C] flex items-center justify-center gap-1">
-                    <CheckCircle2 className="h-3 w-3" /> Delivery {i + 1} of {fulfillmentDates.length}
+                    <CheckCircle2 className="h-3 w-3" />
+                    Week {delivery.subscriptionWeek}
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-[#2A1B1F]">{formatDate(date)}</p>
+
+                  <p className="mt-1 text-sm font-semibold text-[#2A1B1F]">
+                    {formatDate(delivery.date)}
+                  </p>
                 </li>
               ))}
             </ol>
@@ -118,7 +169,10 @@ export default function MealPrepPreviewPage() {
               <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60 mb-2">
                 Special requests
               </p>
-              <p className="text-[#2A1B1F]">{customerBookingDraft.specialRequests}</p>
+
+              <p className="text-[#2A1B1F]">
+                {customerBookingDraft.specialRequests}
+              </p>
             </div>
           )}
         </Card>
@@ -131,6 +185,7 @@ export default function MealPrepPreviewPage() {
           >
             Back
           </Button>
+
           <Button
             onClick={() => router.push('/customer/browse')}
             className="flex-1 h-11 rounded-lg bg-[#9B1C2C] text-white font-semibold hover:bg-[#7F1623]"

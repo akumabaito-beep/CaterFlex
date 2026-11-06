@@ -9,9 +9,7 @@ import { Check, AlertCircle, CheckCircle2, Plus, X, CalendarDays, Clock, Users, 
 import { useEffect, useState } from 'react';
 import { estimateOrder, MAX_DELIVERY_KM } from '@/lib/pricing';
 import { supabase } from '@/lib/supabase';
-import { cancelMealPrepOrder, createBooking, createMealPrepOrder } from '@/app/actions/booking-actions';
-import { saveMealPlanDetails } from '@/app/actions/meal-plan-actions';
-import { readSubscriptionDraft, deliveryDaysLabel, totalDeliveries } from '@/lib/meal-plan';
+import { createBooking, createMealPrepOrder } from '@/app/actions/booking-actions';
 import { getCustomerAllergies } from '@/app/actions/allergy-actions';
 import {
   checkAllergenConflict,
@@ -26,10 +24,14 @@ export default function BrowsePage() {
   const {
     currentUser,
     selectedMenuItemIds,
+    mealPrepSelections,
     customerDietaryRestrictions,
     setDietaryRestrictions,
     selectMenuItem,
     deselectMenuItem,
+    addMealPrepSelection,
+    updateMealPrepQuantity,
+    removeMealPrepSelection,
     customerBookingDraft,
     customerOrderType,
     clearCustomerSession,
@@ -37,6 +39,15 @@ export default function BrowsePage() {
 
   const [dbMenuItems, setDbMenuItems] = useState<MenuItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedMealPrepCategory, setSelectedMealPrepCategory] = useState<
+  'breakfast' | 'lunch' | 'dinner'
+>('breakfast');
+
+const mealPrepCategories = [
+  { value: 'breakfast', label: 'Breakfast' },
+  { value: 'lunch', label: 'Lunch' },
+  { value: 'dinner', label: 'Dinner' },
+] as const;
   const [loadingMenu, setLoadingMenu] = useState(true);
   const [showAllergenConfirm, setShowAllergenConfirm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,9 +64,7 @@ export default function BrowsePage() {
         // Get menu items
         const { data: menuData, error: menuError } = await supabase
         .from('MENU_ITEM')
-        .select(
-          'MenuItemID, ItemName, Category, Price, PrepTimeDays, Description, PhotoURL'
-        )
+        .select('MenuItemID, ItemName, Category, MealType, Price, PrepTimeDays, Description, PhotoURL')
         .order('MenuItemID');
 
         if (menuError) {
@@ -119,6 +128,7 @@ export default function BrowsePage() {
             ItemName: string;
             Category: string;
             Price: number;
+            MealType: string | null;
             PrepTimeDays: number;
             Description: string | null;
             PhotoURL: string | null;
@@ -147,9 +157,9 @@ export default function BrowsePage() {
               name: item.ItemName,
               description: item.Description ?? '',
               category: item.Category as MenuItem['category'],
+              mealType: item.MealType?.toLowerCase() as MenuItem['mealType'],
               price: Number(item.Price ?? 0),
               prepTimeDays: Number(item.PrepTimeDays ?? 0),
-        
               // IMPORTANT: this is the uploaded Supabase photo
               photoUrl: item.PhotoURL ?? undefined,
         
@@ -259,34 +269,93 @@ export default function BrowsePage() {
     ).sort((a, b) => a.localeCompare(b)),
   ];
   
-  const filteredMenuItems =
-    selectedCategory === 'All'
-      ? dbMenuItems
-      : dbMenuItems.filter(
-          (item) => item.category?.trim() === selectedCategory
+  const isMealPrepDraft =
+  customerOrderType === 'meal_prep' ||
+  customerBookingDraft.orderType === 'meal_prep';
+
+const filteredMenuItems = isMealPrepDraft
+  ? dbMenuItems.filter(
+      (item) => item.mealType === selectedMealPrepCategory
+    )
+  : selectedCategory === 'All'
+    ? dbMenuItems
+    : dbMenuItems.filter(
+        (item) => item.category?.trim() === selectedCategory
+      );
+
+      const selectedItems = isMealPrepDraft
+      ? dbMenuItems.filter((item) =>
+          mealPrepSelections.some(
+            (selection) => selection.menuItemId === Number(item.id)
+          )
+        )
+      : dbMenuItems.filter((item) =>
+          selectedMenuItemIds.includes(item.id)
         );
 
-  const selectedItems = dbMenuItems.filter((item) =>
-    selectedMenuItemIds.includes(item.id)
-  );
+  const isMealPrep = customerOrderType === 'meal_prep';
 
-  /*
-   * Check selected items against customer's allergies.
-   */
-  const conflictingAllergens = getUniqueConflictingAllergens(
-    selectedItems,
-    customerDietaryRestrictions
+  const mealPrepSelectedItems = mealPrepSelections.flatMap((selection) => {
+    const item = dbMenuItems.find(
+      (menuItem) => Number(menuItem.id) === selection.menuItemId
+    );
+  
+    return item
+      ? [
+          {
+            ...item,
+            mealType: selection.mealType,
+            quantity: selection.quantity,
+          },
+        ]
+      : [];
+  });
+  
+  const mealPrepItemCount = mealPrepSelectedItems.length;
+  
+  const mealPrepPortionCount = mealPrepSelectedItems.reduce(
+    (total, item) => total + item.quantity,
+    0
   );
+  
+  const selectedItemCount = isMealPrepDraft
+    ? mealPrepItemCount
+    : selectedMenuItemIds.length;
+  
+  const hasAnySelection = selectedItemCount > 0;
+  
+  const scheduledDeliveryCount = Array.isArray(
+    customerBookingDraft.scheduledDeliveries
+  )
+    ? customerBookingDraft.scheduledDeliveries.length
+    : 0;
 
-  const hasSelectionConflicts = conflictingAllergens.length > 0;
+    /*
+    * Check selected items against customer's allergies.
+    */
+    const conflictingAllergens = getUniqueConflictingAllergens(
+      selectedItems,
+      customerDietaryRestrictions
+    );
+
+    const hasSelectionConflicts = conflictingAllergens.length > 0;
 
   /*
    * Estimated cost shown before the customer confirms.
    */
   const estimate = estimateOrder({
-    itemPrices: selectedItems.map((item) => item.price),
-    servings: parseInt(String(customerBookingDraft.guestCount || '0'), 10) || 0,
+    itemPrices: isMealPrepDraft
+      ? mealPrepSelectedItems.flatMap((item) =>
+          Array.from({ length: item.quantity }, () => item.price)
+        )
+      : selectedItems.map((item) => item.price),
+  
+    servings: isMealPrepDraft
+      ? 1
+      : parseInt(String(customerBookingDraft.guestCount || '0'), 10) || 0,
+  
     venue: String(customerBookingDraft.venue ?? ''),
+  
     delivers:
       customerBookingDraft.orderType !== 'meal_prep' ||
       customerBookingDraft.fulfillmentMethod === 'delivery',
@@ -298,80 +367,176 @@ export default function BrowsePage() {
    * Submit the booking to Supabase.
    */
   const finalizeSubmit = async () => {
-    if (isSubmitting) {
-      return;
-    }
-  
+    if (isSubmitting) return;
+
     setIsSubmitting(true);
-  
+
     try {
+      const isMealPrepOrder =
+        customerOrderType === 'meal_prep' ||
+        customerBookingDraft.orderType === 'meal_prep';
+
       const eventDate = String(
         customerBookingDraft.eventDate ?? ''
       ).trim();
-  
+
       const eventTime = String(
         customerBookingDraft.eventTime ?? ''
       ).trim();
-  
+
       const venue = String(
         customerBookingDraft.venue ?? ''
       ).trim();
-  
+
+      // Make sure the customer is logged in.
+      if (!currentUser?.id || Number.isNaN(Number(currentUser.id))) {
+        alert('Unable to identify your customer account. Please log in again.');
+        return;
+      }
+
+      if (!eventDate) {
+        alert(
+          isMealPrepOrder
+            ? 'Please select your preferred start date.'
+            : 'Please select an event date.'
+        );
+        return;
+      }
+
+      if (!eventTime) {
+        alert('Please select a delivery or pickup time.');
+        return;
+      }
+
+      if (isMealPrepOrder) {
+        // Validate the subscription duration.
+        const subscriptionWeeks = Number(
+          customerBookingDraft.subscriptionWeeks ?? 1
+        );
+
+        if (![1, 2, 4].includes(subscriptionWeeks)) {
+          alert('Please select a valid subscription duration.');
+          return;
+        }
+
+        // Validate the selected delivery days.
+        const deliveryDays = Array.isArray(
+          customerBookingDraft.deliveryDays
+        )
+          ? customerBookingDraft.deliveryDays
+          : [];
+
+        if (deliveryDays.length === 0) {
+          alert('Please select at least one delivery day.');
+          return;
+        }
+
+        // Validate the generated delivery schedule.
+        const scheduledDeliveries = Array.isArray(
+          customerBookingDraft.scheduledDeliveries
+        )
+          ? customerBookingDraft.scheduledDeliveries
+          : [];
+
+        if (scheduledDeliveries.length === 0) {
+          alert('No delivery dates were generated. Please review your schedule.');
+          return;
+        }
+
+        // Validate pickup or delivery details.
+        const fulfillmentMethod = String(
+          customerBookingDraft.fulfillmentMethod ?? 'pickup'
+        ).toLowerCase();
+
+        if (!['pickup', 'delivery'].includes(fulfillmentMethod)) {
+          alert('Please select a valid fulfillment method.');
+          return;
+        }
+
+        if (fulfillmentMethod === 'delivery' && !venue) {
+          alert('Please enter your delivery address.');
+          return;
+        }
+
+        // Preserve the meal type and quantity selected for each dish.
+        const validMealPrepSelections = mealPrepSelections.filter(
+          (selection) =>
+            dbMenuItems.some(
+              (item) => Number(item.id) === selection.menuItemId
+            ) &&
+            ['breakfast', 'lunch', 'dinner'].includes(selection.mealType) &&
+            Number.isInteger(selection.quantity) &&
+            selection.quantity > 0
+        );
+
+        if (validMealPrepSelections.length === 0) {
+          alert('Please select at least one valid dish for your meal prep plan.');
+          return;
+        }
+
+        // Total portions for one delivery cycle.
+        const guestCount = validMealPrepSelections.reduce(
+          (total, selection) => total + selection.quantity,
+          0
+        );
+
+        const selectedItems = validMealPrepSelections.map((selection) => ({
+          MenuItemID: selection.menuItemId,
+          Quantity: selection.quantity,
+          MealType: selection.mealType,
+        }));
+
+        const result = await createMealPrepOrder(
+          {
+            subscriptionWeeks: subscriptionWeeks as 1 | 2 | 4,
+            deliveryDays,
+            scheduledDeliveries,
+            eventDate,
+            eventTime,
+            guestCount,
+            fulfillmentMethod,
+            deliveryAddress:
+              fulfillmentMethod === 'delivery' ? venue : null,
+          },
+          selectedItems
+        );
+
+        if (!result.ok) {
+          console.error('MEAL_PREP_ORDER INSERT ERROR:', result.error);
+          alert(`Meal prep order failed: ${result.error}`);
+          return;
+        }
+
+        setShowBookingSuccess(true);
+        return;
+      }
+
+      // --------------------------------------------------
+      // EXISTING CATERING BOOKING SUBMISSION
+      // --------------------------------------------------
+
       const guestCount = parseInt(
-        String(customerBookingDraft.guestCount || '1'),
+        String(customerBookingDraft.guestCount || '0'),
         10
       );
 
-      if (!eventDate) {
-        alert('Please select an event date.');
-        setIsSubmitting(false);
-        return;
-      }
-      
-      if (!eventTime) {
-        alert('Please select an event time.');
-        setIsSubmitting(false);
-        return;
-      }
-      
       if (!venue) {
         alert('Please enter a venue.');
-        setIsSubmitting(false);
-        return;
-      }
-      
-      if (!Number.isFinite(guestCount) || guestCount <= 0) {
-        alert('Please enter a valid guest count.');
-        setIsSubmitting(false);
-        return;
-      }
-  
-      // Validate customer account
-      if (!currentUser?.id) {
-        alert(
-          'Unable to identify your customer account. Please log in again.'
-        );
-        setIsSubmitting(false);
-        return;
-      }
-  
-      const customerId = Number(currentUser.id);
-  
-      if (Number.isNaN(customerId)) {
-        alert('Invalid customer account. Please log in again.');
-        setIsSubmitting(false);
         return;
       }
 
-      // Make sure the selected menu items actually exist in Supabase.
+      if (!Number.isFinite(guestCount) || guestCount <= 0) {
+        alert('Please enter a valid guest count.');
+        return;
+      }
+
       const validMenuItemIds = selectedMenuItemIds.filter(
         (menuItemId) =>
           dbMenuItems.some((item) => item.id === menuItemId)
       );
-  
+
       if (validMenuItemIds.length === 0) {
         alert('Please select at least one valid menu item.');
-        setIsSubmitting(false);
         return;
       }
 
@@ -379,64 +544,28 @@ export default function BrowsePage() {
         MenuItemID: Number(menuItemId),
         Quantity: 1,
       }));
-      const isMealPrepOrder = customerOrderType === 'meal_prep' || customerBookingDraft.orderType === 'meal_prep';
-      const result = isMealPrepOrder
-        ? await createMealPrepOrder({
-            mealPrepFrequency: customerBookingDraft.mealPrepFrequency,
-            eventDate,
-            guestCount,
-          }, selectedItems)
-        : await createBooking({
-            ...customerBookingDraft,
-            eventDate,
-            eventTime,
-            venue,
-            guestCount,
-          }, selectedItems);
+
+      const result = await createBooking(
+        {
+          ...customerBookingDraft,
+          eventDate,
+          eventTime,
+          venue,
+          guestCount,
+        },
+        selectedItems
+      );
 
       if (!result.ok) {
-        console.error(isMealPrepOrder ? 'MEAL_PREP_ORDER INSERT ERROR:' : 'BOOKING INSERT ERROR:', result.error);
-        alert(`${isMealPrepOrder ? 'Meal prep order' : 'Booking'} failed: ${result.error}`);
-        setIsSubmitting(false);
+        console.error('BOOKING INSERT ERROR:', result.error);
+        alert(`Booking failed: ${result.error}`);
         return;
       }
 
-      if (isMealPrepOrder) {
-        // Save the subscription details (meal type, term, delivery) and lock today's prices.
-        const plan = readSubscriptionDraft(customerBookingDraft);
-        const saved = await saveMealPlanDetails(
-          (result as { mealPrepOrderId: number }).mealPrepOrderId,
-          {
-            mealType: plan.mealType,
-            planWeeks: plan.planWeeks,
-            deliveryDays: plan.deliveryDays,
-            fulfillmentMethod: String(customerBookingDraft.fulfillmentMethod ?? 'pickup'),
-            fulfillmentTime: eventTime,
-            deliveryAddress: customerBookingDraft.fulfillmentMethod === 'delivery' ? venue : null,
-          }
-        );
-        if (!saved.ok) {
-          // Do not leave a half-created plan behind.
-          await cancelMealPrepOrder((result as { mealPrepOrderId: number }).mealPrepOrderId);
-          alert(`Meal plan could not be saved: ${saved.error}`);
-          setIsSubmitting(false);
-          return;
-        }
-        setShowBookingSuccess(true);
-        return;
-      }
-
-      // Catering bookings receive an invoice only after owner confirmation.
       setShowBookingSuccess(true);
     } catch (err) {
-      console.error(
-        'UNEXPECTED BOOKING ERROR:',
-        err
-      );
-  
-      alert(
-        'An unexpected error occurred while submitting your booking.'
-      );
+      console.error('UNEXPECTED BOOKING ERROR:', err);
+      alert('An unexpected error occurred while submitting your booking.');
     } finally {
       setIsSubmitting(false);
     }
@@ -446,32 +575,35 @@ export default function BrowsePage() {
    * Handles the Submit Booking button.
    */
   const handleSubmit = () => {
-    if (selectedMenuItemIds.length === 0) {
-      alert('Please select at least one menu item.');
+    if (!hasAnySelection) {
+      alert(
+        isMealPrepDraft
+          ? 'Please add at least one dish to your meal prep plan.'
+          : 'Please select at least one menu item.'
+      );
       return;
     }
-
+  
     if (hasSelectionConflicts) {
       setShowAllergenConfirm(true);
       return;
     }
-
+  
     finalizeSubmit();
   };
 
   /*
    * Small recap of the inquiry details shown at the top of the page.
    */
-  const isMealPrepDraft =
-    customerOrderType === 'meal_prep' || customerBookingDraft.orderType === 'meal_prep';
   const recapDate = customerBookingDraft.eventDate
-    ? new Date(`${customerBookingDraft.eventDate}T12:00:00`).toLocaleDateString('en-PH', {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      })
-    : '';
+  ? new Date(`${customerBookingDraft.eventDate}T12:00:00`).toLocaleDateString('en-PH', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  : '';
+  
   const recapTime = (() => {
     const t = String(customerBookingDraft.eventTime ?? '');
     const m = t.match(/^(\d{1,2}):(\d{2})/);
@@ -492,7 +624,12 @@ export default function BrowsePage() {
         }
       : null,
     isMealPrepDraft
-      ? { icon: Repeat, text: `${deliveryDaysLabel(readSubscriptionDraft(customerBookingDraft).deliveryDays)} · ${readSubscriptionDraft(customerBookingDraft).planWeeks} ${readSubscriptionDraft(customerBookingDraft).planWeeks === 1 ? 'week' : 'weeks'}` }
+    ? {
+      icon: Repeat,
+      text: `${customerBookingDraft.subscriptionWeeks ?? 1} ${
+        (customerBookingDraft.subscriptionWeeks ?? 1) === 1 ? 'week' : 'weeks'
+      }`,
+    }
       : null,
   ].filter((x): x is { icon: typeof Clock; text: string } => Boolean(x));
 
@@ -537,35 +674,64 @@ export default function BrowsePage() {
         <div className="grid gap-8 lg:grid-cols-3">
           {/* MENU ITEMS */}
           <div className="space-y-6 lg:col-span-2">
-            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Menu categories">
-              {categories.map((category) => {
-                const active = selectedCategory === category;
-                const count =
-                  category === 'All'
-                    ? dbMenuItems.length
-                    : dbMenuItems.filter((item) => item.category?.trim() === category).length;
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Menu categories">
+                {isMealPrepDraft
+                  ? mealPrepCategories.map((category) => {
+                      const active = selectedMealPrepCategory === category.value;
+                      const count = dbMenuItems.filter(
+                        (item) => item.mealType === category.value
+                      ).length;
 
-                return (
-                  <button
-                    key={category}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setSelectedCategory(category)}
-                    className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C] ${
-                      active
-                        ? 'border-[#9B1C2C] bg-[#9B1C2C] text-white'
-                        : 'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/60'
-                    }`}
-                  >
-                    {category}
-                    <span className={`ml-1.5 text-xs ${active ? 'text-white/80' : 'text-[#2A1B1F]/50'}`}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                      return (
+                        <button
+                          key={category.value}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => setSelectedMealPrepCategory(category.value)}
+                          className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                            active
+                              ? 'border-[#9B1C2C] bg-[#9B1C2C] text-white'
+                              : 'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/60'
+                          }`}
+                        >
+                          {category.label}
+                          <span className={`ml-1.5 text-xs ${active ? 'text-white/80' : 'text-[#2A1B1F]/50'}`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })
+                  : categories.map((category) => {
+                      const active = selectedCategory === category;
+                      const count =
+                        category === 'All'
+                          ? dbMenuItems.length
+                          : dbMenuItems.filter(
+                              (item) => item.category?.trim() === category
+                            ).length;
+
+                      return (
+                        <button
+                          key={category}
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          onClick={() => setSelectedCategory(category)}
+                          className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                            active
+                              ? 'border-[#9B1C2C] bg-[#9B1C2C] text-white'
+                              : 'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/60'
+                          }`}
+                        >
+                          {category}
+                          <span className={`ml-1.5 text-xs ${active ? 'text-white/80' : 'text-[#2A1B1F]/50'}`}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+              </div>
 
             {loadingMenu ? (
               <div className="rounded-xl border border-[#E8D2D2] bg-white p-10 text-center text-[#2A1B1F]/60">
@@ -582,11 +748,35 @@ export default function BrowsePage() {
             ) : (
               <div className="grid gap-5 sm:grid-cols-2">
                 {filteredMenuItems.map((item) => {
-                  const isSelected = selectedMenuItemIds.includes(item.id);
+                  const isSelected = isMealPrepDraft
+                  ? mealPrepSelections.some(
+                      (selection) =>
+                        selection.mealType === selectedMealPrepCategory &&
+                        selection.menuItemId === Number(item.id)
+                    )
+                  : selectedMenuItemIds.includes(item.id);
                   const itemConflicts = checkAllergenConflict(item, customerDietaryRestrictions);
                   const hasAllergyConflict = itemConflicts.length > 0;
-                  const toggle = () =>
-                    isSelected ? deselectMenuItem(item.id) : selectMenuItem(item.id);
+                  
+                  const toggle = () => {
+                    if (isMealPrepDraft) {
+                      if (isSelected) {
+                        removeMealPrepSelection(
+                          selectedMealPrepCategory,
+                          Number(item.id)
+                        );
+                      } else {
+                        addMealPrepSelection(
+                          selectedMealPrepCategory,
+                          Number(item.id)
+                        );
+                      }
+                    } else {
+                      isSelected
+                        ? deselectMenuItem(item.id)
+                        : selectMenuItem(item.id);
+                    }
+                  };
 
                   return (
                     <div
@@ -665,28 +855,51 @@ export default function BrowsePage() {
                               {itemConflicts.map((tag) => tag.replace('_', ' ')).join(', ')}
                             </p>
                           </div>
-                        )}
-
+                        )}                 
                         <div className="mt-auto pt-4">
-                        <button
-                          type="button"
-                          onClick={toggle}
-                          className={`flex h-11 w-full items-center justify-center gap-2 rounded-lg border-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C] ${
-                            isSelected
-                              ? 'border-[#9B1C2C] bg-[#9B1C2C] text-white hover:bg-[#7F1623]'
-                              : 'border-[#9B1C2C] bg-white text-[#9B1C2C] hover:bg-[#FDECEC]'
-                          }`}
-                        >
-                          {isSelected ? (
-                            <>
-                              <Check className="h-4 w-4" aria-hidden="true" /> Added
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="h-4 w-4" aria-hidden="true" /> Add to order
-                            </>
+                        {isMealPrepDraft ? (
+                          <Button
+                            type="button"
+                            onClick={toggle}
+                            className={`w-full ${
+                              isSelected
+                                ? 'bg-green-600 hover:bg-green-700'
+                                : 'bg-[#9B1C2C] hover:bg-[#7D1623]'
+                            } text-white`}
+                          >
+                            {isSelected ? (
+                              <>
+                                <Check className="mr-2 h-4 w-4" />
+                                Added to plan
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add to plan
+                              </>
+                            )}
+                          </Button>
+                        ) : (
+                            <button
+                              type="button"
+                              onClick={toggle}
+                              className={`flex h-11 w-full items-center justify-center gap-2 rounded-lg border-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C] ${
+                                isSelected
+                                  ? 'border-[#9B1C2C] bg-[#9B1C2C] text-white hover:bg-[#7F1623]'
+                                  : 'border-[#9B1C2C] bg-white text-[#9B1C2C] hover:bg-[#FDECEC]'
+                              }`}
+                            >
+                              {isSelected ? (
+                                <>
+                                  <Check className="h-4 w-4" aria-hidden="true" /> Added
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="h-4 w-4" aria-hidden="true" /> Add to order
+                                </>
+                              )}
+                            </button>
                           )}
-                        </button>
                         </div>
                       </div>
                     </div>
@@ -708,33 +921,137 @@ export default function BrowsePage() {
                   Your order
                 </h2>
                 <p className="mt-1 text-sm text-[#2A1B1F]/60">
-                  {selectedMenuItemIds.length === 0
+                  {!hasAnySelection
                     ? 'No dishes selected yet.'
-                    : `${selectedMenuItemIds.length} ${selectedMenuItemIds.length === 1 ? 'dish' : 'dishes'} selected.`}
+                    : isMealPrepDraft
+                      ? `${mealPrepItemCount} dishes · ${mealPrepPortionCount} portions per delivery`
+                      : `${selectedItemCount} ${selectedItemCount === 1 ? 'dish' : 'dishes'} selected.`}
                 </p>
               </div>
 
               {/* SELECTED ITEMS */}
-              {selectedItems.length > 0 && (
-                <ul className="max-h-56 divide-y divide-[#E8D2D2] overflow-y-auto rounded-lg border border-[#E8D2D2]">
-                  {selectedItems.map((item) => (
-                    <li key={item.id} className="flex items-center gap-3 p-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-[#2A1B1F]">{item.name}</p>
-                        <p className="text-xs text-[#2A1B1F]/60">{peso(item.price)} per serving</p>
+              {isMealPrepDraft ? (
+                <div className="space-y-4">
+                  {mealPrepCategories.map((category) => {
+                    const categorySelections = mealPrepSelectedItems.filter(
+                      (item) => item.mealType === category.value
+                    );
+
+                    if (categorySelections.length === 0) {
+                      return null;
+                    }
+
+                    return (
+                      <div key={category.value}>
+                        <h3 className="mb-2 text-sm font-bold text-[#9B1C2C]">
+                          {category.label}
+                        </h3>
+
+                        <ul className="divide-y divide-[#E8D2D2] rounded-lg border border-[#E8D2D2]">
+                          {categorySelections.map((item) => (
+                            <li
+                              key={`${category.value}-${item.id}`}
+                              className="flex items-center gap-2 p-3"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold text-[#2A1B1F]">
+                                  {item.name}
+                                </p>
+                                <p className="text-xs text-[#2A1B1F]/60">
+                                  {peso(item.price)} each · {peso(item.price * item.quantity)} per delivery
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (item.quantity > 1) {
+                                      updateMealPrepQuantity(
+                                        category.value,
+                                        Number(item.id),
+                                        item.quantity - 1
+                                      );
+                                    } else {
+                                      removeMealPrepSelection(
+                                        category.value,
+                                        Number(item.id)
+                                      );
+                                    }
+                                  }}
+                                  aria-label={`Decrease ${item.name} quantity`}
+                                  className="flex h-8 w-8 items-center justify-center rounded-md border border-[#E8D2D2] text-lg font-bold text-[#9B1C2C] hover:bg-[#FDECEC]"
+                                >
+                                  −
+                                </button>
+
+                                <span className="w-7 text-center text-sm font-semibold">
+                                  {item.quantity}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updateMealPrepQuantity(
+                                      category.value,
+                                      Number(item.id),
+                                      item.quantity + 1
+                                    )
+                                  }
+                                  aria-label={`Increase ${item.name} quantity`}
+                                  className="flex h-8 w-8 items-center justify-center rounded-md border border-[#E8D2D2] text-lg font-bold text-[#9B1C2C] hover:bg-[#FDECEC]"
+                                >
+                                  +
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    removeMealPrepSelection(
+                                      category.value,
+                                      Number(item.id)
+                                    )
+                                  }
+                                  aria-label={`Remove ${item.name}`}
+                                  className="rounded-md p-1.5 text-[#9B1C2C] hover:bg-[#FDECEC]"
+                                >
+                                  <X className="h-4 w-4" aria-hidden="true" />
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => deselectMenuItem(item.id)}
-                        aria-label={`Remove ${item.name}`}
-                        className="rounded-md p-1.5 text-[#9B1C2C] hover:bg-[#FDECEC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C]"
-                      >
-                        <X className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+                    );
+                  })}
+                </div>
+              ) : (
+            selectedItems.length > 0 && (
+              <ul className="max-h-56 divide-y divide-[#E8D2D2] overflow-y-auto rounded-lg border border-[#E8D2D2]">
+                {selectedItems.map((item) => (
+                  <li key={item.id} className="flex items-center gap-3 p-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[#2A1B1F]">
+                        {item.name}
+                      </p>
+                      <p className="text-xs text-[#2A1B1F]/60">
+                        {peso(item.price)} per serving
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => deselectMenuItem(item.id)}
+                      aria-label={`Remove ${item.name}`}
+                      className="rounded-md p-1.5 text-[#9B1C2C] hover:bg-[#FDECEC]"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )
+          )}
 
               {/* ESTIMATED COST */}
               <div className="rounded-lg border border-[#E8D2D2] bg-[#FDECEC] p-4 text-sm text-[#2A1B1F]">
@@ -765,10 +1082,10 @@ export default function BrowsePage() {
                   {isMealPrepDraft && (
                     <div className="flex justify-between gap-2 pt-1">
                       <dt className="font-bold">
-                        Plan total ({totalDeliveries(readSubscriptionDraft(customerBookingDraft).planWeeks, readSubscriptionDraft(customerBookingDraft).deliveryDays)} deliveries)
+                        Plan total ({scheduledDeliveryCount} deliveries)
                       </dt>
                       <dd className="font-bold text-[#9B1C2C]">
-                        {peso(estimate.total * totalDeliveries(readSubscriptionDraft(customerBookingDraft).planWeeks, readSubscriptionDraft(customerBookingDraft).deliveryDays))}
+                        {peso(estimate.total * scheduledDeliveryCount)}
                       </dd>
                     </div>
                   )}
@@ -823,7 +1140,7 @@ export default function BrowsePage() {
               <div className="border-t border-[#E8D2D2] bg-white p-4">
                 <Button
                   onClick={handleSubmit}
-                  disabled={selectedMenuItemIds.length === 0 || loadingMenu || isSubmitting}
+                  disabled={!hasAnySelection || loadingMenu || isSubmitting}
                   className="h-12 w-full rounded-lg bg-[#9B1C2C] font-semibold text-white hover:bg-[#7F1623] disabled:opacity-50"
                 >
                   {isSubmitting ? 'Submitting...' : isMealPrepDraft ? 'Subscribe to this plan' : 'Submit Booking'}
@@ -839,7 +1156,7 @@ export default function BrowsePage() {
         <div className="mx-auto flex max-w-3xl items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-xs text-[#2A1B1F]/60">
-              {selectedMenuItemIds.length} {selectedMenuItemIds.length === 1 ? 'dish' : 'dishes'} · Estimated total
+              {selectedItemCount} {selectedItemCount === 1 ? 'dish' : 'dishes'} · Estimated total
             </p>
             <p className="text-lg font-bold text-[#9B1C2C]">{peso(estimate.total)}</p>
           </div>
@@ -855,7 +1172,7 @@ export default function BrowsePage() {
           </Button>
           <Button
             onClick={handleSubmit}
-            disabled={selectedMenuItemIds.length === 0 || loadingMenu || isSubmitting}
+            disabled={!hasAnySelection || loadingMenu || isSubmitting}
             className="h-11 rounded-lg bg-[#9B1C2C] font-semibold text-white hover:bg-[#7F1623] disabled:opacity-50"
           >
             Submit

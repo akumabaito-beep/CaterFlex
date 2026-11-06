@@ -7,38 +7,34 @@ import {
   getCustomerAllergies,
   setCustomerAllergies,
 } from '@/app/actions/allergy-actions';
+
 import type {
   AllergenType,
   Booking,
   FulfillmentMethod,
-  MealPrepFrequency,
   OrderType,
 } from '@/lib/types';
+
 import {
   getDateAvailability,
   findNextAvailableDate,
 } from '@/lib/rules/bookingValidation';
 import { useRouter } from 'next/navigation';
 
+import {
+  SUBSCRIPTION_WEEK_OPTIONS,
+  WEEKDAYS,
+  generateDeliveryDates,
+  isValidDeliveryDays,
+  type SubscriptionWeeks,
+} from '@/lib/meal-plan';
+
 import { EventTypePicker } from '@/components/booking/EventTypePicker';
 import { AllergenPicker } from '@/components/booking/AllergenPicker';
 import { TimePicker } from '@/components/booking/TimePicker';
-import { OptionCardPicker } from '@/components/booking/OptionCardPicker';
 import { NumberStepper } from '@/components/booking/NumberStepper';
 import { LocationPicker } from '@/components/booking/LocationPicker';
 import { AvailabilityCalendar } from '@/components/booking/AvailabilityCalendar';
-import {
-  MEAL_TYPES,
-  PLAN_WEEKS,
-  deliveryDaysLabel,
-  deliveryDates,
-  planEndDate,
-  planTitle,
-  totalDeliveries,
-  type MealType,
-  type PlanWeeks,
-} from '@/lib/meal-plan';
-import { DaysPicker } from '@/components/booking/DaysPicker';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -49,12 +45,10 @@ import {
   UtensilsCrossed,
   AlertTriangle,
   Sparkles,
-  Repeat,
 } from 'lucide-react';
 
 const ALLERGEN_OPTIONS: AllergenType[] = [
   'shellfish',
-  'fish',
   'peanuts',
   'dairy',
   'gluten',
@@ -244,17 +238,27 @@ export default function InquiryPage() {
   });
 
   const [mealPrepForm, setMealPrepForm] = useState({
-    mealType: 'lunch' as MealType,
-    planWeeks: 2 as PlanWeeks,
-    deliveryDays: [1, 2, 3, 4, 5] as number[],
+    subscriptionWeeks: 1 as SubscriptionWeeks,
     startDate: '',
+    deliveryDays: [1, 3] as number[],
     fulfillmentTime: '10:00',
-    frequency: 'weekly' as MealPrepFrequency,
     fulfillmentMethod: 'pickup' as FulfillmentMethod,
-    servingsPerCycle: '',
     address: '',
     specialRequests: '',
   });
+
+  const toggleDeliveryDay = (day: number) => {
+    setMealPrepForm((prev) => {
+      const selected = prev.deliveryDays.includes(day);
+  
+      return {
+        ...prev,
+        deliveryDays: selected
+          ? prev.deliveryDays.filter((d) => d !== day)
+          : [...prev.deliveryDays, day].sort((a, b) => a - b),
+      };
+    });
+  };
 
   const [dietary, setDietary] = useState<AllergenType[]>(
     []
@@ -272,6 +276,25 @@ export default function InquiryPage() {
   const activeDate = isMealPrep
     ? mealPrepForm.startDate
     : cateringForm.eventDate;
+
+    const scheduledDeliveries = useMemo(() => {
+      if (
+        !mealPrepForm.startDate ||
+        !isValidDeliveryDays(mealPrepForm.deliveryDays)
+      ) {
+        return [];
+      }
+    
+      return generateDeliveryDates(
+        mealPrepForm.startDate,
+        mealPrepForm.deliveryDays,
+        mealPrepForm.subscriptionWeeks
+      );
+    }, [
+      mealPrepForm.startDate,
+      mealPrepForm.deliveryDays,
+      mealPrepForm.subscriptionWeeks,
+    ]);
 
   /*
    * ============================================================
@@ -529,7 +552,15 @@ export default function InquiryPage() {
      * is unavailable.
      */
 
-    if (
+    if (isMealPrep) {
+      if (
+        !mealPrepForm.startDate ||
+        !isValidDeliveryDays(mealPrepForm.deliveryDays) ||
+        scheduledDeliveries.length === 0
+      ) {
+        return;
+      }
+    } else if (
       dateAvailability &&
       !dateAvailability.available
     ) {
@@ -572,43 +603,21 @@ export default function InquiryPage() {
     if (isMealPrep) {
       setCustomerBookingDraft({
         orderType: 'meal_prep',
-
-        eventType:
-          planTitle(mealPrepForm.mealType),
-
-        eventDate:
-          mealPrepForm.startDate,
-
-        eventTime:
-          mealPrepForm.fulfillmentTime,
-
+        eventType: 'Meal Prep Subscription',
+        eventDate: mealPrepForm.startDate,
+        eventTime: mealPrepForm.fulfillmentTime,
         venue:
-          mealPrepForm.fulfillmentMethod ===
-          'delivery'
+          mealPrepForm.fulfillmentMethod === 'delivery'
             ? mealPrepForm.address
             : 'Pickup at kitchen',
-
-        guestCount:
-          parseInt(
-            mealPrepForm.servingsPerCycle,
-            10
-          ) || 1,
-
-        mealPrepFrequency:
-          mealPrepForm.frequency,
-
-        fulfillmentMethod:
-          mealPrepForm.fulfillmentMethod,
-
-        specialRequests:
-          mealPrepForm.specialRequests,
-
-        // subscription details; read back with readMealPlanDraft()
-        ...({
-          mealType: mealPrepForm.mealType,
-          planWeeks: mealPrepForm.planWeeks,
-          deliveryDays: mealPrepForm.deliveryDays,
-        } as object),
+        guestCount: 1,
+        fulfillmentMethod: mealPrepForm.fulfillmentMethod,
+        specialRequests: mealPrepForm.specialRequests,
+      
+        // New subscription details
+        subscriptionWeeks: mealPrepForm.subscriptionWeeks,
+        deliveryDays: mealPrepForm.deliveryDays,
+        scheduledDeliveries,
       });
 
       router.push(
@@ -739,7 +748,7 @@ export default function InquiryPage() {
 
           <p className="text-[#2A1B1F]/70 mt-2">
             {isMealPrep
-              ? 'Set up a recurring weekly or bi-weekly meal prep order'
+              ? 'Choose your subscription duration, delivery days, and preferred fulfillment schedule.'
               : 'Tell us about your one-time catering event'}
           </p>
         </div>
@@ -923,16 +932,7 @@ export default function InquiryPage() {
 
                 </div>
 
-                {/* AVAILABILITY */}
-
-                {loadingAvailability &&
-                  cateringForm.eventDate && (
-                    <p className="text-sm text-muted-foreground">
-                      Checking booking availability...
-                    </p>
-                  )}
-
-                {availabilityBanner}
+                
 
                 {/* VENUE */}
 
@@ -989,211 +989,221 @@ export default function InquiryPage() {
               /* MEAL PREP */
               /* ================================================= */
 
-              <div className="space-y-6">
+              
+            <div className="space-y-6">
+              <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#9B1C2C]">
+                Meal Prep Subscription
+              </h2>
 
-                <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#9B1C2C]">
-                  Meal Prep Plan
-                </h2>
+              <p className="text-sm text-muted-foreground">
+                Choose how long your subscription will last, your preferred
+                delivery days, and your fulfillment time.
+              </p>
 
-                <p className="text-sm text-muted-foreground">
-                  Your plan repeats on a schedule.
-                  The operator validates fulfillment
-                  day capacity separately from catering
-                  events.
-                </p>
+              {/* SUBSCRIPTION DURATION */}
 
-                {/* MEAL TYPE / PLAN LENGTH */}
+              <div>
+                <label className="block text-sm font-semibold text-[#2A1B1F] mb-3">
+                  Subscription Duration *
+                </label>
 
-                <div className="grid items-stretch gap-6 md:grid-cols-2">
-                  <div className="flex flex-col">
-                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
-                      Meal plan *
-                    </label>
-                    <div className="flex-1">
-                      <OptionCardPicker<MealType>
-                        title="Which meal?"
-                        icon={UtensilsCrossed}
-                        value={mealPrepForm.mealType}
-                        onChange={(mealType) =>
-                          setMealPrepForm((f) => ({ ...f, mealType }))
-                        }
-                        options={MEAL_TYPES}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col">
-                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
-                      Plan length *
-                    </label>
-                    <div className="flex-1">
-                      <OptionCardPicker<`${PlanWeeks}`>
-                        title="How long?"
-                        icon={CalendarDays}
-                        value={`${mealPrepForm.planWeeks}`}
-                        onChange={(v) =>
-                          setMealPrepForm((f) => ({ ...f, planWeeks: Number(v) as PlanWeeks }))
-                        }
-                        options={PLAN_WEEKS.map((n) => ({
-                          value: `${n}` as `${PlanWeeks}`,
-                          label: `${n} ${n === 1 ? 'week' : 'weeks'}`,
-                          hint: `${totalDeliveries(n, mealPrepForm.deliveryDays)} deliveries`,
-                        }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* DATE / TIME */}
-
-                <div className="grid items-start md:grid-cols-2 gap-6">
-
-                  <div>
-                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
-                      First Fulfillment Date *
-                    </label>
-
-                    <AvailabilityCalendar
-                      value={mealPrepForm.startDate}
-                      onChange={(date) =>
-                        setMealPrepForm({
-                          ...mealPrepForm,
-                          startDate: date,
-                        })
+                <div className="grid grid-cols-3 gap-3">
+                  {SUBSCRIPTION_WEEK_OPTIONS.map((weeks) => (
+                    <button
+                      key={weeks}
+                      type="button"
+                      onClick={() =>
+                        setMealPrepForm((prev) => ({
+                          ...prev,
+                          subscriptionWeeks: weeks,
+                        }))
                       }
-                      orderType={customerOrderType}
-                      settings={operatorSettings}
-                      bookings={availabilityBookings}
-                    />
-                    <input
-                      type="text"
-                      value={mealPrepForm.startDate}
-                      onChange={() => {}}
-                      required
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      className="sr-only"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
-                      Pickup / Delivery Time *
-                    </label>
-
-                    <TimePicker
-                      value={mealPrepForm.fulfillmentTime}
-                      start={operatorSettings.operatingHoursStart}
-                      end={operatorSettings.operatingHoursEnd}
-                      onChange={(time) =>
-                        setMealPrepForm((f) => ({ ...f, fulfillmentTime: time }))
-                      }
-                    />
-                    <input
-                      type="text"
-                      value={mealPrepForm.fulfillmentTime}
-                      onChange={() => {}}
-                      required
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      className="sr-only"
-                    />
-                  </div>
-
+                      className={`rounded-lg border-2 p-4 text-center transition-colors ${
+                        mealPrepForm.subscriptionWeeks === weeks
+                          ? 'border-[#9B1C2C] bg-[#FDECEC] text-[#9B1C2C]'
+                          : 'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/50'
+                      }`}
+                    >
+                      <p className="font-bold text-lg">{weeks}</p>
+                      <p className="text-xs">
+                        {weeks === 1 ? 'Week' : 'Weeks'}
+                      </p>
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                {/* AVAILABILITY */}
+              {/* START DATE */}
+
+              <div>
+                <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                  Preferred Start Date *
+                </label>
+
+                <AvailabilityCalendar
+                  value={mealPrepForm.startDate}
+                  onChange={(date) =>
+                    setMealPrepForm((prev) => ({
+                      ...prev,
+                      startDate: date,
+                    }))
+                  }
+                  orderType={customerOrderType}
+                  settings={operatorSettings}
+                  bookings={availabilityBookings}
+                />
+
+                <input
+                  type="text"
+                  value={mealPrepForm.startDate}
+                  onChange={() => {}}
+                  required
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  className="sr-only"
+                />
+              </div>
+
+              {/* AVAILABILITY */}
+
+              {loadingAvailability &&
+                  cateringForm.eventDate && (
+                    <p className="text-sm text-muted-foreground">
+                      Checking booking availability...
+                    </p>
+                  )}
 
                 {availabilityBanner}
 
-                {/* DELIVERY DAYS / SERVINGS */}
+              {/* DELIVERY DAYS */}
 
-                <div className="grid items-stretch md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                  Preferred Delivery Days *
+                </label>
 
-                  <div className="flex flex-col">
-                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
-                      Delivery days *
-                    </label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Select the days you want to receive your meals.
+                </p>
 
-                    <div className="flex-1">
-                      <DaysPicker
-                        value={mealPrepForm.deliveryDays}
-                        onChange={(deliveryDays) =>
-                          setMealPrepForm((f) => ({ ...f, deliveryDays }))
-                        }
-                      />
-                      <input
-                        type="text"
-                        value={mealPrepForm.deliveryDays.join(',')}
-                        onChange={() => {}}
-                        required
-                        tabIndex={-1}
-                        aria-hidden="true"
-                        className="sr-only"
-                      />
-                    </div>
-                  </div>
+                <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                  {[...WEEKDAYS.slice(1), WEEKDAYS[0]].map((day) => {
+                    const selected = mealPrepForm.deliveryDays.includes(
+                      day.value
+                    );
 
-                  <div className="flex flex-col">
-                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
-                      Servings per delivery *
-                    </label>
-
-                    <div className="flex-1">
-                      <NumberStepper
-                        title="Servings"
-                        unit="meals"
-                        min={1}
-                        value={mealPrepForm.servingsPerCycle}
-                        onChange={(servingsPerCycle) =>
-                          setMealPrepForm((f) => ({ ...f, servingsPerCycle }))
-                        }
-                      />
-                    </div>
-                  </div>
-
+                    return (
+                      <button
+                        key={day.value}
+                        type="button"
+                        onClick={() => toggleDeliveryDay(day.value)}
+                        aria-pressed={selected}
+                        className={`rounded-lg border-2 px-2 py-3 text-sm font-semibold transition-colors ${
+                          selected
+                            ? 'border-[#9B1C2C] bg-[#FDECEC] text-[#9B1C2C]'
+                            : 'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/50'
+                        }`}
+                      >
+                        {day.label.slice(0, 3)}
+                      </button>
+                    );
+                  })}
                 </div>
 
-                {/* SCHEDULE SUMMARY */}
+                {mealPrepForm.deliveryDays.length === 0 && (
+                  <p className="text-sm text-red-600 mt-2">
+                    Please select at least one delivery day.
+                  </p>
+                )}
+              </div>
 
-                {mealPrepForm.startDate && mealPrepForm.deliveryDays.length > 0 && (() => {
-                  const fmt = (d: string) =>
-                    new Date(`${d}T12:00:00`).toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })
-                  const first = deliveryDates(mealPrepForm.startDate, 1, mealPrepForm.deliveryDays)[0]
-                  const last = planEndDate(mealPrepForm.startDate, mealPrepForm.planWeeks, mealPrepForm.deliveryDays)
-                  const count = totalDeliveries(mealPrepForm.planWeeks, mealPrepForm.deliveryDays)
-                  return (
-                    <div className="rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4 text-sm text-[#2A1B1F]">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#9B1C2C]">
-                        Your delivery schedule
+              {/* FULFILLMENT TIME */}
+
+              <div>
+                <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                  Preferred Pickup / Delivery Time *
+                </label>
+
+                <TimePicker
+                  value={mealPrepForm.fulfillmentTime}
+                  start={operatorSettings.operatingHoursStart}
+                  end={operatorSettings.operatingHoursEnd}
+                  onChange={(time) =>
+                    setMealPrepForm((prev) => ({
+                      ...prev,
+                      fulfillmentTime: time,
+                    }))
+                  }
+                />
+              </div>
+
+              {/* AVAILABILITY */}
+
+              {availabilityBanner}
+
+              {/* DELIVERY SCHEDULE SUMMARY */}
+
+              {mealPrepForm.startDate &&
+                isValidDeliveryDays(mealPrepForm.deliveryDays) && (
+                  <div className="rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4 text-sm text-[#2A1B1F]">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#9B1C2C]">
+                      Your Delivery Schedule
+                    </p>
+
+                    <p className="mt-2">
+                      <span className="font-semibold">
+                        {scheduledDeliveries.length} scheduled deliveries
+                      </span>
+                      {' '}over {mealPrepForm.subscriptionWeeks}{' '}
+                      {mealPrepForm.subscriptionWeeks === 1 ? 'week' : 'weeks'}.
+                    </p>
+
+                    <p className="mt-1 text-[#2A1B1F]/70">
+                      Preferred days:{' '}
+                      {WEEKDAYS
+                        .filter((day) =>
+                          mealPrepForm.deliveryDays.includes(day.value)
+                        )
+                        .map((day) => day.label)
+                        .join(', ')}
+                    </p>
+
+                    <p className="mt-1 text-[#2A1B1F]/70">
+                      Preferred time: {mealPrepForm.fulfillmentTime}
+                    </p>
+
+                    <div className="mt-4 border-t border-[#E8D2D2] pt-3">
+                      <p className="font-semibold mb-2">
+                        Planned delivery dates
                       </p>
-                      <p className="mt-1 font-semibold">
-                        {deliveryDaysLabel(mealPrepForm.deliveryDays)} for {mealPrepForm.planWeeks}{' '}
-                        {mealPrepForm.planWeeks === 1 ? 'week' : 'weeks'}, starting {fmt(first)}.
-                      </p>
-                      <p className="mt-1 text-[#2A1B1F]/70">
-                        {count} deliveries, last one on {fmt(last)}. You can pause, skip a delivery,
-                        cancel or renew anytime from Meal Plans.
-                      </p>
+
+                      <ul className="space-y-1">
+                        {scheduledDeliveries.map((delivery, index) => (
+                          <li key={`${delivery.date}-${index}`}>
+                            Week {delivery.subscriptionWeek} —{' '}
+                            {formatDateLabel(delivery.date)}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                  )
-                })()}
 
-                {/* FULFILLMENT METHOD */}
+                    <p className="mt-3 text-xs text-[#2A1B1F]/60">
+                      These are your preferred dates. The operator will
+                      validate the final fulfillment schedule.
+                    </p>
+                  </div>
+                )}
 
-                <div>
-                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
-                    Fulfillment Method *
-                  </label>
+              {/* FULFILLMENT METHOD */}
 
-                  <div className="flex gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                  Fulfillment Method *
+                </label>
 
-                    {(
-                      [
-                        'pickup',
-                        'delivery',
-                      ] as FulfillmentMethod[]
-                    ).map((method) => (
+                <div className="flex gap-4">
+                  {(['pickup', 'delivery'] as FulfillmentMethod[]).map(
+                    (method) => (
                       <label
                         key={method}
                         className={`flex-1 flex items-center justify-center gap-2 cursor-pointer rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
@@ -1206,82 +1216,74 @@ export default function InquiryPage() {
                           type="radio"
                           className="sr-only"
                           name="fulfillmentMethod"
-                          checked={
-                            mealPrepForm.fulfillmentMethod ===
-                            method
-                          }
+                          checked={mealPrepForm.fulfillmentMethod === method}
                           onChange={() =>
-                            setMealPrepForm({
-                              ...mealPrepForm,
-                              fulfillmentMethod:
-                                method,
-                            })
+                            setMealPrepForm((prev) => ({
+                              ...prev,
+                              fulfillmentMethod: method,
+                            }))
                           }
                         />
 
-                        <span className="capitalize">
-                          {method}
-                        </span>
+                        <span className="capitalize">{method}</span>
                       </label>
-                    ))}
-
-                  </div>
+                    )
+                  )}
                 </div>
+              </div>
 
-                {/* DELIVERY ADDRESS */}
+              {/* DELIVERY ADDRESS */}
 
-                {mealPrepForm.fulfillmentMethod ===
-                  'delivery' && (
-                  <div>
-                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
-                      Delivery Address *
-                    </label>
-
-                    <LocationPicker
-                      value={mealPrepForm.address}
-                      inputClass={inputClass}
-                      onChange={(address) =>
-                        setMealPrepForm((f) => ({ ...f, address }))
-                      }
-                    />
-                    <input
-                      type="text"
-                      value={mealPrepForm.address}
-                      onChange={() => {}}
-                      required
-                      tabIndex={-1}
-                      aria-hidden="true"
-                      className="sr-only"
-                    />
-                  </div>
-                )}
-
-                {/* SPECIAL REQUESTS */}
-
+              {mealPrepForm.fulfillmentMethod === 'delivery' && (
                 <div>
                   <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
-                    Special Requests
+                    Delivery Address *
                   </label>
 
-                  <textarea
-                    value={
-                      mealPrepForm.specialRequests
+                  <LocationPicker
+                    value={mealPrepForm.address}
+                    inputClass={inputClass}
+                    onChange={(address) =>
+                      setMealPrepForm((prev) => ({
+                        ...prev,
+                        address,
+                      }))
                     }
-                    onChange={(e) =>
-                      setMealPrepForm({
-                        ...mealPrepForm,
-                        specialRequests:
-                          e.target.value,
-                      })
-                    }
-                    rows={3}
-                    className={inputClass}
+                  />
+
+                  <input
+                    type="text"
+                    value={mealPrepForm.address}
+                    onChange={() => {}}
+                    required
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    className="sr-only"
                   />
                 </div>
+              )}
 
+              {/* SPECIAL REQUESTS */}
+
+              <div>
+                <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                  Special Requests
+                </label>
+
+                <textarea
+                  value={mealPrepForm.specialRequests}
+                  onChange={(e) =>
+                    setMealPrepForm((prev) => ({
+                      ...prev,
+                      specialRequests: e.target.value,
+                    }))
+                  }
+                  rows={3}
+                  className={inputClass}
+                />
               </div>
+            </div>
             )}
-
             {/* ================================================= */}
             {/* DIETARY RESTRICTIONS */}
             {/* ================================================= */}

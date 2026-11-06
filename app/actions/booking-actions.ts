@@ -24,12 +24,22 @@ type BookingDetails = {
 type BookingItemInput = {
   MenuItemID: number
   Quantity?: number
+  MealType?: 'breakfast' | 'lunch' | 'dinner'
 }
 
 type MealPrepOrderDetails = {
+  subscriptionWeeks?: 1 | 2 | 4
+  deliveryDays?: number[]
+  scheduledDeliveries?: {
+    date: string
+    subscriptionWeek: number
+  }[]
   mealPrepFrequency?: string | null
   guestCount?: number
   eventDate?: string | null
+  eventTime?: string | null
+  fulfillmentMethod?: string | null
+  deliveryAddress?: string | null
 }
 
 function todayInManila() {
@@ -63,81 +73,255 @@ export async function getOwnerCalendarBookings() {
 }
 
 
-export async function createMealPrepOrder(orderDetails: MealPrepOrderDetails, items: BookingItemInput[]) {
+export async function createMealPrepOrder(
+  orderDetails: MealPrepOrderDetails,
+  items: BookingItemInput[]
+) {
   const customer = await requireRole('customer')
-  if (!customer) return { ok: false as const, error: 'Customer access required.' }
+  if (!customer) {
+    return { ok: false as const, error: 'Customer access required.' }
+  }
 
   const admin = createAdminClient()
   const customerId = Number(customer.id)
-  const selectedMenuItemIds = items.map((item) => Number(item.MenuItemID)).filter(Number.isFinite)
+  const operatorId = 2
 
-  const { data: customerAllergies, error: customerAllergyError } = await admin
-    .from('CUSTOMER_ALLERGY')
-    .select('AllergyTagID')
-    .eq('CustomerID', customerId)
-  if (customerAllergyError) return { ok: false as const, error: customerAllergyError.message }
+  // Validate subscription details.
+  const subscriptionWeeks = Number(orderDetails.subscriptionWeeks)
+  const allowedWeeks = [1, 2, 4]
 
-  const { data: menuItemAllergies, error: menuItemAllergyError } = selectedMenuItemIds.length > 0
-    ? await admin.from('MENU_ITEM_ALLERGY').select('MenuItemID, AllergyTagID').in('MenuItemID', selectedMenuItemIds)
-    : { data: [], error: null }
-  if (menuItemAllergyError) return { ok: false as const, error: menuItemAllergyError.message }
+  if (!allowedWeeks.includes(subscriptionWeeks)) {
+    return { ok: false as const, error: 'Please select a valid subscription duration.' }
+  }
 
-  const allergyTagIds = Array.from(new Set([
-    ...(customerAllergies ?? []).map((allergy) => Number(allergy.AllergyTagID)),
-    ...(menuItemAllergies ?? []).map((allergy) => Number(allergy.AllergyTagID)),
-  ].filter(Number.isFinite)))
-  const { data: allergyTags, error: allergyTagError } = allergyTagIds.length > 0
-    ? await admin.from('ALLERGY_TAG').select('AllergyTagID, AllergenName').in('AllergyTagID', allergyTagIds)
-    : { data: [], error: null }
-  if (allergyTagError) return { ok: false as const, error: allergyTagError.message }
-
-  const allergenNamesById = new Map((allergyTags ?? []).map((tag) => [Number(tag.AllergyTagID), String(tag.AllergenName).trim().toLowerCase()]))
-  const customerAllergenNames = new Set((customerAllergies ?? []).map((allergy) => allergenNamesById.get(Number(allergy.AllergyTagID))).filter(Boolean))
-  const hasAllergenConflict = (menuItemAllergies ?? []).some((allergy) => customerAllergenNames.has(allergenNamesById.get(Number(allergy.AllergyTagID)) ?? ''))
-  const mealsPerCycle = Number(orderDetails.guestCount ?? 0)
-  const recurrencePattern = String(orderDetails.mealPrepFrequency ?? 'weekly').trim() || 'weekly'
   const eventDate = String(orderDetails.eventDate ?? '').trim()
+  const eventTime = String(orderDetails.eventTime ?? '').trim()
+  const fulfillmentMethod = String(orderDetails.fulfillmentMethod ?? 'pickup').trim().toLowerCase()
+  const deliveryAddress = String(orderDetails.deliveryAddress ?? '').trim()
+
   const parsedEventDate = /^\d{4}-\d{2}-\d{2}$/.test(eventDate)
     ? new Date(`${eventDate}T00:00:00Z`)
     : null
-  const isValidEventDate = parsedEventDate !== null
-    && !Number.isNaN(parsedEventDate.getTime())
-    && parsedEventDate.toISOString().slice(0, 10) === eventDate
+
+  const isValidEventDate =
+    parsedEventDate !== null &&
+    !Number.isNaN(parsedEventDate.getTime()) &&
+    parsedEventDate.toISOString().slice(0, 10) === eventDate
+
   if (!isValidEventDate || eventDate < todayInManila()) {
     return { ok: false as const, error: 'Please choose a valid start date.' }
   }
 
-  if (!Number.isFinite(mealsPerCycle) || mealsPerCycle <= 0) {
-    return { ok: false as const, error: 'Meals per cycle must be greater than 0.' }
-  }
-  if (selectedMenuItemIds.length === 0) {
-    return { ok: false as const, error: 'Please select at least one valid menu item.' }
+  if (!/^\d{2}:\d{2}(:\d{2})?$/.test(eventTime)) {
+    return { ok: false as const, error: 'Please choose a valid delivery time.' }
   }
 
-  const operatorId = 2
-  const [{ data: operatorSettingsRow, error: settingsError }, { data: existingMealPrepRows, error: existingMealPrepError }] = await Promise.all([
+  if (!['pickup', 'delivery'].includes(fulfillmentMethod)) {
+    return { ok: false as const, error: 'Please choose pickup or delivery.' }
+  }
+
+  if (fulfillmentMethod === 'delivery' && !deliveryAddress) {
+    return { ok: false as const, error: 'Please provide your delivery address.' }
+  }
+
+  // Validate selected dishes and their meal periods.
+  if (!items.length) {
+    return { ok: false as const, error: 'Please select at least one dish.' }
+  }
+
+  const validMealTypes = ['breakfast', 'lunch', 'dinner'] as const
+
+  for (const item of items) {
+    if (
+      !Number.isInteger(Number(item.MenuItemID)) ||
+      Number(item.MenuItemID) <= 0 ||
+      !Number.isInteger(Number(item.Quantity ?? 1)) ||
+      Number(item.Quantity ?? 1) <= 0 ||
+      !item.MealType ||
+      !validMealTypes.includes(item.MealType)
+    ) {
+      return {
+        ok: false as const,
+        error: 'One or more selected dishes have invalid meal types or quantities.',
+      }
+    }
+  }
+
+  const selectedMenuItemIds = [
+    ...new Set(items.map((item) => Number(item.MenuItemID))),
+  ]
+
+  // Validate the generated delivery schedule.
+  const scheduledDeliveries = orderDetails.scheduledDeliveries ?? []
+
+  if (!scheduledDeliveries.length) {
+    return {
+      ok: false as const,
+      error: 'Please select at least one scheduled delivery.',
+    }
+  }
+
+  const seenDates = new Set<string>()
+
+  for (const delivery of scheduledDeliveries) {
+    const date = String(delivery.date ?? '').trim()
+    const week = Number(delivery.subscriptionWeek)
+
+    const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? new Date(`${date}T00:00:00Z`)
+      : null
+
+    const validDate =
+      parsedDate !== null &&
+      !Number.isNaN(parsedDate.getTime()) &&
+      parsedDate.toISOString().slice(0, 10) === date
+
+    if (
+      !validDate ||
+      date < eventDate ||
+      !Number.isInteger(week) ||
+      week < 1 ||
+      week > subscriptionWeeks
+    ) {
+      return {
+        ok: false as const,
+        error: 'The delivery schedule contains an invalid date or subscription week.',
+      }
+    }
+
+    if (seenDates.has(date)) {
+      return {
+        ok: false as const,
+        error: 'The delivery schedule contains duplicate dates.',
+      }
+    }
+
+    seenDates.add(date)
+  }
+
+  const sortedDeliveries = [...scheduledDeliveries].sort((a, b) =>
+    a.date.localeCompare(b.date)
+  )
+
+  const firstDeliveryDate = sortedDeliveries[0].date
+
+  // Calculate the number of portions in one delivery.
+  const mealsPerCycle = items.reduce(
+    (total, item) => total + Number(item.Quantity ?? 1),
+    0
+  )
+
+  if (!Number.isFinite(mealsPerCycle) || mealsPerCycle <= 0) {
+    return { ok: false as const, error: 'The total meal quantity must be greater than 0.' }
+  }
+
+  const recurrencePattern =
+    String(orderDetails.mealPrepFrequency ?? 'weekly').trim() || 'weekly'
+
+  // Check customer allergies.
+  const { data: customerAllergies, error: customerAllergyError } = await admin
+    .from('CUSTOMER_ALLERGY')
+    .select('AllergyTagID')
+    .eq('CustomerID', customerId)
+
+  if (customerAllergyError) {
+    return { ok: false as const, error: customerAllergyError.message }
+  }
+
+  const { data: menuItemAllergies, error: menuItemAllergyError } = await admin
+    .from('MENU_ITEM_ALLERGY')
+    .select('MenuItemID, AllergyTagID')
+    .in('MenuItemID', selectedMenuItemIds)
+
+  if (menuItemAllergyError) {
+    return { ok: false as const, error: menuItemAllergyError.message }
+  }
+
+  const allergyTagIds = Array.from(
+    new Set([
+      ...(customerAllergies ?? []).map((allergy) => Number(allergy.AllergyTagID)),
+      ...(menuItemAllergies ?? []).map((allergy) => Number(allergy.AllergyTagID)),
+    ].filter(Number.isFinite))
+  )
+
+  const { data: allergyTags, error: allergyTagError } =
+    allergyTagIds.length > 0
+      ? await admin
+          .from('ALLERGY_TAG')
+          .select('AllergyTagID, AllergenName')
+          .in('AllergyTagID', allergyTagIds)
+      : { data: [], error: null }
+
+  if (allergyTagError) {
+    return { ok: false as const, error: allergyTagError.message }
+  }
+
+  const allergenNamesById = new Map(
+    (allergyTags ?? []).map((tag) => [
+      Number(tag.AllergyTagID),
+      String(tag.AllergenName).trim().toLowerCase(),
+    ])
+  )
+
+  const customerAllergenNames = new Set(
+    (customerAllergies ?? [])
+      .map((allergy) => allergenNamesById.get(Number(allergy.AllergyTagID)))
+      .filter(Boolean)
+  )
+
+  const hasAllergenConflict = (menuItemAllergies ?? []).some((allergy) =>
+    customerAllergenNames.has(
+      allergenNamesById.get(Number(allergy.AllergyTagID)) ?? ''
+    )
+  )
+
+  // Check operator settings and existing meal-prep orders.
+  const [
+    { data: operatorSettingsRow, error: settingsError },
+    { data: existingMealPrepRows, error: existingMealPrepError },
+  ] = await Promise.all([
     admin
       .from('OPERATOR_SETTINGS')
-      .select('OperatorID, DayOfWeek, OperatingStartTime, OperatingEndTime, MaxCateringEventsPerDay, MaxMealPrepOrdersPerDay, MaxGuestCountPerEvent')
+      .select(
+        'OperatorID, DayOfWeek, OperatingStartTime, OperatingEndTime, MaxCateringEventsPerDay, MaxMealPrepOrdersPerDay, MaxGuestCountPerEvent'
+      )
       .eq('OperatorID', operatorId),
+
     admin
       .from('MEAL_PREP_ORDER')
       .select('MealPrepOrderID, CustomerID, OperatorID, NextFulfillmentDate, MealsPerCycle, Status')
       .eq('OperatorID', operatorId)
-      .eq('NextFulfillmentDate', eventDate)
-.in('Status', ['pending', 'active']),
+      .eq('NextFulfillmentDate', firstDeliveryDate)
+      .in('Status', ['pending', 'active']),
   ])
-  if (settingsError) return { ok: false as const, error: settingsError.message }
-  if (existingMealPrepError) return { ok: false as const, error: existingMealPrepError.message }
-  if (!operatorSettingsRow?.length) return { ok: false as const, error: 'Operator booking settings are unavailable.' }
+
+  if (settingsError) {
+    return { ok: false as const, error: settingsError.message }
+  }
+
+  if (existingMealPrepError) {
+    return { ok: false as const, error: existingMealPrepError.message }
+  }
+
+  if (!operatorSettingsRow?.length) {
+    return {
+      ok: false as const,
+      error: 'Operator booking settings are unavailable.',
+    }
+  }
 
   const maxEventsPerDay = {} as OperatorSettings['maxEventsPerDay']
-  const maxMealPrepFulfillmentsPerDay = {} as OperatorSettings['maxMealPrepFulfillmentsPerDay']
+  const maxMealPrepFulfillmentsPerDay =
+    {} as OperatorSettings['maxMealPrepFulfillmentsPerDay']
+
   for (const row of operatorSettingsRow) {
     const day = Number(row.DayOfWeek) as DayOfWeek
     maxEventsPerDay[day] = Number(row.MaxCateringEventsPerDay ?? 0)
-    maxMealPrepFulfillmentsPerDay[day] = Number(row.MaxMealPrepOrdersPerDay ?? 0)
+    maxMealPrepFulfillmentsPerDay[day] = Number(
+      row.MaxMealPrepOrdersPerDay ?? 0
+    )
   }
+
   const settings: OperatorSettings = {
     operatingDays: Object.keys(maxEventsPerDay).map(Number) as DayOfWeek[],
     operatingHoursStart: String(operatorSettingsRow[0].OperatingStartTime),
@@ -146,32 +330,61 @@ export async function createMealPrepOrder(orderDetails: MealPrepOrderDetails, it
     maxGuestsPerEvent: Number(operatorSettingsRow[0].MaxGuestCountPerEvent),
     maxMealPrepFulfillmentsPerDay,
   }
+
   const candidateBooking = {
-    id: 'new-meal-prep-order', customerId: String(customerId), customerName: '', customerEmail: '',
-    orderType: 'meal_prep', eventDate, eventTime: settings.operatingHoursStart, eventType: '', venue: '',
-    guestCount: mealsPerCycle, specialRequests: '', status: 'pending', selectedMenuItemIds: selectedMenuItemIds.map(String),
-    dietaryRestrictions: [], eventProfileId: '', totalCost: 0, paymentsReceived: 0, createdAt: new Date().toISOString(),
-    validationPassed: false, ruleViolations: [],
+    id: 'new-meal-prep-order',
+    customerId: String(customerId),
+    customerName: '',
+    customerEmail: '',
+    orderType: 'meal_prep',
+    eventDate: firstDeliveryDate,
+    eventTime,
+    eventType: '',
+    venue: deliveryAddress,
+    guestCount: mealsPerCycle,
+    specialRequests: '',
+    status: 'pending',
+    selectedMenuItemIds: selectedMenuItemIds.map(String),
+    dietaryRestrictions: [],
+    eventProfileId: '',
+    totalCost: 0,
+    paymentsReceived: 0,
+    createdAt: new Date().toISOString(),
+    validationPassed: false,
+    ruleViolations: [],
   } satisfies Booking
+
   const validation = validateBooking(
     candidateBooking,
     settings,
-    (existingMealPrepRows ?? []).map((row) => ({ ...candidateBooking, id: String(row.MealPrepOrderID), customerId: String(row.CustomerID), eventDate: String(row.NextFulfillmentDate), guestCount: Number(row.MealsPerCycle), status: String(row.Status) as Booking['status'] })),
+    (existingMealPrepRows ?? []).map((row) => ({
+      ...candidateBooking,
+      id: String(row.MealPrepOrderID),
+      customerId: String(row.CustomerID),
+      eventDate: String(row.NextFulfillmentDate),
+      guestCount: Number(row.MealsPerCycle),
+      status: String(row.Status) as Booking['status'],
+    })),
     [],
-    [],
+    []
   )
+
   if (!validation.valid) {
-    const failureMessage = validation.failures.map((failure) => failure.message).join(' ')
-    await createNotification(operatorId, 'capacity_conflict', `A meal-prep order for ${eventDate} was blocked: ${failureMessage}`)
+    const failureMessage = validation.failures
+      .map((failure) => failure.message)
+      .join(' ')
+
+    await createNotification(
+      operatorId,
+      'capacity_conflict',
+      `A meal-prep order for ${firstDeliveryDate} was blocked: ${failureMessage}`
+    )
+
     return { ok: false as const, error: failureMessage }
   }
 
-  if (hasAllergenConflict) {
-    await createNotification(operatorId, 'allergen_conflict', 'A customer attempted a meal-prep order with an allergen conflict.', {})
-  }
-
-    // Get the active menu prices from the price history table.
-    const { data: activePrices, error: priceError } = await admin
+  // Get the active prices so the order keeps its original price snapshots.
+  const { data: activePrices, error: priceError } = await admin
     .from('PRICES')
     .select('MenuItemID, Price')
     .in('MenuItemID', selectedMenuItemIds)
@@ -199,36 +412,214 @@ export async function createMealPrepOrder(orderDetails: MealPrepOrderDetails, it
     }
   }
 
-  const { data: order, error } = await admin
+  // Calculate the cost of one delivery.
+  const pricePerDelivery = items.reduce((total, item) => {
+    const unitPrice = priceByMenuItemId.get(Number(item.MenuItemID)) ?? 0
+    return total + unitPrice * Number(item.Quantity ?? 1)
+  }, 0)
+
+  // Create the main subscription record.
+  const { data: order, error: orderError } = await admin
     .from('MEAL_PREP_ORDER')
     .insert({
       CustomerID: customerId,
-      OperatorID: 2,
+      OperatorID: operatorId,
       RecurrencePattern: recurrencePattern,
       MealsPerCycle: mealsPerCycle,
       Status: 'pending',
       AllergenConflictFlag: hasAllergenConflict,
-      NextFulfillmentDate: eventDate,
+      NextFulfillmentDate: firstDeliveryDate,
+      SubscriptionWeeks: subscriptionWeeks,
+      FulfillmentMethod: fulfillmentMethod,
+      FulfillmentTime: eventTime,
+      DeliveryAddress: fulfillmentMethod === 'delivery' ? deliveryAddress : null,
+      PricePerServing: pricePerDelivery / mealsPerCycle,
     })
     .select('MealPrepOrderID')
     .single()
-  if (error || !order) return { ok: false as const, error: error?.message ?? 'Unable to create the meal prep order.' }
 
-    const { error: itemError } = await admin.from('MEAL_PREP_ITEM').insert(
-    items.map((item) => ({
-      MealPrepOrderID: order.MealPrepOrderID,
-      MenuItemID: Number(item.MenuItemID),
-      Quantity: Number(item.Quantity ?? 1),
-      UnitPrice: priceByMenuItemId.get(Number(item.MenuItemID)),
-    }))
+  if (orderError || !order) {
+    return {
+      ok: false as const,
+      error: orderError?.message ?? 'Unable to create the meal-prep order.',
+    }
+  }
+
+  const mealPrepOrderId = Number(order.MealPrepOrderID)
+
+  // Remove all related records if a later insert fails.
+  const rollbackOrder = async () => {
+    await admin
+      .from('MEAL_PREP_PAYMENT')
+      .delete()
+      .eq('MealPrepOrderID', mealPrepOrderId)
+
+    await admin
+      .from('MEAL_PREP_DELIVERY')
+      .delete()
+      .eq('MealPrepOrderID', mealPrepOrderId)
+
+    await admin
+      .from('MEAL_PREP_ITEM')
+      .delete()
+      .eq('MealPrepOrderID', mealPrepOrderId)
+
+    await admin
+      .from('MEAL_PREP_PLAN_PERIOD')
+      .delete()
+      .eq('MealPrepOrderID', mealPrepOrderId)
+
+    await admin
+      .from('MEAL_PREP_ORDER')
+      .delete()
+      .eq('MealPrepOrderID', mealPrepOrderId)
+  }
+
+  // Create one plan-period record for each selected meal type.
+  const mealTypeLabels: Record<
+    'breakfast' | 'lunch' | 'dinner',
+    string
+  > = {
+    breakfast: 'Breakfast',
+    lunch: 'Lunch',
+    dinner: 'Dinner',
+  }
+
+  const selectedMealTypes = [
+    ...new Set(items.map((item) => item.MealType!)),
+  ]
+
+  const { data: planPeriods, error: planPeriodError } = await admin
+    .from('MEAL_PREP_PLAN_PERIOD')
+    .insert(
+      selectedMealTypes.map((mealType) => ({
+        MealPrepOrderID: mealPrepOrderId,
+        MealPeriod: mealTypeLabels[mealType],
+      }))
+    )
+    .select('MealPrepPlanPeriodID, MealPeriod')
+
+  if (planPeriodError || !planPeriods) {
+    await rollbackOrder()
+    return {
+      ok: false as const,
+      error: planPeriodError?.message ?? 'Unable to save the selected meal periods.',
+    }
+  }
+
+  const planPeriodIdByMealType = new Map(
+    planPeriods.map((period) => [
+      String(period.MealPeriod).toLowerCase(),
+      Number(period.MealPrepPlanPeriodID),
+    ])
   )
+
+  // Link each selected dish to its corresponding meal period.
+  const { error: itemError } = await admin
+    .from('MEAL_PREP_ITEM')
+    .insert(
+      items.map((item) => ({
+        MealPrepOrderID: mealPrepOrderId,
+        MenuItemID: Number(item.MenuItemID),
+        Quantity: Number(item.Quantity ?? 1),
+        UnitPrice: priceByMenuItemId.get(Number(item.MenuItemID)),
+        MealPrepPlanPeriodID: planPeriodIdByMealType.get(
+          String(item.MealType).toLowerCase()
+        ),
+      }))
+    )
+
   if (itemError) {
-    await admin.from('MEAL_PREP_ORDER').delete().eq('MealPrepOrderID', order.MealPrepOrderID)
+    await rollbackOrder()
     return { ok: false as const, error: itemError.message }
   }
 
-  await createNotification(operatorId, 'new_meal_prep_order', `New meal-prep order request for ${eventDate}.`, { mealPrepOrderId: order.MealPrepOrderID })
-  return { ok: true as const, mealPrepOrderId: order.MealPrepOrderID }
+  // Save all scheduled delivery visits.
+  const { error: deliveryError } = await admin
+    .from('MEAL_PREP_DELIVERY')
+    .insert(
+      sortedDeliveries.map((delivery) => ({
+        MealPrepOrderID: mealPrepOrderId,
+        OriginalDeliveryDate: delivery.date,
+        DeliveryDate: delivery.date,
+        DeliveryTime: eventTime,
+        SubscriptionWeek: Number(delivery.subscriptionWeek),
+        Status: 'scheduled',
+      }))
+    )
+
+  if (deliveryError) {
+    await rollbackOrder()
+    return { ok: false as const, error: deliveryError.message }
+  }
+
+  // Create one payment record for each subscription week.
+  const deliveriesByWeek = new Map<number, typeof sortedDeliveries>()
+
+  for (const delivery of sortedDeliveries) {
+    const week = Number(delivery.subscriptionWeek)
+    const weekDeliveries = deliveriesByWeek.get(week) ?? []
+    weekDeliveries.push(delivery)
+    deliveriesByWeek.set(week, weekDeliveries)
+  }
+
+  const paymentRows = Array.from(deliveriesByWeek.entries()).map(
+    ([week, weekDeliveries]) => {
+      const firstDateOfWeek = weekDeliveries
+        .map((delivery) => delivery.date)
+        .sort()[0]
+
+      const dueDateObject = new Date(`${firstDateOfWeek}T00:00:00Z`)
+      dueDateObject.setUTCDate(dueDateObject.getUTCDate() - 2)
+
+      const dueDate = dueDateObject.toISOString().slice(0, 10)
+      const amountDue = Math.round(
+        pricePerDelivery * weekDeliveries.length * 100
+      ) / 100
+
+      return {
+        MealPrepOrderID: mealPrepOrderId,
+        SubscriptionWeek: week,
+        AmountDue: amountDue,
+        DueDate: dueDate,
+        PaymentStatus: 'pending',
+      }
+    }
+  )
+
+  const { error: paymentError } = await admin
+    .from('MEAL_PREP_PAYMENT')
+    .insert(paymentRows)
+
+  if (paymentError) {
+    await rollbackOrder()
+    return { ok: false as const, error: paymentError.message }
+  }
+
+  // Notify the owner if the selected dishes conflict with customer allergies.
+  if (hasAllergenConflict) {
+    await createNotification(
+      operatorId,
+      'allergen_conflict',
+      'A customer attempted a meal-prep order with an allergen conflict.',
+      {}
+    )
+  }
+
+  await createNotification(
+    operatorId,
+    'new_meal_prep_order',
+    `New meal-prep order request for ${firstDeliveryDate}.`,
+    { mealPrepOrderId }
+  )
+
+  revalidatePath('/customer')
+  revalidatePath('/owner')
+
+  return {
+    ok: true as const,
+    mealPrepOrderId,
+  }
 }
 
 export async function getCustomerMealPrepOrders() {
