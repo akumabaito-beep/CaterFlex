@@ -55,7 +55,18 @@ describe('createMealPrepOrder capacity', () => {
     }) })
     validateBooking.mockReturnValue({ valid: false, errors: [], failures: [{ message: 'Maximum meal-prep orders reached for this day.' }] })
     const { createMealPrepOrder } = await loadAction()
-    await expect(createMealPrepOrder({ eventDate: '2099-01-01', guestCount: 1 }, [{ MenuItemID: 5 }])).resolves.toMatchObject({ ok: false })
+    await expect(
+      createMealPrepOrder(
+        {
+          eventDate: '2099-01-01',
+          eventTime: '12:00',
+          fulfillmentMethod: 'pickup',
+          subscriptionWeeks: 1,
+          scheduledDeliveries: [{ date: '2099-01-01', subscriptionWeek: 1 }],
+        } as never,
+        [{ MenuItemID: 5, Quantity: 1, MealType: 'lunch' }] as never
+      )
+    ).resolves.toMatchObject({ ok: false, error: 'Maximum meal-prep orders reached for this day.' })
     expect(activeStatusFilter).toHaveBeenCalledWith('Status', ['pending', 'active'])
     expect(createNotification).toHaveBeenCalledWith(2, 'capacity_conflict', expect.stringContaining('Maximum meal-prep orders reached'))
   })
