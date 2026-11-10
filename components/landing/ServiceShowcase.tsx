@@ -112,8 +112,8 @@ export function ServicesShowcase({ onBrowse: onBrowseProp }: { onBrowse?: () => 
         <div className="grid">
           <Reveal className="col-start-1 row-start-1 self-center">
             <div inert={visible} aria-hidden={visible} className={cn('transition-opacity duration-300', visible && 'pointer-events-none opacity-0')}>
-              <p className="flex items-center gap-2 text-xs font-semibold text-[#9B1C2C]"><ChefHat className="size-4" aria-hidden="true" /> What we do</p>
-              <h2 className="mt-4 font-heading text-4xl font-bold leading-[1.08] tracking-tight text-[#2A1B1F] sm:text-5xl">Easy planning for every table.</h2>
+              <p className="flex items-center gap-2 text-xs font-semibold text-[#C8431B]"><ChefHat className="size-4" aria-hidden="true" /> What we do</p>
+              <h2 className="mt-4 font-heading text-4xl font-bold leading-[1.08] tracking-tight text-[#2B1D16] sm:text-5xl">Easy planning for every table.</h2>
               <p className="mt-5 max-w-sm text-base leading-7 text-muted-foreground">Book events, order weekly meals and get ingredient-aware dish suggestions, all in one organized place.</p>
             </div>
           </Reveal>
@@ -128,14 +128,14 @@ export function ServicesShowcase({ onBrowse: onBrowseProp }: { onBrowse?: () => 
           >
             <div ref={bodyRef}>
               <div className="flex items-start justify-between">
-                <span className="flex size-14 items-center justify-center rounded-xl bg-primary-soft text-[#9B1C2C]"><Icon className="size-7" aria-hidden="true" /></span>
-                <button type="button" onClick={close} aria-label="Close details" className="rounded-md p-2 text-muted-foreground hover:bg-primary-soft hover:text-[#9B1C2C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C]"><X className="size-5" aria-hidden="true" /></button>
+                <span className="flex size-14 items-center justify-center rounded-xl bg-primary-soft text-[#C8431B]"><Icon className="size-7" aria-hidden="true" /></span>
+                <button type="button" onClick={close} aria-label="Close details" className="rounded-md p-2 text-muted-foreground hover:bg-primary-soft hover:text-[#C8431B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]"><X className="size-5" aria-hidden="true" /></button>
               </div>
-              <span className="mt-5 inline-block rounded bg-primary-soft px-2 py-1 text-[11px] font-semibold text-[#9B1C2C]">{s.tag}</span>
-              <h3 className="mt-3 font-heading text-3xl font-bold leading-tight text-[#2A1B1F]">{s.title}</h3>
+              <span className="mt-5 inline-block rounded bg-primary-soft px-2 py-1 text-[11px] font-semibold text-[#C8431B]">{s.tag}</span>
+              <h3 className="mt-3 font-heading text-3xl font-bold leading-tight text-[#2B1D16]">{s.title}</h3>
               <p className="mt-4 text-base leading-7 text-muted-foreground">{s.detail}</p>
               <ul className="mt-5 space-y-3">
-                {s.points.map((p) => <li key={p} className="flex items-start gap-3 text-sm leading-6 text-[#2A1B1F]"><Check className="mt-0.5 size-4 shrink-0 text-[#9B1C2C]" aria-hidden="true" />{p}</li>)}
+                {s.points.map((p) => <li key={p} className="flex items-start gap-3 text-sm leading-6 text-[#2B1D16]"><Check className="mt-0.5 size-4 shrink-0 text-[#C8431B]" aria-hidden="true" />{p}</li>)}
               </ul>
             </div>
           </div>
@@ -156,14 +156,14 @@ export function ServicesShowcase({ onBrowse: onBrowseProp }: { onBrowse?: () => 
                     aria-expanded={isOpen}
                     aria-label={isOpen ? `Bring back ${title}` : `Show details for ${title}`}
                     onClick={() => (isOpen ? close() : openCard(i))}
-                    className="absolute inset-0 z-0 cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C]"
+                    className="absolute inset-0 z-0 cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]"
                   />
                   <div className={cn('flex flex-1 flex-col', isOpen && 'invisible')}>
                     <div className="flex items-start justify-between">
-                      <span className="flex size-11 items-center justify-center rounded-lg bg-primary-soft text-[#9B1C2C]"><CardIcon className="size-6" aria-hidden="true" /></span>
-                      <span className="rounded bg-primary-soft px-2 py-1 text-[11px] font-semibold text-[#9B1C2C]">{tag}</span>
+                      <span className="flex size-11 items-center justify-center rounded-lg bg-primary-soft text-[#C8431B]"><CardIcon className="size-6" aria-hidden="true" /></span>
+                      <span className="rounded bg-primary-soft px-2 py-1 text-[11px] font-semibold text-[#C8431B]">{tag}</span>
                     </div>
-                    <h3 className="mt-6 font-heading text-lg font-bold text-[#2A1B1F]">{title}</h3>
+                    <h3 className="mt-6 font-heading text-lg font-bold text-[#2B1D16]">{title}</h3>
                     <p className="mt-2 flex-1 text-sm leading-6 text-muted-foreground">{text}</p>
                   </div>
                 </article>
@@ -172,7 +172,7 @@ export function ServicesShowcase({ onBrowse: onBrowseProp }: { onBrowse?: () => 
           })}
 
           <Reveal delay={360} variant="scale" className="h-full">
-            <article className="flex h-full flex-col rounded-xl bg-[#8E1F2C] p-5 text-white shadow-sm transition-transform hover:-translate-y-1 hover:shadow-lg">
+            <article className="flex h-full flex-col rounded-xl bg-[#C8431B] p-5 text-white shadow-sm transition-transform hover:-translate-y-1 hover:shadow-lg">
               <div className="flex items-start justify-between">
                 <span className="flex size-11 items-center justify-center rounded-lg bg-white/15"><Sparkles className="size-6" aria-hidden="true" /></span>
                 <span className="rounded bg-white/20 px-2 py-1 text-[11px] font-semibold">Ready when you are</span>
@@ -180,7 +180,7 @@ export function ServicesShowcase({ onBrowse: onBrowseProp }: { onBrowse?: () => 
               <h3 className="mt-6 font-heading text-lg font-bold">Start your first order</h3>
               <p className="mt-2 flex-1 text-sm leading-6 text-white/90">Browse the menu and plan an event or a week of meals.</p>
               <hr className="my-5 border-white/30" />
-              <Button onClick={onBrowse} className="h-10 w-full gap-2 rounded-lg leading-none bg-[#1A0E10] text-xs font-semibold text-white shadow-none hover:bg-black">Browse menu <ArrowRight className="size-3.5" aria-hidden="true" /></Button>
+              <Button onClick={onBrowse} className="h-10 w-full gap-2 rounded-lg leading-none bg-[#1A110C] text-xs font-semibold text-white shadow-none hover:bg-black">Browse menu <ArrowRight className="size-3.5" aria-hidden="true" /></Button>
             </article>
           </Reveal>
         </div>

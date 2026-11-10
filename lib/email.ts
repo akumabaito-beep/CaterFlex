@@ -20,13 +20,13 @@ export async function sendVerificationEmail(to: string, name: string, link: stri
     to,
     subject: 'Confirm your CaterFlex email',
     text: `Hi ${name},\n\nWelcome to CaterFlex! Confirm your email to finish creating your account:\n${link}\n\nThis link expires in 24 hours. If you did not create an account, you can ignore this email.`,
-    html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;color:#2A1B1F">
-  <h2 style="color:#8E1F2C">Confirm your email</h2>
+    html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;color:#2B1D16">
+  <h2 style="color:#C8431B">Confirm your email</h2>
   <p>Hi ${escapeHtml(name)},</p>
   <p>Welcome to CaterFlex! Confirm your email to finish creating your account.</p>
-  <p><a href="${link}" style="display:inline-block;background:#9B1C2C;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">Confirm email</a></p>
-  <p style="font-size:13px;color:#6b5a5e">Or paste this link into your browser:<br>${link}</p>
-  <p style="font-size:13px;color:#6b5a5e">This link expires in 24 hours. If you did not create an account, you can ignore this email.</p>
+  <p><a href="${link}" style="display:inline-block;background:#C8431B;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">Confirm email</a></p>
+  <p style="font-size:13px;color:#6F5F52">Or paste this link into your browser:<br>${link}</p>
+  <p style="font-size:13px;color:#6F5F52">This link expires in 24 hours. If you did not create an account, you can ignore this email.</p>
 </div>`,
   })
 }

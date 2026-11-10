@@ -670,7 +670,7 @@ export default function InquiryPage() {
    */
 
   const inputClass =
-    'w-full px-4 py-2.5 bg-white text-[#2A1B1F] border border-[#E8D2D2] rounded-lg placeholder:text-[#2A1B1F]/40 focus:outline-none focus:ring-2 focus:ring-[#9B1C2C]/40 focus:border-[#9B1C2C]';
+    'w-full px-4 py-2.5 bg-white text-[#2B1D16] border border-[#E8D8C4] rounded-lg placeholder:text-[#2B1D16]/40 focus:outline-none focus:ring-2 focus:ring-[#C8431B]/40 focus:border-[#C8431B]';
 
   /*
    * ============================================================
@@ -681,16 +681,16 @@ export default function InquiryPage() {
   const availabilityBanner =
     dateAvailability &&
     !dateAvailability.available && (
-      <div className="flex flex-col gap-2 rounded-lg border border-[#E8B4B4] bg-[#FDECEC] p-4">
+      <div className="flex flex-col gap-2 rounded-lg border border-[#E3C7A8] bg-[#F6E3D3] p-4">
         <div className="flex gap-2">
-          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#9B1C2C]" />
+          <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#C8431B]" />
 
           <div className="space-y-1">
-            <p className="text-sm font-medium text-[#2A1B1F]">
+            <p className="text-sm font-medium text-[#2B1D16]">
               This date is not available.
             </p>
 
-            <p className="text-sm text-[#2A1B1F]/80">
+            <p className="text-sm text-[#2B1D16]/80">
               {dateAvailability.reason ??
                 'The operator cannot accept bookings for this date.'}
             </p>
@@ -699,7 +699,7 @@ export default function InquiryPage() {
 
         {suggestedDate && (
           <div className="flex items-center justify-between gap-3 rounded-md bg-white/60 px-3 py-2">
-            <p className="flex items-center gap-2 text-sm text-[#2A1B1F]">
+            <p className="flex items-center gap-2 text-sm text-[#2B1D16]">
               <Sparkles className="h-4 w-4" />
 
               Nearest open date:
@@ -737,16 +737,16 @@ export default function InquiryPage() {
         {/* PAGE HEADER */}
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9B1C2C] mb-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#C8431B] mb-2">
             {isMealPrep ? 'Step 1 of 3' : 'Step 1 of 2'} · Plan your order
           </p>
-          <h1 className="font-heading uppercase text-4xl font-bold text-[#2A1B1F]">
+          <h1 className="font-heading uppercase text-4xl font-bold text-[#2B1D16]">
             {isMealPrep
               ? 'Start Meal Prep Plan'
               : 'Book Catering'}
           </h1>
 
-          <p className="text-[#2A1B1F]/70 mt-2">
+          <p className="text-[#2B1D16]/70 mt-2">
             {isMealPrep
               ? 'Choose your subscription duration, delivery days, and preferred fulfillment schedule.'
               : 'Tell us about your one-time catering event'}
@@ -764,13 +764,13 @@ export default function InquiryPage() {
             }
             className={`p-5 rounded-xl border-2 text-left transition-all ${
               !isMealPrep
-                ? 'border-[#9B1C2C] bg-[#FDECEC] shadow-sm'
-                : 'border-[#E8D2D2] bg-white hover:border-[#9B1C2C]/50'
+                ? 'border-[#C8431B] bg-[#F6E3D3] shadow-sm'
+                : 'border-[#E8D8C4] bg-white hover:border-[#C8431B]/50'
             }`}
           >
-            <CalendarDays className="w-6 h-6 text-[#9B1C2C] mb-2" />
+            <CalendarDays className="w-6 h-6 text-[#C8431B] mb-2" />
 
-            <p className="font-heading uppercase font-bold text-[#2A1B1F]">
+            <p className="font-heading uppercase font-bold text-[#2B1D16]">
               Catering Event
             </p>
 
@@ -786,13 +786,13 @@ export default function InquiryPage() {
             }
             className={`p-5 rounded-xl border-2 text-left transition-all ${
               isMealPrep
-                ? 'border-[#9B1C2C] bg-[#FDECEC] shadow-sm'
-                : 'border-[#E8D2D2] bg-white hover:border-[#9B1C2C]/50'
+                ? 'border-[#C8431B] bg-[#F6E3D3] shadow-sm'
+                : 'border-[#E8D8C4] bg-white hover:border-[#C8431B]/50'
             }`}
           >
-            <UtensilsCrossed className="w-6 h-6 text-[#9B1C2C] mb-2" />
+            <UtensilsCrossed className="w-6 h-6 text-[#C8431B] mb-2" />
 
-            <p className="font-heading uppercase font-bold text-[#2A1B1F]">
+            <p className="font-heading uppercase font-bold text-[#2B1D16]">
               Meal Prep Plan
             </p>
 
@@ -805,7 +805,7 @@ export default function InquiryPage() {
 
         {/* FORM */}
 
-        <Card className="p-6 sm:p-8 rounded-2xl border border-[#E8D2D2] bg-white shadow-sm">
+        <Card className="p-6 sm:p-8 rounded-2xl border border-[#E8D8C4] bg-white shadow-sm">
           <form
             onSubmit={handleSubmit}
             className="space-y-8"
@@ -818,14 +818,14 @@ export default function InquiryPage() {
             {!isMealPrep ? (
               <div className="space-y-6">
 
-                <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#9B1C2C]">
+                <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#C8431B]">
                   Event Details
                 </h2>
 
                 {/* EVENT TYPE */}
 
                 <div>
-                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                  <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                     Event Type *
                   </label>
 
@@ -852,7 +852,7 @@ export default function InquiryPage() {
                 {/* DATE */}
 
                 <div>
-                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                  <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                     Event Date *
                   </label>
 
@@ -885,7 +885,7 @@ export default function InquiryPage() {
                 <div className="grid items-stretch gap-6 sm:grid-cols-2">
 
                   <div className="flex flex-col">
-                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                    <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                       Event Time *
                     </label>
 
@@ -911,7 +911,7 @@ export default function InquiryPage() {
                   </div>
 
                   <div className="flex flex-col">
-                    <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                    <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                       Number of Guests *
                     </label>
 
@@ -937,7 +937,7 @@ export default function InquiryPage() {
                 {/* VENUE */}
 
                 <div>
-                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                  <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                     Drop-off Location *
                   </label>
 
@@ -962,7 +962,7 @@ export default function InquiryPage() {
                 {/* SPECIAL REQUESTS */}
 
                 <div>
-                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                  <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                     Special Requests
                   </label>
 
@@ -991,7 +991,7 @@ export default function InquiryPage() {
 
               
             <div className="space-y-6">
-              <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#9B1C2C]">
+              <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#C8431B]">
                 Meal Prep Subscription
               </h2>
 
@@ -1003,7 +1003,7 @@ export default function InquiryPage() {
               {/* SUBSCRIPTION DURATION */}
 
               <div>
-                <label className="block text-sm font-semibold text-[#2A1B1F] mb-3">
+                <label className="block text-sm font-semibold text-[#2B1D16] mb-3">
                   Subscription Duration *
                 </label>
 
@@ -1020,8 +1020,8 @@ export default function InquiryPage() {
                       }
                       className={`rounded-lg border-2 p-4 text-center transition-colors ${
                         mealPrepForm.subscriptionWeeks === weeks
-                          ? 'border-[#9B1C2C] bg-[#FDECEC] text-[#9B1C2C]'
-                          : 'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/50'
+                          ? 'border-[#C8431B] bg-[#F6E3D3] text-[#C8431B]'
+                          : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:border-[#C8431B]/50'
                       }`}
                     >
                       <p className="font-bold text-lg">{weeks}</p>
@@ -1036,7 +1036,7 @@ export default function InquiryPage() {
               {/* START DATE */}
 
               <div>
-                <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                   Preferred Start Date *
                 </label>
 
@@ -1051,6 +1051,7 @@ export default function InquiryPage() {
                   orderType={customerOrderType}
                   settings={operatorSettings}
                   bookings={availabilityBookings}
+                  fill
                 />
 
                 <input
@@ -1078,7 +1079,7 @@ export default function InquiryPage() {
               {/* DELIVERY DAYS */}
 
               <div>
-                <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                   Preferred Delivery Days *
                 </label>
 
@@ -1100,8 +1101,8 @@ export default function InquiryPage() {
                         aria-pressed={selected}
                         className={`rounded-lg border-2 px-2 py-3 text-sm font-semibold transition-colors ${
                           selected
-                            ? 'border-[#9B1C2C] bg-[#FDECEC] text-[#9B1C2C]'
-                            : 'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/50'
+                            ? 'border-[#C8431B] bg-[#F6E3D3] text-[#C8431B]'
+                            : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:border-[#C8431B]/50'
                         }`}
                       >
                         {day.label.slice(0, 3)}
@@ -1120,7 +1121,7 @@ export default function InquiryPage() {
               {/* FULFILLMENT TIME */}
 
               <div>
-                <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                   Preferred Pickup / Delivery Time *
                 </label>
 
@@ -1145,8 +1146,8 @@ export default function InquiryPage() {
 
               {mealPrepForm.startDate &&
                 isValidDeliveryDays(mealPrepForm.deliveryDays) && (
-                  <div className="rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4 text-sm text-[#2A1B1F]">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#9B1C2C]">
+                  <div className="rounded-xl border border-[#E8D8C4] bg-[#F6E3D3] p-4 text-sm text-[#2B1D16]">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#C8431B]">
                       Your Delivery Schedule
                     </p>
 
@@ -1158,7 +1159,7 @@ export default function InquiryPage() {
                       {mealPrepForm.subscriptionWeeks === 1 ? 'week' : 'weeks'}.
                     </p>
 
-                    <p className="mt-1 text-[#2A1B1F]/70">
+                    <p className="mt-1 text-[#2B1D16]/70">
                       Preferred days:{' '}
                       {WEEKDAYS
                         .filter((day) =>
@@ -1168,11 +1169,11 @@ export default function InquiryPage() {
                         .join(', ')}
                     </p>
 
-                    <p className="mt-1 text-[#2A1B1F]/70">
+                    <p className="mt-1 text-[#2B1D16]/70">
                       Preferred time: {mealPrepForm.fulfillmentTime}
                     </p>
 
-                    <div className="mt-4 border-t border-[#E8D2D2] pt-3">
+                    <div className="mt-4 border-t border-[#E8D8C4] pt-3">
                       <p className="font-semibold mb-2">
                         Planned delivery dates
                       </p>
@@ -1187,7 +1188,7 @@ export default function InquiryPage() {
                       </ul>
                     </div>
 
-                    <p className="mt-3 text-xs text-[#2A1B1F]/60">
+                    <p className="mt-3 text-xs text-[#2B1D16]/60">
                       These are your preferred dates. The operator will
                       validate the final fulfillment schedule.
                     </p>
@@ -1197,7 +1198,7 @@ export default function InquiryPage() {
               {/* FULFILLMENT METHOD */}
 
               <div>
-                <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                   Fulfillment Method *
                 </label>
 
@@ -1208,8 +1209,8 @@ export default function InquiryPage() {
                         key={method}
                         className={`flex-1 flex items-center justify-center gap-2 cursor-pointer rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-colors ${
                           mealPrepForm.fulfillmentMethod === method
-                            ? 'border-[#9B1C2C] bg-[#FDECEC] text-[#9B1C2C]'
-                            : 'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/50'
+                            ? 'border-[#C8431B] bg-[#F6E3D3] text-[#C8431B]'
+                            : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:border-[#C8431B]/50'
                         }`}
                       >
                         <input
@@ -1236,7 +1237,7 @@ export default function InquiryPage() {
 
               {mealPrepForm.fulfillmentMethod === 'delivery' && (
                 <div>
-                  <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                  <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                     Delivery Address *
                   </label>
 
@@ -1266,7 +1267,7 @@ export default function InquiryPage() {
               {/* SPECIAL REQUESTS */}
 
               <div>
-                <label className="block text-sm font-semibold text-[#2A1B1F] mb-2">
+                <label className="block text-sm font-semibold text-[#2B1D16] mb-2">
                   Special Requests
                 </label>
 
@@ -1288,9 +1289,9 @@ export default function InquiryPage() {
             {/* DIETARY RESTRICTIONS */}
             {/* ================================================= */}
 
-            <div className="space-y-6 pt-6 border-t border-[#E8D2D2]">
+            <div className="space-y-6 pt-6 border-t border-[#E8D8C4]">
 
-              <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#9B1C2C]">
+              <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#C8431B]">
                 Dietary Restrictions
               </h2>
 
@@ -1306,7 +1307,7 @@ export default function InquiryPage() {
             {/* BUTTONS */}
             {/* ================================================= */}
 
-            <div className="flex gap-4 pt-6 border-t border-[#E8D2D2]">
+            <div className="flex gap-4 pt-6 border-t border-[#E8D8C4]">
 
               <Button
                 type="submit"
@@ -1320,7 +1321,7 @@ export default function InquiryPage() {
                     guestCountError
                   )
                 }
-                className="flex-1 h-11 rounded-lg bg-[#9B1C2C] text-white font-semibold hover:bg-[#7F1623] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 h-11 rounded-lg bg-[#C8431B] text-white font-semibold hover:bg-[#A93615] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Continue to Menu Selection
               </Button>
@@ -1328,7 +1329,7 @@ export default function InquiryPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="flex-1 h-11 rounded-lg border-[#9B1C2C] text-[#9B1C2C] hover:bg-[#FDECEC] hover:text-[#7F1623]"
+                className="flex-1 h-11 rounded-lg border-[#C8431B] text-[#C8431B] hover:bg-[#F6E3D3] hover:text-[#A93615]"
                 onClick={() =>
                   router.back()
                 }

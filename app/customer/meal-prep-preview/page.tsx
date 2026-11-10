@@ -102,37 +102,37 @@ export default function MealPrepPreviewPage() {
     <CustomerShell>
       <div className="max-w-3xl mx-auto space-y-8">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#9B1C2C] mb-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#C8431B] mb-2">
             Step 2 of 3 · Review your plan
           </p>
 
-          <h1 className="font-heading uppercase text-4xl font-bold text-[#2A1B1F]">
+          <h1 className="font-heading uppercase text-4xl font-bold text-[#2B1D16]">
             Your Meal Prep Subscription
           </h1>
 
-          <p className="text-[#2A1B1F]/70 mt-2">
+          <p className="text-[#2B1D16]/70 mt-2">
             Review your subscription details and delivery schedule before
             selecting your meals.
           </p>
         </div>
 
-        <Card className="p-6 sm:p-8 rounded-2xl border border-[#E8D2D2] bg-white shadow-sm space-y-8">
+        <Card className="p-6 sm:p-8 rounded-2xl border border-[#E8D8C4] bg-white shadow-sm space-y-8">
           <div className="grid sm:grid-cols-2 gap-4">
             {summary.map(({ icon: Icon, label, value }) => (
               <div
                 key={label}
-                className="flex items-start gap-3 rounded-xl bg-[#FDECEC] p-4"
+                className="flex items-start gap-3 rounded-xl bg-[#F6E3D3] p-4"
               >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#9B1C2C] text-white">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#C8431B] text-white">
                   <Icon className="h-5 w-5" />
                 </span>
 
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">
                     {label}
                   </p>
 
-                  <p className="text-base font-bold text-[#2A1B1F] break-words">
+                  <p className="text-base font-bold text-[#2B1D16] break-words">
                     {value}
                   </p>
                 </div>
@@ -141,7 +141,7 @@ export default function MealPrepPreviewPage() {
           </div>
 
           <div>
-            <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#9B1C2C] mb-4">
+            <h2 className="font-heading uppercase tracking-wide text-lg font-bold text-[#C8431B] mb-4">
               Your {scheduledDeliveries.length} scheduled deliveries
             </h2>
 
@@ -149,14 +149,14 @@ export default function MealPrepPreviewPage() {
               {scheduledDeliveries.map((delivery, index) => (
                 <li
                   key={`${delivery.date}-${index}`}
-                  className="rounded-lg border border-[#E8D2D2] bg-white p-3 text-center"
+                  className="rounded-lg border border-[#E8D8C4] bg-white p-3 text-center"
                 >
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#9B1C2C] flex items-center justify-center gap-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#C8431B] flex items-center justify-center gap-1">
                     <CheckCircle2 className="h-3 w-3" />
                     Week {delivery.subscriptionWeek}
                   </p>
 
-                  <p className="mt-1 text-sm font-semibold text-[#2A1B1F]">
+                  <p className="mt-1 text-sm font-semibold text-[#2B1D16]">
                     {formatDate(delivery.date)}
                   </p>
                 </li>
@@ -165,12 +165,12 @@ export default function MealPrepPreviewPage() {
           </div>
 
           {customerBookingDraft.specialRequests && (
-            <div className="border-t border-[#E8D2D2] pt-6">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60 mb-2">
+            <div className="border-t border-[#E8D8C4] pt-6">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60 mb-2">
                 Special requests
               </p>
 
-              <p className="text-[#2A1B1F]">
+              <p className="text-[#2B1D16]">
                 {customerBookingDraft.specialRequests}
               </p>
             </div>
@@ -181,14 +181,14 @@ export default function MealPrepPreviewPage() {
           <Button
             variant="outline"
             onClick={() => router.push('/customer/inquiry')}
-            className="flex-1 h-11 rounded-lg border-[#9B1C2C] text-[#9B1C2C] hover:bg-[#FDECEC] hover:text-[#7F1623]"
+            className="flex-1 h-11 rounded-lg border-[#C8431B] text-[#C8431B] hover:bg-[#F6E3D3] hover:text-[#A93615]"
           >
             Back
           </Button>
 
           <Button
             onClick={() => router.push('/customer/browse')}
-            className="flex-1 h-11 rounded-lg bg-[#9B1C2C] text-white font-semibold hover:bg-[#7F1623]"
+            className="flex-1 h-11 rounded-lg bg-[#C8431B] text-white font-semibold hover:bg-[#A93615]"
           >
             Continue to menu selection
           </Button>

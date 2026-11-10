@@ -52,8 +52,8 @@ export async function getOwnerCalendarBookings() {
 
   const admin = createAdminClient()
   const operatorId = Number(owner.id)
-  const fieldsWithArchive = 'BookingID, CustomerID, OperatorID, EventDate, EventTime, Venue, GuestCount, Status, IsArchived'
-  type OwnerCalendarBookingRow = { BookingID: number; CustomerID: number; OperatorID: number; EventDate: string; EventTime: string; Venue: string; GuestCount: number; Status: string; IsArchived?: boolean | null }
+  const fieldsWithArchive = 'BookingID, EventType, CustomerID, OperatorID, EventDate, EventTime, Venue, GuestCount, Status, IsArchived'
+  type OwnerCalendarBookingRow = { BookingID: number; EventType?: string | null; CustomerID: number; OperatorID: number; EventDate: string; EventTime: string; Venue: string; GuestCount: number; Status: string; IsArchived?: boolean | null }
   let query = admin.from('BOOKING').select(fieldsWithArchive).eq('OperatorID', operatorId).in('Status', ['pending', 'confirmed']).order('EventDate')
   let { data, error } = await query as { data: OwnerCalendarBookingRow[] | null; error: { message: string } | null }
   if (error && /isarchived|column/i.test(error.message)) {

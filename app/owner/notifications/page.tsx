@@ -285,7 +285,7 @@ export default function OwnerNotificationsPage() {
 
         <div className="flex items-center justify-between gap-6">
           <div>
-            <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
+            <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">
               Notifications
             </h1>
 

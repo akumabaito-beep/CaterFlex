@@ -16,7 +16,7 @@ const company = [
 ]
 
 const linkCls =
-  'text-foreground/80 underline-offset-4 hover:text-[#8E1F2C] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8E1F2C]'
+  'text-foreground/80 underline-offset-4 hover:text-[#C8431B] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]'
 
 export function LandingFooter() {
   return (
@@ -29,7 +29,7 @@ export function LandingFooter() {
           <p className="mt-4 text-sm leading-6 text-muted-foreground">
             Event catering and weekly meal-prep, planned around your table.
           </p>
-          <div className="mt-5 flex items-center gap-4 text-[#8E1F2C]">
+          <div className="mt-5 flex items-center gap-4 text-[#C8431B]">
             <svg role="img" aria-label="Instagram" viewBox="0 0 24 24" className="size-7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="5" />
               <circle cx="12" cy="12" r="4" />

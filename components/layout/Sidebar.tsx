@@ -65,7 +65,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
 
       <aside
         aria-label="Owner navigation"
-        className={`fixed left-0 top-0 z-50 flex h-screen w-64 flex-col overflow-y-auto bg-[#8E1F2C] px-4 py-6 text-white transition-transform duration-200 lg:z-30 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-50 flex h-screen w-64 flex-col overflow-y-auto bg-[#2B1D16] px-4 py-6 text-white transition-transform duration-200 lg:z-30 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -101,7 +101,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
                         aria-current={active ? 'page' : undefined}
                         className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
                           active
-                            ? 'bg-white text-[#8E1F2C] shadow-sm'
+                            ? 'bg-white text-[#2B1D16] shadow-sm'
                             : 'text-white/85 hover:bg-white/10 hover:text-white'
                         }`}
                       >

@@ -32,19 +32,19 @@ function usePrefersReducedMotion(): boolean {
 function Dish({ item }: { item: PublicMenuItem }) {
   return (
     <article className="relative flex h-full flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-lg">
-      <span className="absolute left-3 top-3 z-10 rounded bg-[#8E1F2C] px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white">New</span>
+      <span className="absolute left-3 top-3 z-10 rounded bg-[#C8431B] px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-white">New</span>
       {item.photoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={item.photoUrl} alt={item.name} loading="lazy" className="aspect-[4/3] w-full object-cover" />
       ) : (
-        <div className="flex aspect-[4/3] w-full items-center justify-center bg-primary-soft text-[#8E1F2C]" aria-hidden="true">
+        <div className="flex aspect-[4/3] w-full items-center justify-center bg-primary-soft text-[#C8431B]" aria-hidden="true">
           <ChefHat className="size-10" />
         </div>
       )}
       <div className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-heading text-base font-bold leading-snug text-[#2A1B1F]">{item.name}</h3>
-          <span className="shrink-0 text-sm font-semibold text-[#8E1F2C]">₱{item.price.toFixed(2)}</span>
+          <h3 className="font-heading text-base font-bold leading-snug text-[#2B1D16]">{item.name}</h3>
+          <span className="shrink-0 text-sm font-semibold text-[#C8431B]">₱{item.price.toFixed(2)}</span>
         </div>
         {item.description && <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{item.description}</p>}
       </div>
@@ -115,7 +115,7 @@ export function NewDishCarousel({ items }: { items: PublicMenuItem[] }) {
   const active = ((index % n) + n) % n
 
   const arrow =
-    'absolute top-1/2 z-20 flex size-11 -translate-y-1/2 items-center justify-center rounded-lg border border-[#E8D2D2] bg-white text-[#8E1F2C] shadow-md transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8E1F2C]'
+    'absolute top-1/2 z-20 flex size-11 -translate-y-1/2 items-center justify-center rounded-lg border border-[#E8D8C4] bg-white text-[#C8431B] shadow-md transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]'
 
   return (
     <div
@@ -174,8 +174,8 @@ export function NewDishCarousel({ items }: { items: PublicMenuItem[] }) {
                   setAnimate(!reduced)
                   setIndex(i)
                 }}
-                className={`h-2 rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8E1F2C] ${
-                  i === active ? 'w-6 bg-[#8E1F2C]' : 'w-2 bg-[#E8D2D2] hover:bg-[#8E1F2C]/50'
+                className={`h-2 rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] ${
+                  i === active ? 'w-6 bg-[#C8431B]' : 'w-2 bg-[#E8D8C4] hover:bg-[#C8431B]/50'
                 }`}
               />
             ))}

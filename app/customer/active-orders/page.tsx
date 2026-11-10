@@ -80,14 +80,14 @@ const STATE_BADGE: Record<PlanState, { label: string; cls: string }> = {
   pending: { label: 'Waiting for approval', cls: 'border-amber-300 bg-amber-100 text-amber-900' },
   active: { label: 'Active', cls: 'border-emerald-300 bg-emerald-100 text-emerald-900' },
   paused: { label: 'Paused', cls: 'border-amber-300 bg-amber-100 text-amber-900' },
-  ended: { label: 'Ended · renew to continue', cls: 'border-[#E8B4B4] bg-[#FDECEC] text-[#7F1623]' },
+  ended: { label: 'Ended · renew to continue', cls: 'border-[#E3C7A8] bg-[#F6E3D3] text-[#A93615]' },
   cancelled: { label: 'Cancelled', cls: 'border-neutral-300 bg-neutral-100 text-neutral-700' },
   rejected: { label: 'Declined', cls: 'border-red-300 bg-red-100 text-red-800' },
 };
 
 const outlineBtn =
-  'h-10 gap-2 rounded-lg border-[#9B1C2C] text-[#9B1C2C] hover:bg-[#FDECEC] hover:text-[#7F1623]';
-const solidBtn = 'h-10 gap-2 rounded-lg bg-[#9B1C2C] font-semibold text-white hover:bg-[#7F1623]';
+  'h-10 gap-2 rounded-lg border-[#C8431B] text-[#C8431B] hover:bg-[#F6E3D3] hover:text-[#A93615]';
+const solidBtn = 'h-10 gap-2 rounded-lg bg-[#C8431B] font-semibold text-white hover:bg-[#A93615]';
 
 export default function MealPlansPage() {
   const router = useRouter();
@@ -101,6 +101,7 @@ export default function MealPlansPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [renewingId, setRenewingId] = useState<number | null>(null);
+  const [renewFrom, setRenewFrom] = useState<'banner' | 'actions'>('actions');
   const [renewWeeks, setRenewWeeks] = useState<PlanWeeks>(2);
   const [pausingId, setPausingId] = useState<number | null>(null);
   const [pauseLength, setPauseLength] = useState<'3' | '7' | '14'>('7');
@@ -143,9 +144,9 @@ export default function MealPlansPage() {
 
   const header = (
     <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#9B1C2C]">Subscriptions</p>
-      <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">Meal plans</h1>
-      <p className="mt-2 text-[#2A1B1F]/70">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#C8431B]">Subscriptions</p>
+      <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">Meal plans</h1>
+      <p className="mt-2 text-[#2B1D16]/70">
         Your breakfast, lunch and dinner subscriptions. Pause, skip a delivery, or renew anytime.
       </p>
     </div>
@@ -156,7 +157,7 @@ export default function MealPlansPage() {
       <CustomerShell>
         <div className="space-y-8">
           {header}
-          <div className="rounded-xl border border-[#E8D2D2] bg-white p-12 text-center text-[#2A1B1F]/60">
+          <div className="rounded-xl border border-[#E8D8C4] bg-white p-12 text-center text-[#2B1D16]/60">
             Loading your meal plans...
           </div>
         </div>
@@ -169,8 +170,8 @@ export default function MealPlansPage() {
       <CustomerShell>
         <div className="space-y-8">
           {header}
-          <div className="rounded-xl border border-dashed border-[#E8D2D2] bg-white p-12 text-center">
-            <p className="mb-4 text-[#2A1B1F]/60">You don&apos;t have a meal plan yet.</p>
+          <div className="rounded-xl border border-dashed border-[#E8D8C4] bg-white p-12 text-center">
+            <p className="mb-4 text-[#2B1D16]/60">You don&apos;t have a meal plan yet.</p>
             <Button className={`${solidBtn} px-6`} onClick={() => router.push('/customer/inquiry')}>
               Start a meal plan
             </Button>
@@ -222,101 +223,9 @@ export default function MealPlansPage() {
             const needsRenewal = state === 'ended' || ((state === 'active' || state === 'paused') && left.length <= 2);
             const canChange = state === 'pending' || state === 'active' || state === 'paused';
 
-            return (
-              <article
-                key={plan.id}
-                className="overflow-hidden rounded-xl border border-[#E8D2D2] bg-white shadow-sm"
-              >
-                <button
-                  type="button"
-                  aria-expanded={expanded}
-                  onClick={() => setExpandedId(expanded ? null : plan.id)}
-                  className="flex w-full items-center gap-4 bg-[#FDECEC] p-6 text-left transition-colors hover:bg-[#FBE0E0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#9B1C2C]"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-heading text-2xl font-bold uppercase leading-tight text-[#2A1B1F]">
-                      {planTitle(plan.mealType)}
-                    </p>
-                    <p className="mt-1 text-sm text-[#2A1B1F]/70">
-                      {plan.servings} servings · {scheduleLabel(plan)} · {plan.dishes.length}{' '}
-                      {plan.dishes.length === 1 ? 'dish' : 'dishes'}
-                    </p>
-                    <span className={`mt-3 inline-block rounded-lg border px-3 py-1 text-xs font-semibold ${badge.cls}`}>
-                      {badge.label}
-                    </span>
-                  </div>
-                  {state !== 'ended' && state !== 'cancelled' && plan.nextDate && (
-                    <div className="hidden text-right sm:block">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">Next delivery</p>
-                      <p className="font-bold text-[#9B1C2C]">{formatDate(plan.nextDate)}</p>
-                    </div>
-                  )}
-                  <ChevronDown
-                    className={`size-5 shrink-0 text-[#9B1C2C] transition-transform ${expanded ? 'rotate-180' : ''}`}
-                    aria-hidden="true"
-                  />
-                </button>
-
-                {/* PROGRESS + RENEWAL PROMPT (always visible) */}
-                {plan.termEnd && state !== 'pending' && state !== 'cancelled' && (
-                  <div className="space-y-3 border-t border-[#E8D2D2] px-6 py-4">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-semibold text-[#2A1B1F]">
-                        {state === 'ended'
-                          ? 'All deliveries completed'
-                          : `${left.length} ${left.length === 1 ? 'delivery' : 'deliveries'} left`}
-                      </span>
-                      <span className="text-[#2A1B1F]/60">Ends {formatLongDate(plan.termEnd)}</span>
-                    </div>
-                    <div className="h-2 overflow-hidden rounded-full bg-neutral-200" aria-hidden="true">
-                      <div className="h-full rounded-full bg-[#9B1C2C]" style={{ width: `${progress}%` }} />
-                    </div>
-                    {state === 'paused' && plan.pausedUntil && (
-                      <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-                        Paused. Deliveries start again on or after {formatLongDate(plan.pausedUntil)}. Your end date will move out by the length of the pause so you do not lose a delivery.
-                      </p>
-                    )}
-                    {needsRenewal && renewingId !== plan.id && (
-                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#FDECEC] p-3">
-                        <p className="text-sm text-[#2A1B1F]">
-                          {state === 'ended'
-                            ? 'Your plan has ended. Renew to keep your deliveries coming.'
-                            : 'Your plan is almost over. Renew now so you do not miss a delivery.'}
-                        </p>
-                        <Button
-                          className={solidBtn}
-                          onClick={() => {
-                            setRenewingId(plan.id);
-                            setExpandedId(plan.id);
-                          }}
-                        >
-                          <RefreshCw className="size-4" /> Renew plan
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {state === 'cancelled' && (
-                  <p className="border-t border-[#E8D2D2] px-6 py-4 text-sm text-[#2A1B1F]/70">
-                    This plan was cancelled.
-                    {plan.refund !== null && plan.refund > 0
-                      ? ` Refund due to you: ${peso(plan.refund)}. The caterer will send it back to you.`
-                      : ' No refund was due.'}
-                  </p>
-                )}
-
-                {state === 'pending' && (
-                  <p className="border-t border-[#E8D2D2] px-6 py-4 text-sm text-[#2A1B1F]/70">
-                    The caterer is reviewing your plan. You will see your deliveries here once it is approved.
-                  </p>
-                )}
-
-                {expanded && (
-                  <div className="space-y-6 border-t border-[#E8D2D2] bg-white p-6">
-                    {/* RENEW */}
-                    {renewingId === plan.id && (
-                      <div className="space-y-3 rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4">
+            const renewPanel = (
+                    
+                      <div className="space-y-3 rounded-xl border border-[#E8D8C4] bg-[#F6E3D3] p-4">
                         <OptionCardPicker<`${PlanWeeks}`>
                           title="Renew for how long?"
                           icon={RefreshCw}
@@ -328,7 +237,7 @@ export default function MealPlansPage() {
                             hint: plan.days.length ? `${n * plan.days.length} deliveries` : undefined,
                           }))}
                         />
-                        <p className="text-sm text-[#2A1B1F]/70">
+                        <p className="text-sm text-[#2B1D16]/70">
                           {state === 'ended'
                             ? 'A new term starts on your next delivery day. Prices are updated to the current menu prices when a plan is renewed after it ended.'
                             : 'Your current price stays locked while you add deliveries.'}
@@ -348,8 +257,101 @@ export default function MealPlansPage() {
                           </Button>
                         </div>
                       </div>
-                    )}
+            );
 
+            return (
+              <article
+                key={plan.id}
+                className="overflow-hidden rounded-xl border border-[#E8D8C4] bg-white shadow-sm"
+              >
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() => setExpandedId(expanded ? null : plan.id)}
+                  className="flex w-full items-center gap-4 bg-[#F6E3D3] p-6 text-left transition-colors hover:bg-[#F6E3D3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C8431B]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-heading text-2xl font-bold uppercase leading-tight text-[#2B1D16]">
+                      {planTitle(plan.mealType)}
+                    </p>
+                    <p className="mt-1 text-sm text-[#2B1D16]/70">
+                      {plan.servings} servings · {scheduleLabel(plan)} · {plan.dishes.length}{' '}
+                      {plan.dishes.length === 1 ? 'dish' : 'dishes'}
+                    </p>
+                    <span className={`mt-3 inline-block rounded-lg border px-3 py-1 text-xs font-semibold ${badge.cls}`}>
+                      {badge.label}
+                    </span>
+                  </div>
+                  {state !== 'ended' && state !== 'cancelled' && plan.nextDate && (
+                    <div className="hidden text-right sm:block">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">Next delivery</p>
+                      <p className="font-bold text-[#C8431B]">{formatDate(plan.nextDate)}</p>
+                    </div>
+                  )}
+                  <ChevronDown
+                    className={`size-5 shrink-0 text-[#C8431B] transition-transform ${expanded ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
+                  />
+                </button>
+
+                {/* PROGRESS + RENEWAL PROMPT (always visible) */}
+                {plan.termEnd && state !== 'pending' && state !== 'cancelled' && (
+                  <div className="space-y-3 border-t border-[#E8D8C4] px-6 py-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-semibold text-[#2B1D16]">
+                        {state === 'ended'
+                          ? 'All deliveries completed'
+                          : `${left.length} ${left.length === 1 ? 'delivery' : 'deliveries'} left`}
+                      </span>
+                      <span className="text-[#2B1D16]/60">Ends {formatLongDate(plan.termEnd)}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-neutral-200" aria-hidden="true">
+                      <div className="h-full rounded-full bg-[#C8431B]" style={{ width: `${progress}%` }} />
+                    </div>
+                    {state === 'paused' && plan.pausedUntil && (
+                      <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                        Paused. Deliveries start again on or after {formatLongDate(plan.pausedUntil)}. Your end date will move out by the length of the pause so you do not lose a delivery.
+                      </p>
+                    )}
+                    {needsRenewal && !(renewingId === plan.id && renewFrom === 'banner') && (
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-[#F6E3D3] p-3">
+                        <p className="text-sm text-[#2B1D16]">
+                          {state === 'ended'
+                            ? 'Your plan has ended. Renew to keep your deliveries coming.'
+                            : 'Your plan is almost over. Renew now so you do not miss a delivery.'}
+                        </p>
+                        <Button
+                          className={solidBtn}
+                          onClick={() => {
+                            setRenewFrom('banner');
+                            setRenewingId(plan.id);
+                          }}
+                        >
+                          <RefreshCw className="size-4" /> Renew plan
+                        </Button>
+                      </div>
+                    )}
+                    {renewingId === plan.id && renewFrom === 'banner' && renewPanel}
+                  </div>
+                )}
+
+                {state === 'cancelled' && (
+                  <p className="border-t border-[#E8D8C4] px-6 py-4 text-sm text-[#2B1D16]/70">
+                    This plan was cancelled.
+                    {plan.refund !== null && plan.refund > 0
+                      ? ` Refund due to you: ${peso(plan.refund)}. The caterer will send it back to you.`
+                      : ' No refund was due.'}
+                  </p>
+                )}
+
+                {state === 'pending' && (
+                  <p className="border-t border-[#E8D8C4] px-6 py-4 text-sm text-[#2B1D16]/70">
+                    The caterer is reviewing your plan. You will see your deliveries here once it is approved.
+                  </p>
+                )}
+
+                {expanded && (
+                  <div className="space-y-6 border-t border-[#E8D8C4] bg-white p-6">
                     {/* DETAILS */}
                     <div className="grid gap-4 sm:grid-cols-2">
                       {[
@@ -363,19 +365,19 @@ export default function MealPlansPage() {
                           value: plan.method === 'delivery' ? (pinned?.address ?? plan.address ?? '—') : 'Kitchen',
                         },
                       ].map(({ icon: Icon, label, value }) => (
-                        <div key={label} className="flex items-start gap-3 rounded-xl bg-[#FDECEC] p-4">
-                          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#9B1C2C] text-white">
+                        <div key={label} className="flex items-start gap-3 rounded-xl bg-[#F6E3D3] p-4">
+                          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-[#C8431B] text-white">
                             <Icon className="size-5" aria-hidden="true" />
                           </span>
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">{label}</p>
-                            <p className="break-words font-bold text-[#2A1B1F]">{value}</p>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">{label}</p>
+                            <p className="break-words font-bold text-[#2B1D16]">{value}</p>
                             {label === 'Delivery address' && pinned && (
                               <a
                                 href={`https://www.openstreetmap.org/?mlat=${pinned.lat}&mlon=${pinned.lng}#map=17/${pinned.lat}/${pinned.lng}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-sm font-semibold text-[#9B1C2C] underline"
+                                className="text-sm font-semibold text-[#C8431B] underline"
                               >
                                 View pin on map
                               </a>
@@ -387,30 +389,30 @@ export default function MealPlansPage() {
 
                     {/* PRICE */}
                     {plan.pricePerServing !== null && perDelivery !== null && (
-                      <div className="space-y-1 rounded-xl border border-[#E8D2D2] p-4 text-sm">
-                        <div className="flex justify-between text-[#2A1B1F]/70">
+                      <div className="space-y-1 rounded-xl border border-[#E8D8C4] p-4 text-sm">
+                        <div className="flex justify-between text-[#2B1D16]/70">
                           <span>Price per serving (locked)</span>
                           <span>{peso(plan.pricePerServing)}</span>
                         </div>
                         {plan.method === 'delivery' && (
-                          <div className="flex justify-between text-[#2A1B1F]/70">
+                          <div className="flex justify-between text-[#2B1D16]/70">
                             <span>Delivery fee per delivery</span>
                             <span>{peso(plan.deliveryFee)}</span>
                           </div>
                         )}
                         <div className="flex justify-between pt-1">
-                          <span className="font-semibold text-[#2A1B1F]">Per delivery</span>
-                          <span className="font-bold text-[#9B1C2C]">{peso(perDelivery)}</span>
+                          <span className="font-semibold text-[#2B1D16]">Per delivery</span>
+                          <span className="font-bold text-[#C8431B]">{peso(perDelivery)}</span>
                         </div>
                         {left.length > 0 && (
                           <div className="flex justify-between">
-                            <span className="font-semibold text-[#2A1B1F]">
+                            <span className="font-semibold text-[#2B1D16]">
                               Remaining ({left.length} {left.length === 1 ? 'delivery' : 'deliveries'})
                             </span>
-                            <span className="font-bold text-[#9B1C2C]">{peso(perDelivery * left.length)}</span>
+                            <span className="font-bold text-[#C8431B]">{peso(perDelivery * left.length)}</span>
                           </div>
                         )}
-                        <p className="pt-2 text-xs text-[#2A1B1F]/60">
+                        <p className="pt-2 text-xs text-[#2B1D16]/60">
                           Menu price changes do not affect this plan until you renew it after it ends.
                         </p>
                       </div>
@@ -419,7 +421,7 @@ export default function MealPlansPage() {
                     {/* UPCOMING */}
                     {left.length > 0 && (
                       <div>
-                        <h3 className="mb-3 font-heading text-lg font-bold uppercase tracking-wide text-[#9B1C2C]">
+                        <h3 className="mb-3 font-heading text-lg font-bold uppercase tracking-wide text-[#C8431B]">
                           Upcoming deliveries
                         </h3>
                         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -428,8 +430,8 @@ export default function MealPlansPage() {
                               key={date}
                               className={`rounded-lg border p-3 text-center text-sm font-semibold ${
                                 i === 0 && state === 'active'
-                                  ? 'border-[#9B1C2C] bg-[#9B1C2C] text-white'
-                                  : 'border-[#E8D2D2] bg-white text-[#2A1B1F]'
+                                  ? 'border-[#C8431B] bg-[#C8431B] text-white'
+                                  : 'border-[#E8D8C4] bg-white text-[#2B1D16]'
                               }`}
                             >
                               {formatDate(date)}
@@ -437,7 +439,7 @@ export default function MealPlansPage() {
                           ))}
                         </div>
                         {state === 'paused' && (
-                          <p className="mt-2 text-sm text-[#2A1B1F]/70">
+                          <p className="mt-2 text-sm text-[#2B1D16]/70">
                             Deliveries are on hold while your plan is paused. When you are back, the same number of deliveries will start again and your end date moves out by the length of the pause.
                           </p>
                         )}
@@ -446,7 +448,7 @@ export default function MealPlansPage() {
 
                     {/* PAUSE */}
                     {pausingId === plan.id && (
-                      <div className="space-y-3 rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4">
+                      <div className="space-y-3 rounded-xl border border-[#E8D8C4] bg-[#F6E3D3] p-4">
                         <OptionCardPicker<'3' | '7' | '14'>
                           title="Pause for how long?"
                           icon={Pause}
@@ -454,7 +456,7 @@ export default function MealPlansPage() {
                           onChange={setPauseLength}
                           options={PAUSE_CHOICES.map((c) => ({ ...c }))}
                         />
-                        <p className="text-sm text-[#2A1B1F]/70">
+                        <p className="text-sm text-[#2B1D16]/70">
                           Deliveries restart on or after {formatLongDate(addDaysISO(today, Number(pauseLength)))}. You keep every paid delivery, so your
                           end date moves out by the pause. Pauses are limited to {MAX_PAUSE_DAYS} days, and a delivery less than {PAUSE_CUTOFF_DAYS} days away
                           is already being prepared.
@@ -494,7 +496,7 @@ export default function MealPlansPage() {
                             Keep my plan
                           </Button>
                           <Button
-                            className="h-10 flex-1 rounded-lg bg-[#9B1C2C] font-semibold text-white hover:bg-[#7F1623]"
+                            className="h-10 flex-1 rounded-lg bg-[#C8431B] font-semibold text-white hover:bg-[#A93615]"
                             disabled={busy}
                             onClick={async () => {
                               const done = await run(async () => {
@@ -515,7 +517,7 @@ export default function MealPlansPage() {
 
                     {/* EDIT DELIVERY */}
                     {editingId === plan.id && (
-                      <div className="space-y-4 rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-4">
+                      <div className="space-y-4 rounded-xl border border-[#E8D8C4] bg-[#F6E3D3] p-4">
                         <TimePicker
                           value={edit.time}
                           start={operatorSettings.operatingHoursStart}
@@ -530,8 +532,8 @@ export default function MealPlansPage() {
                               onClick={() => setEdit((e) => ({ ...e, method: m }))}
                               className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold capitalize ${
                                 edit.method === m
-                                  ? 'border-[#9B1C2C] bg-white text-[#9B1C2C]'
-                                  : 'border-[#E8D2D2] bg-white text-[#2A1B1F]'
+                                  ? 'border-[#C8431B] bg-white text-[#C8431B]'
+                                  : 'border-[#E8D8C4] bg-white text-[#2B1D16]'
                               }`}
                             >
                               {m}
@@ -541,7 +543,7 @@ export default function MealPlansPage() {
                         {edit.method === 'delivery' && (
                           <LocationPicker
                             value={edit.address}
-                            inputClass="w-full px-4 py-2.5 bg-white text-[#2A1B1F] border border-[#E8D2D2] rounded-lg"
+                            inputClass="w-full px-4 py-2.5 bg-white text-[#2B1D16] border border-[#E8D8C4] rounded-lg"
                             onChange={(address) => setEdit((e) => ({ ...e, address }))}
                           />
                         )}
@@ -575,7 +577,8 @@ export default function MealPlansPage() {
 
                     {/* ACTIONS */}
                     {canChange && (
-                      <div className="flex flex-wrap gap-3 border-t border-[#E8D2D2] pt-6">
+                      <>
+                      <div className="flex flex-wrap gap-3 border-t border-[#E8D8C4] pt-6">
                         {state === 'active' && pausingId !== plan.id && (
                           <Button
                             variant="outline"
@@ -610,8 +613,8 @@ export default function MealPlansPage() {
                             <SkipForward className="size-4" /> Skip next delivery
                           </Button>
                         )}
-                        {(state === 'active' || state === 'paused') && renewingId !== plan.id && (
-                          <Button variant="outline" className={outlineBtn} onClick={() => setRenewingId(plan.id)}>
+                        {(state === 'active' || state === 'paused') && !(renewingId === plan.id && renewFrom === 'actions') && (
+                          <Button variant="outline" className={outlineBtn} onClick={() => { setRenewFrom('actions'); setRenewingId(plan.id); }}>
                             <RefreshCw className="size-4" /> Renew
                           </Button>
                         )}
@@ -647,6 +650,8 @@ export default function MealPlansPage() {
                           <X className="size-4" /> Cancel plan
                         </Button>
                       </div>
+                      {renewingId === plan.id && renewFrom === 'actions' && renewPanel}
+                      </>
                     )}
                   </div>
                 )}

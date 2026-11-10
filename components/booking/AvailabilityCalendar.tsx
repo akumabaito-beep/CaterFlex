@@ -66,11 +66,11 @@ export function AvailabilityCalendar({
   return (
     <div className={`w-full rounded-xl border border-border bg-card shadow-sm ${fill ? 'p-4 sm:p-6' : 'max-w-md p-4'}`}>
       <div className="flex items-center justify-between">
-        <button type="button" onClick={() => step(-1)} disabled={!canGoBack} aria-label="Previous month" className="rounded-md p-2 text-[#8E1F2C] hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8E1F2C] disabled:pointer-events-none disabled:opacity-30">
+        <button type="button" onClick={() => step(-1)} disabled={!canGoBack} aria-label="Previous month" className="rounded-md p-2 text-[#C8431B] hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] disabled:pointer-events-none disabled:opacity-30">
           <ChevronLeft className="size-5" aria-hidden="true" />
         </button>
-        <p className={`font-heading font-bold uppercase tracking-tight text-[#2A1B1F] ${fill ? "text-2xl" : "text-lg"}`} aria-live="polite">{monthTitle}</p>
-        <button type="button" onClick={() => step(1)} disabled={!canGoForward} aria-label="Next month" className="rounded-md p-2 text-[#8E1F2C] hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8E1F2C] disabled:pointer-events-none disabled:opacity-30">
+        <p className={`font-heading font-bold uppercase tracking-tight text-[#2B1D16] ${fill ? "text-2xl" : "text-lg"}`} aria-live="polite">{monthTitle}</p>
+        <button type="button" onClick={() => step(1)} disabled={!canGoForward} aria-label="Next month" className="rounded-md p-2 text-[#C8431B] hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] disabled:pointer-events-none disabled:opacity-30">
           <ChevronRight className="size-5" aria-hidden="true" />
         </button>
       </div>
@@ -89,7 +89,7 @@ export function AvailabilityCalendar({
           if (d.status === 'limited') tone = 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100'
           if (d.status === 'unavailable') tone = 'border-transparent bg-neutral-100 text-neutral-400 line-through'
           if (d.status === 'past') tone = 'border-transparent bg-transparent text-neutral-300'
-          if (isSelected) tone = 'border-[#8E1F2C] bg-[#8E1F2C] text-white'
+          if (isSelected) tone = 'border-[#C8431B] bg-[#C8431B] text-white'
 
           return (
             <button
@@ -101,7 +101,7 @@ export function AvailabilityCalendar({
               aria-label={`${fullDate}, ${statusLabel[d.status]}`}
               title={d.reason}
               onClick={() => onChange(d.date)}
-              className={`relative flex ${fill ? 'h-12 text-base sm:h-16 sm:text-lg' : 'aspect-square text-sm'} items-center justify-center rounded-lg border font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8E1F2C] disabled:cursor-not-allowed ${tone} ${d.inMonth ? '' : 'opacity-40'} ${d.date === todayISO && !isSelected ? 'ring-1 ring-[#8E1F2C]/50' : ''}`}
+              className={`relative flex ${fill ? 'h-12 text-base sm:h-16 sm:text-lg' : 'aspect-square text-sm'} items-center justify-center rounded-lg border font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] disabled:cursor-not-allowed ${tone} ${d.inMonth ? '' : 'opacity-40'} ${d.date === todayISO && !isSelected ? 'ring-1 ring-[#C8431B]/50' : ''}`}
             >
               {d.day}
             </button>
@@ -113,10 +113,10 @@ export function AvailabilityCalendar({
         <li className="flex items-center gap-1.5"><Dot className="border border-emerald-300 bg-emerald-50" /> Available</li>
         <li className="flex items-center gap-1.5"><Dot className="border border-amber-400 bg-amber-50" /> Last slot</li>
         <li className="flex items-center gap-1.5"><Dot className="bg-neutral-200" /> Unavailable</li>
-        <li className="flex items-center gap-1.5"><Dot className="bg-[#8E1F2C]" /> Selected</li>
+        <li className="flex items-center gap-1.5"><Dot className="bg-[#C8431B]" /> Selected</li>
       </ul>
 
-      <p className="mt-3 min-h-5 text-sm text-[#2A1B1F]" aria-live="polite">
+      <p className="mt-3 min-h-5 text-sm text-[#2B1D16]" aria-live="polite">
         {selected
           ? selected.status === 'unavailable' || selected.status === 'past'
             ? selected.reason

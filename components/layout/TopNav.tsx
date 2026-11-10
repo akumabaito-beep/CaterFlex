@@ -62,7 +62,7 @@ export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
           type="button"
           onClick={onMenuClick}
           aria-label="Open menu"
-          className="inline-flex size-10 items-center justify-center rounded-lg border border-border text-[#2A1B1F] lg:hidden"
+          className="inline-flex size-10 items-center justify-center rounded-lg border border-border text-[#2B1D16] lg:hidden"
         >
           <Menu className="size-5" />
         </button>
@@ -73,27 +73,27 @@ export function TopNav({ onMenuClick }: { onMenuClick?: () => void }) {
               type="button"
               onClick={() => router.push('/owner/notifications')}
               aria-label={`Notifications, ${unreadCount} unread`}
-              className="relative flex size-10 items-center justify-center rounded-lg text-[#2A1B1F] transition hover:bg-[#FDECEC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C]"
+              className="relative flex size-10 items-center justify-center rounded-lg text-[#2B1D16] transition hover:bg-[#F6E3D3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]"
             >
               <Bell className="size-5" aria-hidden="true" />
               {formatUnreadBadgeCount(unreadCount) && (
-                <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-[#9B1C2C] px-1 text-center text-[10px] font-bold leading-5 text-white">
+                <span className="absolute -right-1 -top-1 min-w-5 rounded-full bg-[#C8431B] px-1 text-center text-[10px] font-bold leading-5 text-white">
                   {formatUnreadBadgeCount(unreadCount)}
                 </span>
               )}
             </button>
           )}
 
-          <div className="hidden items-center gap-2 rounded-lg bg-[#FDECEC] px-3 py-1.5 sm:flex">
-            <User className="size-4 text-[#9B1C2C]" />
-            <span className="text-sm font-semibold capitalize text-[#2A1B1F]">
+          <div className="hidden items-center gap-2 rounded-lg bg-[#F6E3D3] px-3 py-1.5 sm:flex">
+            <User className="size-4 text-[#C8431B]" />
+            <span className="text-sm font-semibold capitalize text-[#2B1D16]">
               {currentUser?.name || currentRole}
             </span>
           </div>
 
           <Button
             onClick={handleSignOut}
-            className="h-9 gap-2 rounded-lg bg-[#9B1C2C] px-4 text-sm font-medium text-white hover:bg-[#7F1623]"
+            className="h-9 gap-2 rounded-lg bg-[#C8431B] px-4 text-sm font-medium text-white hover:bg-[#A93615]"
           >
             <LogOut className="size-4" />
             Sign out

@@ -12,8 +12,8 @@ const links = [
   { label: 'Menu', href: '/menu', id: null },
 ] as const
 
-const ghost = 'inline-flex h-9 items-center px-3 text-sm font-medium text-[#2A1B1F] hover:text-[#8E1F2C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C]'
-const solid = 'inline-flex h-9 items-center justify-center rounded-lg bg-[#9B1C2C] px-4 text-sm font-medium text-white hover:bg-[#7F1623] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C] focus-visible:ring-offset-2'
+const ghost = 'inline-flex h-9 items-center px-3 text-sm font-medium text-[#2B1D16] hover:text-[#C8431B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]'
+const solid = 'inline-flex h-9 items-center justify-center rounded-lg bg-[#C8431B] px-4 text-sm font-medium text-white hover:bg-[#A93615] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] focus-visible:ring-offset-2'
 
 // `current` is kept only so older pages that pass it still compile; the active link is detected automatically.
 export function LandingHeader(_props: { current?: string }) {
@@ -51,7 +51,7 @@ export function LandingHeader(_props: { current?: string }) {
         <Link href="/#home" onClick={(e) => goTo(e, 'home')} aria-label="CaterFlex home"><img src="/logo.png" alt="CaterFlex" className="size-12 object-contain brightness-0" /></Link>
         <nav className="hidden items-center gap-8 md:flex" aria-label="Main navigation">
           {links.map((l) => (
-            <Link key={l.label} href={l.href} onClick={(e) => goTo(e, l.id)} aria-current={isActive(l) ? (l.id === null ? 'page' : 'location') : undefined} className={`text-xs font-semibold uppercase tracking-[0.16em] transition-colors hover:text-[#8E1F2C] ${isActive(l) ? 'text-[#8E1F2C]' : 'text-muted-foreground'}`}>{l.label}</Link>
+            <Link key={l.label} href={l.href} onClick={(e) => goTo(e, l.id)} aria-current={isActive(l) ? (l.id === null ? 'page' : 'location') : undefined} className={`text-xs font-semibold uppercase tracking-[0.16em] transition-colors hover:text-[#C8431B] ${isActive(l) ? 'text-[#C8431B]' : 'text-muted-foreground'}`}>{l.label}</Link>
           ))}
         </nav>
         <div className="hidden items-center gap-3 md:flex"><Link href="/login" className={ghost}>Log in</Link><Link href="/signup" className={solid}>Sign up</Link></div>
@@ -59,7 +59,7 @@ export function LandingHeader(_props: { current?: string }) {
       </div>
       {open && (
         <nav className="absolute inset-x-0 top-full border-b border-border bg-card px-6 py-4 shadow-lg md:hidden" aria-label="Mobile navigation">
-          {links.map((l) => <Link key={l.label} href={l.href} onClick={(e) => goTo(e, l.id)} className={`block py-3 text-sm font-semibold uppercase tracking-wide ${isActive(l) ? 'text-[#8E1F2C]' : 'text-muted-foreground'}`}>{l.label}</Link>)}
+          {links.map((l) => <Link key={l.label} href={l.href} onClick={(e) => goTo(e, l.id)} className={`block py-3 text-sm font-semibold uppercase tracking-wide ${isActive(l) ? 'text-[#C8431B]' : 'text-muted-foreground'}`}>{l.label}</Link>)}
           <div className="flex gap-3 border-t border-border pt-3"><Link href="/login" className={ghost}>Log in</Link><Link href="/signup" className={solid}>Sign up</Link></div>
         </nav>
       )}

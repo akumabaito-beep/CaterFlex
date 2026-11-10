@@ -195,16 +195,19 @@ export async function getReservedIngredients(operatorId: number, client: Supabas
   }, {})
 }
 
-export async function checkOverPurchase(operatorId?: number): Promise<{ overPurchased: OverPurchasedIngredient[] }> {
-  let query = supabase.from('INGREDIENT').select('IngredientName, UnitOfMeasure, CurrentStock, MaxStorageCapacity')
+export async function checkOverPurchase(operatorId?: number, client: SupabaseClient = supabase): Promise<{ overPurchased: OverPurchasedIngredient[] }> {
+  let query = client.from('INGREDIENT').select('IngredientName, UnitOfMeasure, CurrentStock, MaxStorageCapacity')
   if (operatorId !== undefined) query = query.eq('OperatorID', operatorId)
   const { data, error } = await query
   if (error) throw error
   return { overPurchased: (data ?? []).filter((i) => Number(i.CurrentStock ?? 0) > Number(i.MaxStorageCapacity)).map((i) => ({ ingredientName: i.IngredientName, currentStock: Number(i.CurrentStock ?? 0), maxCapacity: Number(i.MaxStorageCapacity), exceededBy: Number(i.CurrentStock ?? 0) - Number(i.MaxStorageCapacity), unitOfMeasure: i.UnitOfMeasure })) }
 }
 
-export async function getScrapBasedSuggestions(failedMenuItemId: number, operatorId?: number, client: SupabaseClient = supabase): Promise<ScrapSuggestionResult> {
-  const { data: menuData, error: menuError } = await client.from('MENU_ITEM').select('MenuItemID, ItemName, Category, Price, Availability, DISH_INGREDIENT(IngredientID, QuantityRequiredPerServing, INGREDIENT:INGREDIENT(IngredientID, IngredientName, UnitOfMeasure, CurrentStock, OperatorID))')
+const SUGGESTION_MENU_SELECT = 'MenuItemID, ItemName, Category, Price, Availability, DISH_INGREDIENT(IngredientID, QuantityRequiredPerServing, INGREDIENT:INGREDIENT(IngredientID, IngredientName, UnitOfMeasure, CurrentStock, OperatorID))'
+
+// `preloaded` lets the MacroFlex overview load the menu and reserved stock once and reuse them for every dish.
+export async function getScrapBasedSuggestions(failedMenuItemId: number, operatorId?: number, client: SupabaseClient = supabase, preloaded?: { menuData: unknown; reserved: Record<number, number> }): Promise<ScrapSuggestionResult> {
+  const { data: menuData, error: menuError } = preloaded ? { data: preloaded.menuData, error: null } : await client.from('MENU_ITEM').select(SUGGESTION_MENU_SELECT)
   if (menuError) throw menuError
   const rows = (menuData ?? []) as unknown as Array<{
     MenuItemID: number
@@ -222,7 +225,7 @@ export async function getScrapBasedSuggestions(failedMenuItemId: number, operato
     const ingredient = Array.isArray(entry.INGREDIENT) ? entry.INGREDIENT[0] : entry.INGREDIENT
     return ingredient ? [Number(ingredient.IngredientID), { id: String(ingredient.IngredientID), name: ingredient.IngredientName, currentStock: Number(ingredient.CurrentStock ?? 0), unit: ingredient.UnitOfMeasure }] as const : null
   }).filter((entry): entry is readonly [number, { id: string; name: string; currentStock: number; unit: string }] => entry !== null))).values()]
-  const reserved = operator == null ? {} : await getReservedIngredients(operator, client)
+  const reserved = preloaded ? preloaded.reserved : operator == null ? {} : await getReservedIngredients(operator, client)
   const suggestions = getPureScrapSuggestions(
     String(failedMenuItemId),
     rows.map((row) => ({
@@ -257,5 +260,56 @@ export async function getScrapBasedSuggestions(failedMenuItemId: number, operato
   return { alternatives: rankedSuggestions.map((suggestion: PureScrapSuggestion) => ({ menuItemId: Number(suggestion.dishId), itemName: suggestion.dishName, category: suggestion.category ?? '', price: suggestion.price ?? 0, usesMissingIngredient: suggestion.usesMissingIngredient, usesLeftover: suggestion.usesLeftover.map((item) => ({ ingredientName: item.ingredientName, quantity: item.quantity, unitOfMeasure: item.unit })) })) }
 }
 export async function getScrapSuggestions(failedMenuItemId: number, operatorId?: number, client?: SupabaseClient) { return getScrapBasedSuggestions(failedMenuItemId, operatorId, client) }
+
+export interface MacroFlexOverviewItem {
+  menuItemId: number
+  itemName: string
+  category: string
+  price: number
+  status: 'available' | 'insufficient'
+  shortfalls: IngredientShortfall[]
+  suggestions: ScrapSuggestion[]
+}
+
+/**
+ * Everything the MacroFlex page needs in one go: every dish's stock status plus scrap-based
+ * alternatives for the dishes that are short. The menu, the confirmed bookings, the meal plans and
+ * the reserved stock are each loaded ONCE, then every dish is checked in memory. Results match the
+ * per-dish check (quantity 1, prepared and fulfilled today).
+ */
+export async function getMacroFlexOverview(operatorId: number, client: SupabaseClient = supabase, today = new Date().toISOString().slice(0, 10)): Promise<MacroFlexOverviewItem[]> {
+  const { data: menuData, error: menuError } = await client.from('MENU_ITEM').select(SUGGESTION_MENU_SELECT).order('ItemName')
+  if (menuError) throw menuError
+  const dishes = (menuData ?? []) as unknown as Array<{
+    MenuItemID: number
+    ItemName: string
+    Category: string | null
+    Price: number | null
+    DISH_INGREDIENT?: Array<{ IngredientID: number; QuantityRequiredPerServing: number; INGREDIENT?: Ingredient | Ingredient[] }>
+  }>
+  const recipes = new Map<number, { ingredientId: number; qtyPerServing: number }[]>()
+  const prepDays = new Map<number, number>()
+  const [commitments, reserved] = await Promise.all([
+    loadCommitments(client as typeof supabase, recipes, prepDays, dishes.map((d) => Number(d.MenuItemID))),
+    getReservedIngredients(operatorId, client),
+  ])
+  const items: MacroFlexOverviewItem[] = []
+  for (const dish of dishes) {
+    const rows = dish.DISH_INGREDIENT ?? []
+    const base = { menuItemId: Number(dish.MenuItemID), itemName: dish.ItemName, category: dish.Category ?? '', price: Number(dish.Price ?? 0) }
+    if (rows.length === 0) {
+      items.push({ ...base, status: 'available', shortfalls: [], suggestions: [] })
+      continue
+    }
+    const requirements = rows.flatMap((row) => {
+      const ingredient = Array.isArray(row.INGREDIENT) ? row.INGREDIENT[0] : row.INGREDIENT
+      return ingredient ? [{ ingredientId: Number(ingredient.IngredientID ?? row.IngredientID), name: ingredient.IngredientName, unit: ingredient.UnitOfMeasure, requiredPerServing: Number(row.QuantityRequiredPerServing ?? 0), currentStock: Number(ingredient.CurrentStock ?? 0) }] : []
+    })
+    const result = computeAllocationShortfalls(requirements, 1, { prepStartDate: today, fulfillmentDate: today }, commitments, undefined)
+    const suggestions = result.sufficient ? [] : (await getScrapBasedSuggestions(base.menuItemId, operatorId, client, { menuData, reserved })).alternatives
+    items.push({ ...base, status: result.sufficient ? 'available' : 'insufficient', shortfalls: result.shortfalls, suggestions })
+  }
+  return items
+}
 
 export type { AllocationCommitment, CommitmentRef }

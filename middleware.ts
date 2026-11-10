@@ -20,7 +20,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  let response = NextResponse.next({
+  // Owners and customers who already have a valid sign-in cookie go straight through. The Supabase
+  // client and session lookup (used only for admin accounts) are skipped for them, which keeps
+  // every page request quick.
+  const isOwnerArea = pathname.startsWith('/owner') || pathname.startsWith('/macroflex') || pathname.startsWith('/menu-management')
+  if (isOwnerArea && tableSession?.role === 'owner') return NextResponse.next()
+  if (pathname.startsWith('/customer') && tableSession?.role === 'customer') return NextResponse.next()
+
+  const response = NextResponse.next({
     request: { headers: request.headers },
   })
 

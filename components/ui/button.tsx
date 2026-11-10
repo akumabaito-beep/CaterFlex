@@ -9,16 +9,16 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-[#9B1C2C] text-white hover:bg-[#7F1623]',
+          'bg-[#C8431B] text-white hover:bg-[#A93615]',
         outline:
-          'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/50 hover:bg-[#FDECEC] hover:text-[#7F1623] aria-expanded:bg-[#FDECEC]',
+          'border-[#E8D8C4] bg-white text-[#2B1D16] hover:border-[#C8431B]/50 hover:bg-[#F6E3D3] hover:text-[#A93615] aria-expanded:bg-[#F6E3D3]',
         secondary:
-          'bg-[#FDECEC] text-[#7F1623] hover:bg-[#F9DADA] aria-expanded:bg-[#F9DADA]',
+          'bg-[#F6E3D3] text-[#A93615] hover:bg-[#F2D8C2] aria-expanded:bg-[#F2D8C2]',
         ghost:
-          'text-inherit hover:bg-[#FDECEC] hover:text-[#7F1623] aria-expanded:bg-[#FDECEC]',
+          'text-inherit hover:bg-[#F6E3D3] hover:text-[#A93615] aria-expanded:bg-[#F6E3D3]',
         destructive:
-          'bg-red-50 text-[#9B1C2C] border-red-200 hover:bg-[#9B1C2C] hover:text-white hover:border-[#9B1C2C] focus-visible:border-destructive/40 focus-visible:ring-destructive/20',
-        link: 'text-[#9B1C2C] underline-offset-4 hover:text-[#7F1623] hover:underline',
+          'bg-red-50 text-[#C8431B] border-red-200 hover:bg-[#C8431B] hover:text-white hover:border-[#C8431B] focus-visible:border-destructive/40 focus-visible:ring-destructive/20',
+        link: 'text-[#C8431B] underline-offset-4 hover:text-[#A93615] hover:underline',
       },
       size: {
         default:

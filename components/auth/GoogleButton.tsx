@@ -11,7 +11,7 @@ export function GoogleIcon() {
 
 export function GoogleButton() {
   return (
-    <a href="/api/auth/google" className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-border bg-white text-base font-semibold text-[#2A1B1F] transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8E1F2C]">
+    <a href="/api/auth/google" className="inline-flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-border bg-white text-base font-semibold text-[#2B1D16] transition-colors hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]">
       <GoogleIcon /> Continue with Google
     </a>
   );

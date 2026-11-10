@@ -50,10 +50,10 @@ function Column({
   const tile = `my-1 flex h-14 w-full items-center justify-center rounded-lg border text-center font-heading text-3xl font-bold ${
     muted
       ? 'border-border bg-neutral-50 text-neutral-300'
-      : 'border-[#8E1F2C] bg-[#8E1F2C] text-white'
+      : 'border-[#C8431B] bg-[#C8431B] text-white'
   }`
   const arrow =
-    'flex h-9 w-full items-center justify-center rounded-md text-[#8E1F2C] hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8E1F2C]'
+    'flex h-9 w-full items-center justify-center rounded-md text-[#C8431B] hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]'
   return (
     <div className="flex flex-1 flex-col items-center">
       <span className="mb-1 text-xs font-semibold text-muted-foreground">{title}</span>
@@ -71,7 +71,7 @@ function Column({
           onChange={(e) => onType(e.target.value.replace(/\D/g, ''))}
           onFocus={(e) => e.currentTarget.select()}
           onBlur={onBlur}
-          className={`${tile} placeholder:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-[#8E1F2C]/40`}
+          className={`${tile} placeholder:text-neutral-300 focus:outline-none focus:ring-2 focus:ring-[#C8431B]/40`}
         />
       ) : (
         <div className={tile} aria-live="polite">
@@ -141,8 +141,8 @@ export function TimePicker({
   return (
     <div className="h-full w-full rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-center gap-2">
-        <Clock className="size-5 text-[#8E1F2C]" aria-hidden="true" />
-        <p className="font-heading text-lg font-bold uppercase tracking-tight text-[#2A1B1F]">
+        <Clock className="size-5 text-[#C8431B]" aria-hidden="true" />
+        <p className="font-heading text-lg font-bold uppercase tracking-tight text-[#2B1D16]">
           Choose a time
         </p>
       </div>
@@ -157,7 +157,7 @@ export function TimePicker({
           onType={(t) => typeField('h', t)}
           onBlur={() => setDraft(null)}
         />
-        <span className="mt-[4.25rem] font-heading text-2xl font-bold text-[#2A1B1F]" aria-hidden="true">:</span>
+        <span className="mt-[4.25rem] font-heading text-2xl font-bold text-[#2B1D16]" aria-hidden="true">:</span>
         <Column
           title="Minute"
           display={draft?.field === 'm' ? draft.text : touched ? String(shown!.m).padStart(2, '0') : '--'}
@@ -177,7 +177,7 @@ export function TimePicker({
       </div>
 
       <p
-        className={`mt-3 min-h-5 text-sm ${outOfHours ? 'font-medium text-red-600' : 'text-[#2A1B1F]'}`}
+        className={`mt-3 min-h-5 text-sm ${outOfHours ? 'font-medium text-red-600' : 'text-[#2B1D16]'}`}
         aria-live="polite"
       >
         {outOfHours

@@ -1,0 +1,101 @@
+/* Owner area: quiet motion only. Everything is switched off for people who prefer reduced motion. */
+@keyframes owner-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes owner-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes owner-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.owner-page { animation: owner-fade-up 0.35s ease-out backwards; }
+
+/* Sections of a page (children of its first wrapper) fade up one after another. */
+.owner-page > div > * { animation: owner-fade-up 0.4s ease-out backwards; }
+.owner-page > div > *:nth-child(1) { animation-delay: 0.02s; }
+.owner-page > div > *:nth-child(2) { animation-delay: 0.08s; }
+.owner-page > div > *:nth-child(3) { animation-delay: 0.14s; }
+.owner-page > div > *:nth-child(4) { animation-delay: 0.2s; }
+.owner-page > div > *:nth-child(5) { animation-delay: 0.26s; }
+.owner-page > div > *:nth-child(n + 6) { animation-delay: 0.32s; }
+
+/* A new page of a paginated list fades in. */
+.owner-list-page { animation: owner-fade-in 0.25s ease-out both; }
+
+
+/* Calmer headings and cards inside the owner area. */
+.owner-main h1 {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+}
+.owner-main [class*='rounded-xl'][class*='border'] {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.owner-main [class*='rounded-xl'][class*='border']:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.18);
+}
+.owner-main button,
+.owner-main a {
+  transition-property: color, background-color, border-color, box-shadow, transform;
+  transition-duration: 0.15s;
+}
+.owner-main button:active:not(:disabled) { transform: scale(0.98); }
+
+@media (prefers-reduced-motion: reduce) {
+  .owner-page,
+  .owner-page > div > *,
+  .owner-list-page,
+  .owner-main .grid:not([class*='grid-cols-7']) > * { animation: none !important; }
+  .owner-main button:active:not(:disabled) { transform: none; }
+}
+
+/* Grids: cards pop in one after another (not the 7-column calendar). They are not held in their end
+   state afterwards, so hover effects still work. */
+.owner-main .grid:not([class*='grid-cols-7']) > * { animation: owner-pop 0.4s ease-out backwards; }
+.owner-main .grid:not([class*='grid-cols-7']) > *:nth-child(1) { animation-delay: 0.05s; }
+.owner-main .grid:not([class*='grid-cols-7']) > *:nth-child(2) { animation-delay: 0.1s; }
+.owner-main .grid:not([class*='grid-cols-7']) > *:nth-child(3) { animation-delay: 0.15s; }
+.owner-main .grid:not([class*='grid-cols-7']) > *:nth-child(4) { animation-delay: 0.2s; }
+.owner-main .grid:not([class*='grid-cols-7']) > *:nth-child(5) { animation-delay: 0.25s; }
+.owner-main .grid:not([class*='grid-cols-7']) > *:nth-child(6) { animation-delay: 0.3s; }
+.owner-main .grid:not([class*='grid-cols-7']) > *:nth-child(n + 7) { animation-delay: 0.35s; }
+.owner-main .grid:not([class*='grid-cols-7']) > [class*='rounded-xl'][class*='border'] {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.owner-main .grid:not([class*='grid-cols-7']) > [class*='rounded-xl'][class*='border']:hover {
+  transform: translateY(-3px);
+}
+
+/* Buttons: filled ones get a soft shadow and lift; outlined ones tint on hover. */
+.owner-main button[class*='bg-[#C8431B]'],
+.owner-main button[class*='bg-primary'],
+.owner-main button[class*='bg-[#C8431B]'] {
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 6px -2px rgba(200, 67, 27, 0.5);
+}
+.owner-main button[class*='bg-[#C8431B]']:hover:not(:disabled),
+.owner-main button[class*='bg-primary']:hover:not(:disabled),
+.owner-main button[class*='bg-[#C8431B]']:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px -6px rgba(200, 67, 27, 0.6);
+}
+/* Only the outlined button style (white with a pink-gray border); coloured buttons keep their own hover. */
+.owner-main button[class*='border-[#E8D8C4]']:hover:not(:disabled) {
+  background-color: #f1f1f2;
+  border-color: #d1d5db;
+  color: #2B1D16;
+}
+
+/* Hover colour everywhere in the owner area is a neutral gray (not pink). */
+.owner-main [class*='hover:bg-[#F6E3D3]']:hover:not(:disabled),
+.owner-main [class*='hover:bg-[#F2D8C2]']:hover:not(:disabled),
+.owner-main [class*='hover:bg-muted']:hover:not(:disabled) {
+  background-color: #f1f1f2;
+}
+.owner-main button:disabled { box-shadow: none; }

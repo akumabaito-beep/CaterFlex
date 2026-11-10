@@ -1,32 +1,33 @@
 'use client';
 
+import { Paged } from '@/components/owner/Pagination';
 import { DashboardLayout } from '@/app/dashboard-layout';
 import { formatQuantity } from '@/lib/rules/quantity-format';
 import {
   createIngredient,
   updateIngredient,
   updateIngredientStock,
-  createDish,
-  updateDish,
-  updateDishAvailability,
   getOwnerReservedIngredients,
 } from '@/app/actions/inventory-actions';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  AlertCircle,
+  ArrowUpDown,
+  Check,
+  ChevronDown,
+  ClipboardList,
   Lightbulb,
-  PackageCheck,
-  UtensilsCrossed,
+  Loader2,
+  PackagePlus,
+  Pencil,
+  Plus,
+  Search,
+  X,
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
-import { roundQuantity } from '@/lib/rules/allocation';
 
-import {
-  checkDishStock,
-  getOverPurchasedIngredients,
-} from '@/lib/rules/macroFlex';
 import { getScrapSuggestionsForBlockedDishes } from '@/lib/rules/scrapSuggestions';
 
 import type { Ingredient, MenuItem } from '@/lib/types';
@@ -187,6 +188,125 @@ function mapMenuItem(
     };
   }
 
+
+type StatusFilter = 'all' | 'short' | 'low' | 'over';
+type SortKey = 'urgent' | 'name' | 'most-stocked';
+type CategoryKey = Exclude<IngredientCategory, 'all' | 'low'>;
+
+const categoryLabels: Record<CategoryKey, string> = {
+  meats: 'Meats',
+  dairy: 'Dairy',
+  baking: 'Baking',
+  produce: 'Produce',
+  pantry: 'Pantry',
+  herbs_spices: 'Herbs & spices',
+};
+const knownCategories = Object.keys(categoryLabels);
+const categoryOf = (category: string | null | undefined) => (category && knownCategories.includes(category) ? category : 'other');
+const measurementOptions = ['kg', 'g', 'ml', 'l', 'tsp', 'tbsp', 'cup', 'oz', 'lb', 'pcs'];
+
+/** Numbers and flags for one ingredient, calculated once per render. */
+type Row = {
+  ingredient: Ingredient;
+  percent: number;
+  reserved: number;
+  available: number;
+  isShort: boolean;
+  isLow: boolean;
+  isOver: boolean;
+  state: 'short' | 'over' | 'low' | 'medium' | 'good';
+};
+
+function buildRow(ingredient: Ingredient, reservedMap: Record<number, number>): Row {
+  const capacity = ingredient.maxCapacity;
+  const percent = capacity > 0 ? (ingredient.currentStock / capacity) * 100 : 100;
+  const reserved = reservedMap[Number(ingredient.id)] ?? 0;
+  const available = ingredient.currentStock - reserved;
+  const isShort = available < 0;
+  const isOver = capacity > 0 && ingredient.currentStock > capacity;
+  const isLow = capacity > 0 && percent < 25;
+  const state = isShort ? 'short' : isOver ? 'over' : isLow ? 'low' : percent < 50 ? 'medium' : 'good';
+  return { ingredient, percent, reserved, available, isShort, isLow, isOver, state };
+}
+
+const stateStyle: Record<Row['state'], { label: string; chip: string; bar: string }> = {
+  short: { label: 'Short for orders', chip: 'bg-[#F6E3D3] text-[#C8431B]', bar: 'bg-[#C8431B]' },
+  over: { label: 'Over capacity', chip: 'bg-orange-100 text-orange-800', bar: 'bg-orange-500' },
+  low: { label: 'Low', chip: 'bg-[#F6E3D3] text-[#C8431B]', bar: 'bg-[#C8431B]' },
+  medium: { label: 'Medium', chip: 'bg-amber-100 text-amber-900', bar: 'bg-amber-500' },
+  good: { label: 'Good', chip: 'bg-emerald-100 text-emerald-800', bar: 'bg-emerald-500' },
+};
+
+/** How much to buy: cover any shortfall, and fill back up to capacity when that is known. */
+function suggestedBuy(row: Row) {
+  const toFill = row.ingredient.maxCapacity > 0 ? Math.max(0, row.ingredient.maxCapacity - row.ingredient.currentStock) : 0;
+  return Math.ceil(Math.max(toFill, row.isShort ? Math.abs(row.available) : 0));
+}
+
+/** One bar: reserved for confirmed orders (striped), free to use, and the empty space left up to capacity. */
+function StockGauge({ row }: { row: Row }) {
+  const { ingredient, reserved } = row;
+  const total = Math.max(ingredient.maxCapacity, ingredient.currentStock, 1);
+  const reservedPart = Math.min(Math.max(reserved, 0), ingredient.currentStock);
+  const freePart = Math.max(ingredient.currentStock - reservedPart, 0);
+  const pct = (value: number) => `${(value / total) * 100}%`;
+  return (
+    <div
+      className="relative h-3 overflow-hidden rounded-full bg-[#E8D8C4]/60"
+      role="img"
+      aria-label={`${formatQuantity(ingredient.currentStock, ingredient.unit)} in stock, ${formatQuantity(reservedPart, ingredient.unit)} reserved for orders, ${formatQuantity(freePart, ingredient.unit)} free, capacity ${formatQuantity(ingredient.maxCapacity, ingredient.unit)}`}
+    >
+      <div className="flex h-full">
+        <div
+          className="h-full bg-slate-600 transition-all duration-500"
+          style={{ width: pct(reservedPart), backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.4) 0 3px, transparent 3px 6px)' }}
+        />
+        <div className={`h-full transition-all duration-500 ${stateStyle[row.state === 'short' ? 'low' : row.state].bar}`} style={{ width: pct(freePart) }} />
+      </div>
+      {row.isOver && <span className="absolute inset-y-0 w-0.5 bg-[#2B1D16]" style={{ left: pct(ingredient.maxCapacity) }} title="Capacity" />}
+    </div>
+  );
+}
+
+function SortMenu({ value, onChange }: { value: SortKey; onChange: (next: SortKey) => void }) {
+  const [open, setOpen] = useState(false);
+  const options: { key: SortKey; label: string }[] = [
+    { key: 'urgent', label: 'Needs restocking first' },
+    { key: 'name', label: 'Name A to Z' },
+    { key: 'most-stocked', label: 'Most stocked first' },
+  ];
+  const current = options.find((option) => option.key === value) ?? options[0];
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    const onClick = (event: MouseEvent) => { if (!(event.target as HTMLElement).closest('[data-sort-menu]')) setOpen(false); };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onClick);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('mousedown', onClick); };
+  }, [open]);
+  return (
+    <div className="relative" data-sort-menu>
+      <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="inline-flex h-9 items-center gap-2 rounded-full border border-[#E8D8C4] bg-white pl-4 pr-3 text-sm font-medium text-[#2B1D16] transition-colors hover:bg-[#f1f1f2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]">
+        <ArrowUpDown className="size-4 text-[#C8431B]" aria-hidden="true" />
+        {current.label}
+        <ChevronDown className={`size-4 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+      </button>
+      {open && (
+        <ul role="listbox" aria-label="Sort ingredients" className="owner-list-page absolute right-0 z-20 mt-2 w-56 overflow-hidden rounded-xl border border-[#E8D8C4] bg-white p-1 shadow-lg">
+          {options.map((option) => (
+            <li key={option.key} role="option" aria-selected={option.key === value}>
+              <button type="button" onClick={() => { onChange(option.key); setOpen(false); }} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[#f1f1f2] ${option.key === value ? 'font-semibold text-[#C8431B]' : 'text-[#2B1D16]'}`}>
+                {option.label}
+                {option.key === value && <Check className="size-4" aria-hidden="true" />}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function InventoryPage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [reservedIngredients, setReservedIngredients] = useState<Record<number, number>>({});
@@ -194,436 +314,290 @@ export default function InventoryPage() {
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
 
+  const [categoryTab, setCategoryTab] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [query, setQuery] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('urgent');
+  const [copied, setCopied] = useState(false);
+  const [showUseItUp, setShowUseItUp] = useState(false);
+
+  // Inline stock editor
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editMode, setEditMode] = useState<'set' | 'add'>('set');
   const [editValue, setEditValue] = useState('');
-
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  // Add / edit ingredient form
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<'add' | 'edit'>('add');
   const [formId, setFormId] = useState<string | null>(null);
   const [formName, setFormName] = useState('');
   const [formQuantity, setFormQuantity] = useState('');
   const [formUnit, setFormUnit] = useState('pcs');
-  const [formCategory, setFormCategory] = useState<Exclude<IngredientCategory, 'all' | 'low'>>('produce');
+  const [formCategory, setFormCategory] = useState<CategoryKey>('produce');
   const [formSaving, setFormSaving] = useState(false);
-  const measurementOptions = ['kg', 'g', 'ml', 'l', 'tsp', 'tbsp', 'cup', 'oz', 'lb', 'pcs'];
+  const [formError, setFormError] = useState('');
 
   const normalizeMeasurementUnit = (unit: string) => {
     const legacyUnits: Record<string, string> = {
-      units: 'pcs',
-      grams: 'g',
-      kilograms: 'kg',
-      milliliters: 'ml',
-      liters: 'l',
-      teaspoons: 'tsp',
-      tablespoons: 'tbsp',
-      cups: 'cup',
-      ounces: 'oz',
-      pounds: 'lb',
+      units: 'pcs', grams: 'g', kilograms: 'kg', milliliters: 'ml', liters: 'l',
+      teaspoons: 'tsp', tablespoons: 'tbsp', cups: 'cup', ounces: 'oz', pounds: 'lb',
     };
-
     return legacyUnits[unit.toLowerCase()] ?? (measurementOptions.includes(unit) ? unit : 'pcs');
   };
-  const [dishFormOpen, setDishFormOpen] = useState(false);
-  const [dishFormMode, setDishFormMode] = useState<'add' | 'edit'>('add');
-  const [dishFormId, setDishFormId] = useState<string | null>(null);
-  const [dishFormName, setDishFormName] = useState('');
-  const [dishFormCategory, setDishFormCategory] = useState<'mains' | 'appetizers' | 'sides' | 'desserts' | 'beverages'>('mains');
-  const [dishFormDescription, setDishFormDescription] = useState('');
-  const [dishFormPrice, setDishFormPrice] = useState('0');
-  const [dishFormPrepTime, setDishFormPrepTime] = useState('1');
-  const [unavailableDishIds, setUnavailableDishIds] = useState<Set<string>>(new Set());
 
-  const [activeTab, setActiveTab] = useState<
-    'dishes' | 'ingredients'
-  >('ingredients');
-
-  const [dishCategory, setDishCategory] = useState<
-    'all' | 'mains' | 'appetizers' | 'sides' | 'desserts'
-  >('all');
-
-  const [ingredientCategory, setIngredientCategory] =
-    useState<IngredientCategory>('all');
-
-  /*
-   * Load ingredients, menu items, and dish-ingredient
-   * relationships from Supabase.
-   */
+  /* Load ingredients, menu items and recipes from Supabase. */
   useEffect(() => {
     const loadInventory = async () => {
       setLoading(true);
       setLoadError(null);
-
       try {
-        /*
-         * Load INGREDIENT
-         */
-        const {
-          data: ingredientRows,
-          error: ingredientError,
-        } = await supabase
+        const { data: ingredientRows, error: ingredientError } = await supabase
           .from('INGREDIENT')
-          .select(
-            'IngredientID, OperatorID, IngredientName, UnitOfMeasure, CurrentStock, MaxStorageCapacity, category'
-          )
+          .select('IngredientID, OperatorID, IngredientName, UnitOfMeasure, CurrentStock, MaxStorageCapacity, category')
           .order('IngredientID');
+        if (ingredientError) throw new Error(`Failed to load ingredients: ${ingredientError.message}`);
 
-        if (ingredientError) {
-          console.error(
-            'INGREDIENT loading error:',
-            ingredientError
-          );
-
-          throw new Error(
-            `Failed to load ingredients: ${ingredientError.message}`
-          );
-        }
-
-        /*
-         * Load MENU_ITEM
-         */
-        const {
-          data: menuItemRows,
-          error: menuItemError,
-        } = await supabase
+        const { data: menuItemRows, error: menuItemError } = await supabase
           .from('MENU_ITEM')
-          .select(
-            'MenuItemID, ItemName, Category, Price, PrepTimeDays, Description, Availability'
-          )
+          .select('MenuItemID, ItemName, Category, Price, PrepTimeDays, Description, Availability')
           .order('MenuItemID');
+        if (menuItemError) throw new Error(`Failed to load menu items: ${menuItemError.message}`);
 
-        if (menuItemError) {
-          console.error(
-            'MENU_ITEM loading error:',
-            menuItemError
-          );
-
-          throw new Error(
-            `Failed to load menu items: ${menuItemError.message}`
-          );
-        }
-
-        /*
-         * Load DISH_INGREDIENT
-         */
-        const {
-          data: dishIngredientRows,
-          error: dishIngredientError,
-        } = await supabase
+        const { data: dishIngredientRows, error: dishIngredientError } = await supabase
           .from('DISH_INGREDIENT')
-          .select(
-            'DishIngredientID, MenuItemID, IngredientID, QuantityRequiredPerServing'
-          )
+          .select('DishIngredientID, MenuItemID, IngredientID, QuantityRequiredPerServing')
           .order('DishIngredientID');
+        if (dishIngredientError) throw new Error(`Failed to load dish ingredients: ${dishIngredientError.message}`);
 
-        if (dishIngredientError) {
-          console.error(
-            'DISH_INGREDIENT loading error:',
-            dishIngredientError
-          );
-
-          throw new Error(
-            `Failed to load dish ingredients: ${dishIngredientError.message}`
-          );
-        }
-
-        const mappedIngredients = (
-          (ingredientRows ?? []) as DatabaseIngredient[]
-        ).map(mapIngredient);
-
-        const mappedMenuItems = (
-          (menuItemRows ?? []) as DatabaseMenuItem[]
-        ).map((menuItem) =>
-          mapMenuItem(
-            menuItem,
-            (dishIngredientRows ??
-              []) as DatabaseDishIngredient[],
-            mappedIngredients
-          )
+        const mappedIngredients = ((ingredientRows ?? []) as DatabaseIngredient[]).map(mapIngredient);
+        const mappedMenuItems = ((menuItemRows ?? []) as DatabaseMenuItem[]).map((menuItem) =>
+          mapMenuItem(menuItem, (dishIngredientRows ?? []) as DatabaseDishIngredient[], mappedIngredients),
         );
-
         setIngredients(mappedIngredients);
         const reservedResult = await getOwnerReservedIngredients();
         if (reservedResult.ok) setReservedIngredients(reservedResult.reserved);
         setMenuItems(mappedMenuItems);
-        setUnavailableDishIds(new Set((menuItemRows ?? []).filter((item) => item.Availability === false).map((item) => String(item.MenuItemID))));
       } catch (error) {
-        console.error(
-          'Inventory loading error:',
-          error
-        );
-
-        setLoadError(
-          error instanceof Error
-            ? error.message
-            : 'Failed to load inventory data.'
-        );
+        console.error('Inventory loading error:', error);
+        setLoadError(error instanceof Error ? error.message : 'Failed to load inventory data.');
       } finally {
         setLoading(false);
       }
     };
-
     loadInventory();
   }, []);
 
-  /*
-   * Detect ingredients whose stock exceeds
-   * their maximum storage capacity.
-   */
-  const overPurchased = useMemo(
-    () => getOverPurchasedIngredients(ingredients),
-    [ingredients]
-  );
+  const rows = useMemo(() => ingredients.map((ingredient) => buildRow(ingredient, reservedIngredients)), [ingredients, reservedIngredients]);
 
-  /*
-   * Generate tira-tira suggestions using the
-   * existing MacroFlex rule.
-   */
   const scrapSuggestions = useMemo(
-    () =>
-      getScrapSuggestionsForBlockedDishes(menuItems, ingredients, reservedIngredients),
-    [ingredients, menuItems, reservedIngredients]
+    () => getScrapSuggestionsForBlockedDishes(menuItems, ingredients, reservedIngredients),
+    [ingredients, menuItems, reservedIngredients],
   );
 
-  /*
-   * Check every dish against current ingredient stock.
-   */
-  const dishChecks = useMemo(
-    () =>
-      menuItems.map((dish) => ({
-        dish,
-        check: checkDishStock(
-          dish,
-          ingredients
-        ),
-      })),
-    [menuItems, ingredients]
-  );
-
-  /*
-   * Ingredients below 25% of their capacity.
-   */
-  const lowIngredients = useMemo(
-    () =>
-      ingredients.filter((ingredient) => {
-        if (ingredient.maxCapacity <= 0) {
-          return false;
-        }
-
-        return (
-          ingredient.currentStock /
-            ingredient.maxCapacity <
-          0.25
-        );
-      }),
-    [ingredients]
-  );
-
-  /*
-   * Filter ingredients.
-   */
-  const filteredIngredients = useMemo(() => {
-    if (ingredientCategory === 'low') {
-      return lowIngredients;
-    }
-
-    if (ingredientCategory === 'all') {
-      return ingredients;
-    }
-
-    return ingredients.filter(
-      (ingredient) =>
-        ingredient.category === ingredientCategory
-    );
-  }, [
-    ingredients,
-    lowIngredients,
-    ingredientCategory,
-  ]);
-
-  /*
-   * Filter dishes.
-   */
-  const filteredDishes = useMemo(() => {
-    if (dishCategory === 'all') {
-      return dishChecks;
-    }
-
-    return dishChecks.filter(
-      ({ dish }) =>
-        dish.category === dishCategory
-    );
-  }, [dishChecks, dishCategory]);
-
-  const openAddDish = () => {
-    setDishFormMode('add'); setDishFormId(null); setDishFormName(''); setDishFormCategory('mains'); setDishFormDescription(''); setDishFormPrice('0'); setDishFormPrepTime('1'); setDishFormOpen(true);
+  const needle = query.trim().toLowerCase();
+  const searched = rows.filter((row) => !needle || row.ingredient.name.toLowerCase().includes(needle));
+  const inCategory = searched.filter((row) => categoryTab === 'all' || categoryOf(row.ingredient.category) === categoryTab);
+  const stateCounts = {
+    all: inCategory.length,
+    short: inCategory.filter((row) => row.isShort).length,
+    low: inCategory.filter((row) => row.isLow).length,
+    over: inCategory.filter((row) => row.isOver).length,
   };
+  const shown = inCategory
+    .filter((row) => statusFilter === 'all' || (statusFilter === 'short' ? row.isShort : statusFilter === 'low' ? row.isLow : row.isOver))
+    .sort((a, b) => {
+      if (sortKey === 'name') return a.ingredient.name.localeCompare(b.ingredient.name);
+      if (sortKey === 'most-stocked') return b.percent - a.percent;
+      return Number(b.isShort) - Number(a.isShort) || a.percent - b.percent || a.ingredient.name.localeCompare(b.ingredient.name);
+    });
 
-  const openEditDish = (dish: MenuItem) => {
-    setDishFormMode('edit'); setDishFormId(dish.id); setDishFormName(dish.name); setDishFormCategory(dish.category); setDishFormDescription(dish.description); setDishFormPrice(String(dish.price)); setDishFormPrepTime(String(dish.prepTimeDays)); setDishFormOpen(true);
-  };
+  const categoryTabs: [string, string][] = [
+    ['all', 'All stock'],
+    ...(Object.entries(categoryLabels) as [string, string][]),
+    ...(rows.some((row) => categoryOf(row.ingredient.category) === 'other') ? [['other', 'Other'] as [string, string]] : []),
+  ];
+  const tabCount = (key: string) => searched.filter((row) => key === 'all' || categoryOf(row.ingredient.category) === key).length;
+  const chips: [StatusFilter, string][] = [['all', 'All'], ['short', 'Short for orders'], ['low', 'Low'], ['over', 'Over capacity']];
 
-  const handleDishSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setFormSaving(true);
-    const result = dishFormMode === 'add'
-      ? await createDish({ name: dishFormName, category: dishFormCategory, price: Number(dishFormPrice), prepTimeDays: Number(dishFormPrepTime), description: dishFormDescription })
-      : await updateDish(Number(dishFormId), { name: dishFormName, category: dishFormCategory, description: dishFormDescription });
-    if (!result.ok) { alert(`Failed to ${dishFormMode === 'add' ? 'add' : 'update'} dish: ${result.error}`); setFormSaving(false); return; }
-    const row = result.menuItem as DatabaseMenuItem;
-    const mapped = mapMenuItem(row, [], ingredients);
-    setMenuItems((current) => dishFormMode === 'add' ? [...current, mapped] : current.map((dish) => dish.id === mapped.id ? { ...dish, ...mapped } : dish));
-    setDishFormOpen(false); setFormSaving(false);
-  };
+  const needRestock = rows.filter((row) => row.isShort || row.isLow);
+  const shortCount = rows.filter((row) => row.isShort).length;
 
-  const toggleDishAvailability = async (dishId: string) => {
-    const nextAvailability = unavailableDishIds.has(dishId);
-    const result = await updateDishAvailability(Number(dishId), nextAvailability);
-    if (!result.ok) { alert(`Failed to update dish availability: ${result.error}`); return; }
-    setUnavailableDishIds((current) => { const next = new Set(current); nextAvailability ? next.delete(dishId) : next.add(dishId); return next; });
-  };
-
-  const openAddIngredient = () => {
-    setFormMode('add');
-    setFormId(null);
-    setFormName('');
-  setFormQuantity('');
-  setFormUnit('pcs');
-  setFormCategory('produce');
-  setFormOpen(true);
-  };
-
-  const openEditIngredient = (ingredient: Ingredient) => {
-    setFormMode('edit');
-    setFormId(ingredient.id);
-    setFormName(ingredient.name);
-  setFormQuantity(String(ingredient.currentStock));
-  setFormUnit(normalizeMeasurementUnit(ingredient.unit));
-  setFormCategory(ingredient.category === 'other' ? 'pantry' : ingredient.category);
-  setFormOpen(true);
-  };
-
-  const handleIngredientSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const quantity = Number(formQuantity);
-  if (!formName.trim() || !formUnit.trim() || !Number.isInteger(quantity) || quantity < 0) {
-  alert('Enter a whole-number quantity greater than or equal to 0, plus a name and measurement.');
-      return;
-    }
-
-    setFormSaving(true);
-    const result = formMode === 'add'
-  ? await createIngredient({ name: formName, quantity, category: formCategory, unit: formUnit })
-  : await updateIngredient(Number(formId), { name: formName, quantity, category: formCategory, unit: formUnit });
-
-    if (!result.ok) {
-      alert(`Failed to ${formMode === 'add' ? 'add' : 'update'} ingredient: ${result.error}`);
-      setFormSaving(false);
-      return;
-    }
-
-    const mapped = mapIngredient(result.ingredient as DatabaseIngredient);
-    setIngredients((current) => formMode === 'add'
-      ? [...current, mapped].sort((a, b) => Number(a.id) - Number(b.id))
-      : current.map((ingredient) => ingredient.id === mapped.id ? mapped : ingredient));
-    setFormOpen(false);
-    setFormSaving(false);
-  };
-
-  /*
-   * Begin editing ingredient stock.
-   */
-  const handleEdit = (
-    id: string,
-    current: number
-  ) => {
-    setEditingId(id);
-    setEditValue(current.toString());
-  };
-
-  /*
-   * Save updated stock directly to Supabase.
-   */
-  const handleSave = async (id: string) => {
-    const newStock = Number(editValue);
-  
-    if (!Number.isInteger(newStock) || newStock < 0) {
-      alert('Please enter a whole-number stock amount greater than or equal to 0.');
-      return;
-    }
-  
-    setSavingId(id);
-  
+  const copyShoppingList = async () => {
+    const lines = needRestock
+      .sort((a, b) => Number(b.isShort) - Number(a.isShort) || a.percent - b.percent)
+      .map((row) => `- ${row.ingredient.name}: buy ${formatQuantity(suggestedBuy(row), row.ingredient.unit)}${row.isShort ? ' (short for confirmed orders)' : ''}`);
+    const text = `Shopping list\n${lines.join('\n')}`;
     try {
-      const ingredientId = Number(id);
-  
-      const result = await updateIngredientStock(
-        ingredientId,
-        newStock
-      );
-  
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setActionError('Could not copy the list. Select the ingredients you need and note them down instead.');
+    }
+  };
+
+  const clearFilters = () => { setQuery(''); setStatusFilter('all'); setCategoryTab('all'); };
+
+  /* Inline stock editing */
+  const startEdit = (row: Row) => {
+    setEditingId(row.ingredient.id);
+    setEditMode('set');
+    setEditValue(String(row.ingredient.currentStock));
+    setActionError('');
+  };
+  const cancelEdit = () => { setEditingId(null); setEditValue(''); };
+
+  const saveStock = async (row: Row) => {
+    const entered = Number(editValue);
+    const newStock = editMode === 'add' ? row.ingredient.currentStock + entered : entered;
+    if (editValue.trim() === '' || !Number.isInteger(entered) || entered < 0 || !Number.isInteger(newStock) || newStock < 0) {
+      setActionError('Enter a whole number that is 0 or more.');
+      return;
+    }
+    setSavingId(row.ingredient.id);
+    setActionError('');
+    try {
+      const result = await updateIngredientStock(Number(row.ingredient.id), newStock);
       if (!result.ok) {
-        console.error(
-          'Ingredient stock update error:',
-          result.error
-        );
-  
-        alert(
-          `Failed to update stock: ${result.error}`
-        );
-  
+        setActionError(`Could not update ${row.ingredient.name}. ${result.error}`);
         return;
       }
-  
-      // Only update the UI after the database update succeeds.
-      setIngredients((current) =>
-        current.map((ingredient) =>
-          ingredient.id === id
-            ? {
-                ...ingredient,
-                currentStock: result.currentStock,
-              }
-            : ingredient
-        )
-      );
-  
-      setEditingId(null);
-      setEditValue('');
+      setIngredients((current) => current.map((item) => (item.id === row.ingredient.id ? { ...item, currentStock: result.currentStock } : item)));
+      cancelEdit();
     } catch (error) {
-      console.error(
-        'Unexpected stock update error:',
-        error
-      );
-  
-      alert(
-        'An unexpected error occurred while updating stock.'
-      );
+      console.error('Unexpected stock update error:', error);
+      setActionError('Something went wrong while updating stock. Try again.');
     } finally {
       setSavingId(null);
     }
   };
 
+  /* Add / edit ingredient form */
+  const openAddIngredient = () => {
+    setFormMode('add'); setFormId(null); setFormName(''); setFormQuantity(''); setFormUnit('pcs'); setFormCategory('produce'); setFormError(''); setFormOpen(true);
+  };
+  const openEditIngredient = (ingredient: Ingredient) => {
+    setFormMode('edit'); setFormId(ingredient.id); setFormName(ingredient.name); setFormQuantity(String(ingredient.currentStock));
+    setFormUnit(normalizeMeasurementUnit(ingredient.unit));
+    setFormCategory(ingredient.category === 'other' ? 'pantry' : (ingredient.category as CategoryKey));
+    setFormError(''); setFormOpen(true);
+  };
+  const closeForm = () => { if (!formSaving) setFormOpen(false); };
+  useEffect(() => {
+    if (!formOpen) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape' && !formSaving) setFormOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [formOpen, formSaving]);
+
+  const handleIngredientSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const quantity = Number(formQuantity);
+    if (!formName.trim() || !formUnit.trim() || !Number.isInteger(quantity) || quantity < 0) {
+      setFormError('Enter a name, a unit and a whole-number quantity of 0 or more.');
+      return;
+    }
+    setFormSaving(true);
+    setFormError('');
+    const result = formMode === 'add'
+      ? await createIngredient({ name: formName, quantity, category: formCategory, unit: formUnit })
+      : await updateIngredient(Number(formId), { name: formName, quantity, category: formCategory, unit: formUnit });
+    if (!result.ok) {
+      setFormError(`Could not ${formMode === 'add' ? 'add' : 'update'} the ingredient. ${result.error}`);
+      setFormSaving(false);
+      return;
+    }
+    const mapped = mapIngredient(result.ingredient as DatabaseIngredient);
+    setIngredients((current) => formMode === 'add'
+      ? [...current, mapped].sort((a, b) => Number(a.id) - Number(b.id))
+      : current.map((ingredient) => (ingredient.id === mapped.id ? mapped : ingredient)));
+    setFormOpen(false);
+    setFormSaving(false);
+  };
+
+  const renderRow = (row: Row) => {
+    const { ingredient } = row;
+    const style = stateStyle[row.state];
+    const editing = editingId === ingredient.id;
+    const saving = savingId === ingredient.id;
+    const entered = Number(editValue);
+    const preview = editMode === 'add' ? ingredient.currentStock + entered : entered;
+    const previewValid = editValue.trim() !== '' && Number.isInteger(entered) && entered >= 0 && Number.isInteger(preview) && preview >= 0;
+    const free = Math.max(row.available, 0);
+
+    return (
+      <article key={ingredient.id} className={`rounded-2xl border bg-white p-4 transition-shadow hover:shadow-sm ${row.isShort ? 'border-l-4 border-[#E8D8C4] border-l-[#C8431B]' : 'border-[#E8D8C4]'}`}>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_auto] lg:items-center">
+          <div className="min-w-0">
+            <h3 className="break-words font-heading text-lg font-bold uppercase leading-tight tracking-tight text-card-foreground">{ingredient.name}</h3>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${style.chip}`}>{style.label}</span>
+              <span className="text-xs text-muted-foreground">{categoryLabels[categoryOf(ingredient.category) as CategoryKey] ?? 'Other'}</span>
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <StockGauge row={row} />
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
+              <div><dt className="text-muted-foreground">In stock</dt><dd className="text-sm font-semibold tabular-nums text-card-foreground">{formatQuantity(ingredient.currentStock, ingredient.unit)}</dd></div>
+              <div><dt className="text-muted-foreground">Reserved for orders</dt><dd className="text-sm font-semibold tabular-nums text-card-foreground">{formatQuantity(row.reserved, ingredient.unit)}</dd></div>
+              <div><dt className="text-muted-foreground">Free to use</dt><dd className={`text-sm font-semibold tabular-nums ${row.isShort ? 'text-[#C8431B]' : 'text-card-foreground'}`}>{formatQuantity(free, ingredient.unit)}</dd></div>
+              <div><dt className="text-muted-foreground">Capacity</dt><dd className="text-sm font-semibold tabular-nums text-card-foreground">{ingredient.maxCapacity > 0 ? formatQuantity(ingredient.maxCapacity, ingredient.unit) : 'Not set'}</dd></div>
+            </dl>
+            {row.isShort && <p className="mt-2 text-sm font-semibold text-[#C8431B]">Short by {formatQuantity(Math.abs(row.available), ingredient.unit)} for confirmed orders.</p>}
+          </div>
+
+          <div className="flex items-center gap-2 lg:flex-col lg:items-stretch">
+            <Button type="button" size="sm" onClick={() => startEdit(row)} disabled={editing}><PackagePlus data-icon="inline-start" />Update stock</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => openEditIngredient(ingredient)}><Pencil data-icon="inline-start" />Edit</Button>
+          </div>
+        </div>
+
+        {editing && (
+          <form
+            onSubmit={(event) => { event.preventDefault(); void saveStock(row); }}
+            onKeyDown={(event) => { if (event.key === 'Escape') cancelEdit(); }}
+            className="owner-list-page mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-[#E8D8C4] bg-[#FBF6EE] p-4"
+          >
+            <div role="group" aria-label="How to change stock" className="inline-flex overflow-hidden rounded-lg border border-[#E8D8C4] bg-white text-sm font-semibold">
+              {([['set', 'Set to'], ['add', 'Add']] as const).map(([mode, label]) => (
+                <button key={mode} type="button" aria-pressed={editMode === mode} onClick={() => setEditMode(mode)} className={`px-3 py-1.5 transition-colors ${editMode === mode ? 'bg-[#C8431B] text-white' : 'text-[#2B1D16] hover:bg-[#f1f1f2]'}`}>{label}</button>
+              ))}
+            </div>
+            <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
+              {editMode === 'add' ? 'Amount received' : 'New stock'} ({ingredient.unit})
+              <input autoFocus type="number" inputMode="numeric" min={0} step={1} value={editValue} onChange={(event) => setEditValue(event.target.value)} disabled={saving} className="h-9 w-36 rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm text-card-foreground outline-none focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20" />
+            </label>
+            <p className="pb-2 text-sm text-muted-foreground">{previewValid ? <>Stock will be <span className="font-semibold text-card-foreground">{formatQuantity(preview, ingredient.unit)}</span></> : 'Enter a whole number'}</p>
+            <div className="ml-auto flex gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={cancelEdit} disabled={saving}>Cancel</Button>
+              <Button type="submit" size="sm" disabled={saving || !previewValid}>{saving ? 'Saving...' : 'Save stock'}</Button>
+            </div>
+          </form>
+        )}
+      </article>
+    );
+  };
+
+  const header = (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">Ingredient inventory</h1>
+        <p className="mt-2 text-surface-muted-foreground">See what you have, what is promised to orders and what to buy next</p>
+      </div>
+      {!loading && !loadError && <Button onClick={openAddIngredient}><Plus data-icon="inline-start" />Add ingredient</Button>}
+    </div>
+  );
+
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="space-y-8">
-          <div>
-            <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
-              Ingredient inventory
-            </h1>
-
-            <p className="text-surface-muted-foreground mt-2">
-              Track dish availability, ingredient stock,
-              and low inventory in one place.
-            </p>
-          </div>
-
-          <Card className="p-8 text-center">
-            <p className="text-muted-foreground">
-              Loading inventory...
-            </p>
-          </Card>
+        <div className="space-y-6">
+          {header}
+          <Card className="flex items-center justify-center gap-2 p-12 text-muted-foreground"><Loader2 className="size-4 animate-spin" />Loading inventory...</Card>
         </div>
       </DashboardLayout>
     );
@@ -632,32 +606,11 @@ export default function InventoryPage() {
   if (loadError) {
     return (
       <DashboardLayout>
-        <div className="space-y-8">
-          <div>
-            <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
-              Ingredient inventory
-            </h1>
-
-            <p className="text-surface-muted-foreground mt-2">
-              Track dish availability, ingredient stock,
-              and low inventory in one place.
-            </p>
-          </div>
-
-          <Card className="p-6 border-red-200 bg-red-50">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5" />
-
-              <div>
-                <h2 className="font-semibold text-red-900">
-                  Unable to load inventory
-                </h2>
-
-                <p className="text-sm text-red-700 mt-1">
-                  {loadError}
-                </p>
-              </div>
-            </div>
+        <div className="space-y-6">
+          {header}
+          <Card className="border-destructive/40 bg-destructive/10 p-6">
+            <p className="font-semibold text-destructive">Unable to load inventory</p>
+            <p className="mt-1 text-sm text-destructive">{loadError}</p>
           </Card>
         </div>
       </DashboardLayout>
@@ -666,777 +619,140 @@ export default function InventoryPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-8">
+      <div className="flex flex-col gap-6">
+        {header}
 
-        {/* PAGE HEADER */}
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
-              Ingredient inventory
-            </h1>
-
-            <p className="text-surface-muted-foreground mt-2">
-              Track dish availability, ingredient stock,
-              and low inventory in one place.
-            </p>
-          </div>
-
-          {activeTab === 'ingredients' && (
-            <button
-              type="button"
-              onClick={openAddIngredient}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
-            >
-              Add ingredient
-            </button>
-          )}
-        </div>
-
-        {/* TAB SELECTOR */}
-        <div className="border-b border-border">
-          <div className="flex gap-8">
-
-            <button
-              type="button"
-              onClick={() =>
-                setActiveTab('ingredients')
-              }
-              className={`py-4 text-sm font-medium transition-colors ${
-                activeTab === 'ingredients'
-                  ? 'border-b-2 border-primary text-card-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Ingredients
-            </button>
-
-          </div>
-        </div>
-
-        {/* DISH CATEGORIES */}
-        {activeTab === 'dishes' && (
-          <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-
-            {[
-              [
-                'all',
-                'All Dishes',
-                dishChecks.length,
-              ],
-              [
-                'mains',
-                'Mains',
-                dishChecks.filter(
-                  ({ dish }) =>
-                    dish.category === 'mains'
-                ).length,
-              ],
-              [
-                'appetizers',
-                'Appetizers',
-                dishChecks.filter(
-                  ({ dish }) =>
-                    dish.category === 'appetizers'
-                ).length,
-              ],
-              [
-                'sides',
-                'Sides',
-                dishChecks.filter(
-                  ({ dish }) =>
-                    dish.category === 'sides'
-                ).length,
-              ],
-  [
-  'desserts',
-  'Desserts',
-  dishChecks.filter(
-  ({ dish }) =>
-  dish.category === 'desserts'
-  ).length,
-  ],
-  [
-  'beverages',
-  'Beverages',
-  dishChecks.filter(
-  ({ dish }) =>
-  dish.category === 'beverages'
-  ).length,
-  ],
-  ].map(
-              ([value, label, count]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() =>
-                    setDishCategory(
-                      value as typeof dishCategory
-                    )
-                  }
-                  className={`min-w-0 rounded-2xl border-2 p-5 text-left transition-all ${
-                    dishCategory === value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border bg-muted/20 hover:bg-muted/40'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <span className="text-sm font-medium text-card-foreground">
-                      {label}
-                    </span>
-
-                    <UtensilsCrossed className="size-5 text-primary" />
-                  </div>
-
-                  <span className="mt-3 block text-4xl font-bold text-card-foreground">
-                    {count}
-                  </span>
-                </button>
-              )
-            )}
-
-          </div>
-        )}
-
-        {/* INGREDIENT CATEGORIES */}
-        {activeTab === 'ingredients' && (
-          <div className="mt-6 flex flex-wrap gap-4 ">
-
-            {[
-              [
-                'all',
-                'All Stock',
-                ingredients.length,
-              ],
-              [
-                'low',
-                "What's Low",
-                lowIngredients.length,
-              ],
-              [
-                'meats',
-                'Meats',
-                ingredients.filter(
-                  (i) =>
-                    i.category === 'meats'
-                ).length,
-              ],
-              [
-                'dairy',
-                'Dairy',
-                ingredients.filter(
-                  (i) =>
-                    i.category === 'dairy'
-                ).length,
-              ],
-              [
-                'baking',
-                'Baking',
-                ingredients.filter(
-                  (i) =>
-                    i.category === 'baking'
-                ).length,
-              ],
-              [
-                'produce',
-                'Produce',
-                ingredients.filter(
-                  (i) =>
-                    i.category === 'produce'
-                ).length,
-              ],
-              [
-                'pantry',
-                'Pantry',
-                ingredients.filter(
-                  (i) =>
-                    i.category === 'pantry'
-                ).length,
-              ],
-              [
-                'herbs_spices',
-                'Herbs & spices',
-                ingredients.filter(
-                  (i) =>
-                    i.category === 'herbs_spices'
-                ).length,
-              ],
-            ].map(
-              ([value, label, count]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() =>
-                    setIngredientCategory(
-                      value as IngredientCategory
-                    )
-                  }
-                  className={`flex-1 min-w-48 rounded-2xl border-2 p-5 text-left transition-all ${
-                    ingredientCategory === value
-                      ? 'border-primary bg-[#FFFFFF]'
-                      : 'border-border bg-[#FFFFFF] hover:bg-[#FDECEC]'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-
-                    <span className="text-sm font-medium text-card-foreground">
-                      {label}
-                    </span>
-
-                    {value === 'low' ? (
-                      <AlertCircle className="size-5 text-destructive" />
-                    ) : (
-                      <PackageCheck className="size-5 text-primary" />
-                    )}
-
-                  </div>
-
-                  <span className="mt-3 block text-4xl font-bold text-card-foreground">
-                    {count}
-                  </span>
-                </button>
-              )
-            )}
-
-          </div>
-        )}
-
-        {/* DISHES TAB */}
-        {activeTab === 'dishes' && (
-          <>
-            {/* OVER PURCHASED */}
-            {overPurchased.length > 0 && (
-              <Card className="p-6 border-yellow-300 bg-yellow-50/80">
-
-                <div className="flex items-center gap-2 mb-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-700" />
-
-                  <h2 className="font-heading font-bold text-yellow-900">
-                    Over-purchased
-                  </h2>
-                </div>
-
-                <ul className="text-sm text-yellow-900 space-y-1">
-
-                  {overPurchased.map(
-                    (ingredient) => (
-                      <li
-                        key={ingredient.id}
-                      >
-                        {ingredient.name}:{' '}
-                        {formatQuantity(ingredient.currentStock, ingredient.unit)} exceeds
-                        max storage of{' '}
-                        {formatQuantity(ingredient.maxCapacity, ingredient.unit)}
-                      </li>
-                    )
-                  )}
-
-                </ul>
-
-              </Card>
-            )}
-
-            {/* TIRA-TIRA */}
-            {scrapSuggestions.length > 0 && (
-              <Card className="p-6 border-blue-200 bg-blue-50/80">
-
-                <div className="flex items-center gap-2 mb-3">
-                  <Lightbulb className="w-5 h-5 text-blue-700" />
-
-                  <h2 className="font-heading font-bold text-blue-900">
-                    Tira-tira suggestions
-                  </h2>
-                </div>
-
-                <ul className="text-sm text-blue-900 space-y-2">
-
-                  {scrapSuggestions.map(
-                    (suggestion) => (
-                      <li
-                        key={suggestion.dishId}
-                      >
-                        Can still make <strong>{suggestion.dishName}</strong> using leftover: {suggestion.usesLeftover.map((leftover) => `${leftover.ingredientName} (${leftover.quantity}${leftover.unit})`).join(', ')}
-                      </li>
-                    )
-                  )}
-
-                </ul>
-
-              </Card>
-            )}
-
-            {/* DISH AVAILABILITY */}
-            <Card className="p-6">
-
-              <h2 className="font-heading text-lg font-bold text-card-foreground mb-4">
-                Dish availability (per serving)
-              </h2>
-
-              <div className="space-y-3">
-
-                {filteredDishes.map(
-                  ({ dish, check }) => (
-                    <div
-                      key={dish.id}
-                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-muted/50 rounded-lg"
-                    >
-
-                      <div className="flex items-center gap-3">
-                        <span className={`font-medium ${unavailableDishIds.has(dish.id) ? 'text-muted-foreground line-through' : 'text-card-foreground'}`}>{dish.name}</span>
-                        {unavailableDishIds.has(dish.id) && <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-800">Unavailable</span>}
-                      </div>
-
-                      <div className="flex items-center gap-3">
-
-  <span
-  className={`text-xs font-medium px-2 py-1 rounded-full ${
-  unavailableDishIds.has(dish.id)
-  ? 'bg-red-100 text-red-800'
-  : check.status === 'available'
-  ? 'bg-green-100 text-green-800'
-  : check.status === 'limited'
-  ? 'bg-yellow-100 text-yellow-800'
-  : 'bg-red-100 text-red-800'
-  }`}
-  >
-  {unavailableDishIds.has(dish.id) ? 'unavailable' : check.status}
-  </span>
-
-                        {check.shortfalls.length >
-                          0 && (
-                          <span className="text-xs text-red-700">
-                            Short:{' '}
-                            {check.shortfalls
-                              .map(
-                                (shortfall) =>
-                                  `${shortfall.name} (need ${shortfall.required}${shortfall.unit}, have ${shortfall.available}${shortfall.unit})`
-                              )
-                              .join('; ')}
-                          </span>
-                        )}
-
-                        <button type="button" onClick={() => openEditDish(dish)} className="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-muted">Edit</button>
-                        <button type="button" onClick={() => toggleDishAvailability(dish.id)} className="rounded-lg border border-border px-3 py-1.5 text-xs hover:bg-muted">{unavailableDishIds.has(dish.id) ? 'Make available' : 'Make unavailable'}</button>
-                      </div>
-
-                    </div>
-                  )
-                )}
-
+        {ingredients.length > 0 && (
+          needRestock.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#C8431B]/30 bg-[#F6E3D3] px-5 py-4">
+              <p className="text-sm font-medium text-[#C8431B]">
+                <span className="font-heading text-lg font-bold">{needRestock.length}</span> {needRestock.length === 1 ? 'ingredient needs' : 'ingredients need'} restocking
+                {shortCount > 0 ? `, ${shortCount} ${shortCount === 1 ? 'is' : 'are'} short for confirmed orders.` : '.'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={copyShoppingList}>{copied ? <><Check data-icon="inline-start" />Copied</> : <><ClipboardList data-icon="inline-start" />Copy shopping list</>}</Button>
+                <Button type="button" size="sm" onClick={() => { clearFilters(); setStatusFilter(shortCount > 0 ? 'short' : 'low'); }}>Show them</Button>
               </div>
-
-            </Card>
-          </>
-        )}
-
-        {dishFormOpen && (
-          <div className="fixed inset-0 z-[100] flex min-h-screen items-center justify-center bg-slate-950/75 p-4 backdrop-blur-[2px]">
-            <form onSubmit={handleDishSubmit} className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl">
-              <h2 className="text-xl font-bold">{dishFormMode === 'add' ? 'Add dish' : 'Edit dish'}</h2>
-              <div className="mt-5 flex flex-col gap-4">
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">Name<input value={dishFormName} onChange={(event) => setDishFormName(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900" required /></label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">Category<select value={dishFormCategory} onChange={(event) => setDishFormCategory(event.target.value as typeof dishFormCategory)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900"><option value="mains">Main</option><option value="appetizers">Appetizers</option><option value="sides">Sides</option><option value="desserts">Dessert</option><option value="beverages">Beverages</option></select></label>
-                <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">Description<textarea value={dishFormDescription} onChange={(event) => setDishFormDescription(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900" rows={3} /></label>
-                {dishFormMode === 'add' && <div className="grid grid-cols-2 gap-3"><label className="flex flex-col gap-1 text-sm font-medium text-slate-700">Price<input type="number" min="0" step="0.01" value={dishFormPrice} onChange={(event) => setDishFormPrice(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900" required /></label><label className="flex flex-col gap-1 text-sm font-medium text-slate-700">Prep days<input type="number" min="0" step="1" value={dishFormPrepTime} onChange={(event) => setDishFormPrepTime(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900" required /></label></div>}
-              </div>
-              <div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setDishFormOpen(false)} className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700">Cancel</button><button type="submit" disabled={formSaving} className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">{formSaving ? 'Saving...' : 'Save changes'}</button></div>
-            </form>
-          </div>
-        )}
-
-        {formOpen && (
-          <div
-          className="fixed left-0 top-0 z-[9999] flex h-screen w-screen items-center justify-center bg-black/40 p-4"
-          onClick={() => {
-            if (!formSaving) {
-              setFormOpen(false)
-            }
-          }}
-        >
-            <div
-              className="w-full max-w-md rounded-2xl border border-border bg-[#FFFFFF] p-6 text-card-foreground shadow-xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              {/* HEADER */}
-              <div className="mb-6 flex items-center justify-between">
-                <h2 className="font-heading text-xl font-bold text-card-foreground">
-                  {formMode === 'add'
-                    ? 'Add ingredient'
-                    : 'Edit ingredient'}
-                </h2>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!formSaving) {
-                      setFormOpen(false);
-                    }
-                  }}
-                  className="rounded-lg p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                  aria-label="Close"
-                  disabled={formSaving}
-                >
-                  ×
-                </button>
-              </div>
-
-              {/* FORM */}
-              <form
-                onSubmit={handleIngredientSubmit}
-                className="flex flex-col gap-4"
-              >
-                {/* NAME */}
-
-                <label className="flex flex-col gap-1.5 text-sm font-medium text-card-foreground">
-                  Name
-
-                  <input
-                    value={formName}
-                    onChange={(event) =>
-                      setFormName(event.target.value)
-                    }
-                    className="w-full rounded-lg border border-border bg-[#FFFFFF] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    placeholder="Ingredient name"
-                    required
-                    disabled={formSaving}
-                  />
-                </label>
-
-                {/* QUANTITY */}
-
-                <label className="flex flex-col gap-1.5 text-sm font-medium text-card-foreground">
-                  Quantity ({formUnit})
-
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={formQuantity}
-                    onChange={(event) =>
-                      setFormQuantity(event.target.value)
-                    }
-                    className="w-full rounded-lg border border-border bg-[#FFFFFF] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    placeholder="0"
-                    required
-                    disabled={formSaving}
-                  />
-                </label>
-
-                                {/* MEASUREMENT UNIT */}
-
-                <label className="flex flex-col gap-1.5 text-sm font-medium text-card-foreground">
-                  Measurement unit
-
-                  <select
-                    value={formUnit}
-                    onChange={(event) => setFormUnit(event.target.value)}
-                    className="w-full rounded-lg border border-border bg-[#FFFFFF] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    disabled={formSaving}
-                  >
-                    {measurementOptions.map((unit) => (
-                      <option key={unit} value={unit}>
-                        {unit}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                {/* CATEGORY */}
-
-                <label className="flex flex-col gap-1.5 text-sm font-medium text-card-foreground">
-                  Category
-
-                  <select
-                    value={formCategory}
-                    onChange={(event) =>
-                      setFormCategory(
-                        event.target.value as typeof formCategory
-                      )
-                    }
-                    className="w-full rounded-lg border border-border bg-[#FFFFFF] px-3 py-2.5 text-card-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    disabled={formSaving}
-                  >
-                    <option value="meats">Meats</option>
-                    <option value="dairy">Dairy</option>
-                    <option value="baking">Baking</option>
-                    <option value="produce">Produce</option>
-                    <option value="pantry">Pantry</option>
-                    <option value="herbs_spices">
-                      Herbs & spices
-                    </option>
-                  </select>
-                </label>
-
-                {/* BUTTONS */}
-
-                <div className="mt-2 flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setFormOpen(false)}
-                    className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-card-foreground transition hover:bg-muted"
-                    disabled={formSaving}
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 disabled:opacity-50"
-                    disabled={formSaving}
-                  >
-                    {formSaving
-                      ? 'Saving...'
-                      : formMode === 'add'
-                        ? 'Add ingredient'
-                        : 'Save changes'}
-                  </button>
-                </div>
-              </form>
             </div>
-          </div>
+          ) : (
+            <div className="rounded-2xl border border-[#E8D8C4] bg-white px-5 py-4 text-sm text-muted-foreground"><span className="font-semibold text-[#2B1D16]">Stock looks healthy.</span> Nothing is low and every confirmed order is covered.</div>
+          )
         )}
 
-        {/* INGREDIENTS TAB */}
-        {activeTab === 'ingredients' && (
-          <Card className="overflow-hidden">
-
-            <div className="overflow-x-auto">
-
-              <table className="w-full">
-
-                <thead>
-                  <tr className="border-b border-border">
-
-                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
-                      Ingredient
-                    </th>
-
-                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
-                      Current Stock
-                    </th>
-
-                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
-                      Reserved
-                      <span className="mt-1 block text-xs font-normal text-muted-foreground">All upcoming confirmed orders</span>
-                    </th>
-
-                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
-                      Available
-                    </th>
-
-                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
-                      Capacity
-                    </th>
-
-                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
-                      Usage
-                    </th>
-
-                    <th className="text-left px-4 py-4 text-xs font-semibold uppercase tracking-wide text-[#6B5558] whitespace-nowrap">
-                      Status
-                    </th>
-                    <th className="px-4 py-4" aria-label="Actions" />
-
-                  </tr>
-                </thead>
-
-                <tbody>
-
-                  {filteredIngredients.map(
-                    (ingredient) => {
-
-                      const percentage =
-                        ingredient.maxCapacity > 0
-                          ? (
-                              ingredient.currentStock /
-                              ingredient.maxCapacity
-                            ) *
-                            100
-                          : 0;
-
-                      const reserved = reservedIngredients[Number(ingredient.id)] ?? 0;
-                      const available = ingredient.currentStock - reserved;
-                      const isOver =
-                        ingredient.currentStock >
-                        ingredient.maxCapacity;
-
-                      const statusColor =
-                        isOver
-                          ? 'bg-orange-100 text-orange-800'
-                          : percentage < 25
-                            ? 'bg-red-100 text-red-800'
-                            : percentage < 50
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-green-100 text-green-800';
-
-                      const statusLabel =
-                        isOver
-                          ? 'Over-bought'
-                          : percentage < 25
-                            ? 'Low'
-                            : percentage < 50
-                              ? 'Medium'
-                              : 'Good';
-
-                      const isSaving =
-                        savingId ===
-                        ingredient.id;
-
-                      return (
-                        <tr
-                          key={ingredient.id}
-                          className="border-b border-border hover:bg-muted/50"
-                        >
-
-                          {/* INGREDIENT NAME */}
-                          <td className="px-4 py-4 font-medium text-card-foreground">
-                            {ingredient.name}
-                          </td>
-
-                          {/* CURRENT STOCK */}
-                            <td className="px-4 py-4 text-card-foreground">
-                              {editingId === ingredient.id ? (
-                                <div className="flex items-center gap-2">
-                                  <label className="flex items-center gap-2">
-                                    <span className="sr-only">Stock in {ingredient.unit}</span>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="1"
-                                      value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    className="w-28 px-2 py-1 border border-border rounded"
-                                    disabled={isSaving}
-                                    />
-                                  </label>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleSave(ingredient.id)}
-                                    disabled={isSaving}
-                                    className="px-3 py-1 bg-primary text-white rounded text-sm disabled:opacity-50"
-                                  >
-                                    {isSaving ? 'Saving...' : 'Save'}
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingId(null);
-                                      setEditValue('');
-                                    }}
-                                    disabled={isSaving}
-                                    className="px-3 py-1 border border-border rounded text-sm"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-3">
-                                  <span>
-                                    {formatQuantity(ingredient.currentStock, ingredient.unit)}
-                                  </span>
-
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      handleEdit(
-                                        ingredient.id,
-                                        ingredient.currentStock
-                                      )
-                                    }
-                                    className="px-3 py-1 border border-border rounded text-sm hover:bg-muted"
-                                  >
-                                    Edit
-                                  </button>
-                                </div>
-                              )}
-                            </td>
-
-                          {/* RESERVED */}
-                          <td className="px-4 py-4 text-muted-foreground">
-                            {formatQuantity(reserved, ingredient.unit)}
-                          </td>
-
-                          {/* AVAILABLE */}
-                          <td className={`p-6 font-medium ${available < 0 ? 'text-red-600' : 'text-card-foreground'}`}>
-                            {formatQuantity(available, ingredient.unit)}
-                            {available < 0 && <span className="mt-1 block text-xs">Short by {formatQuantity(Math.abs(available), ingredient.unit)}</span>}
-                          </td>
-
-                          {/* CAPACITY */}
-                          <td className="px-4 py-4 text-muted-foreground">
-                            {formatQuantity(ingredient.maxCapacity, ingredient.unit)}
-                          </td>
-
-                          {/* USAGE */}
-                          <td className="px-4 py-4">
-
-                            <div className="flex items-center gap-3">
-
-                              <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-
-                                <div
-                                  className={`h-full transition-all ${
-                                    isOver
-                                      ? 'bg-orange-500'
-                                      : 'bg-primary'
-                                  }`}
-                                  style={{
-                                    width: `${Math.min(
-                                      percentage,
-                                      100
-                                    )}%`,
-                                  }}
-                                />
-
-                              </div>
-
-                              <span className="text-sm text-muted-foreground w-12">
-                                {Math.round(
-                                  percentage
-                                )}
-                                %
-                              </span>
-
-                            </div>
-
-                          </td>
-
-                          {/* STATUS */}
-                          <td className="px-4 py-4">
-
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${statusColor}`}
-                            >
-                              {statusLabel}
-                            </span>
-
-                          </td>
-                          <td className="px-4 py-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => openEditIngredient(ingredient)}
-                              className="rounded-lg border border-border px-3 py-1 text-sm hover:bg-muted"
-                            >
-                              Edit
-                            </button>
-                          </td>
-
-                        </tr>
-                      );
-                    }
-                  )}
-
-                </tbody>
-
-              </table>
-
-            </div>
-
+        {actionError && (
+          <Card className="flex items-start justify-between gap-3 border-destructive/40 bg-destructive/10 p-4">
+            <p className="text-sm text-destructive">{actionError}</p>
+            <button type="button" aria-label="Dismiss message" onClick={() => setActionError('')} className="text-destructive"><X className="size-4" /></button>
           </Card>
         )}
 
+        {scrapSuggestions.length > 0 && (
+          <Card className="p-0">
+            <button type="button" aria-expanded={showUseItUp} onClick={() => setShowUseItUp((v) => !v)} className="flex w-full items-center justify-between gap-3 rounded-xl px-5 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]">
+              <span className="flex items-center gap-2 font-heading text-base font-bold text-card-foreground"><Lightbulb className="size-5 text-[#C8431B]" aria-hidden="true" />Use it up: {scrapSuggestions.length} {scrapSuggestions.length === 1 ? 'dish' : 'dishes'} you can still make with leftovers</span>
+              <ChevronDown className={`size-5 text-muted-foreground transition-transform duration-200 ${showUseItUp ? 'rotate-180' : ''}`} aria-hidden="true" />
+            </button>
+            {showUseItUp && (
+              <ul className="owner-list-page space-y-2 border-t border-[#E8D8C4] px-5 py-4 text-sm text-[#2B1D16]">
+                {scrapSuggestions.map((suggestion) => (
+                  <li key={suggestion.dishId}>
+                    <span className="font-semibold">{suggestion.dishName}</span> with leftover {suggestion.usesLeftover.map((leftover) => `${leftover.ingredientName} (${leftover.quantity}${leftover.unit})`).join(', ')}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        )}
+
+        <div className="flex flex-wrap gap-1 border-b border-[#E8D8C4]" role="tablist" aria-label="Ingredient category">
+          {categoryTabs.map(([key, label]) => {
+            const active = categoryTab === key;
+            return (
+              <button key={key} type="button" role="tab" aria-selected={active} onClick={() => setCategoryTab(key)} className={`-mb-px inline-flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] ${active ? 'border-[#C8431B] text-[#C8431B]' : 'border-transparent text-muted-foreground hover:text-[#2B1D16]'}`}>
+                {label}
+                <span className="rounded-full bg-[#F6E3D3] px-2 py-0.5 text-xs text-[#C8431B]">{tabCount(key)}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by stock level">
+            {chips.map(([key, label]) => (
+              <button key={key} type="button" aria-pressed={statusFilter === key} onClick={() => setStatusFilter(key)} className={`h-8 rounded-full border px-3 text-xs font-semibold transition-colors ${statusFilter === key ? 'border-[#C8431B] bg-[#C8431B] text-white' : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:bg-[#F6E3D3]'}`}>
+                {label} <span className="opacity-70">{stateCounts[key]}</span>
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="relative">
+              <span className="sr-only">Search ingredients</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ingredients" className="h-9 w-56 rounded-full border border-[#E8D8C4] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20" />
+            </label>
+            <SortMenu value={sortKey} onChange={setSortKey} />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground" aria-label="Bar legend">
+          <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-5 rounded-full bg-emerald-500" />Free to use</span>
+          <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-5 rounded-full bg-slate-600" style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.4) 0 3px, transparent 3px 6px)' }} />Reserved for confirmed orders</span>
+          <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-5 rounded-full bg-[#E8D8C4]/70" />Empty space up to capacity</span>
+        </div>
+
+        {ingredients.length === 0 ? (
+          <Card className="p-12 text-center">
+            <p className="font-medium text-[#2B1D16]">No ingredients yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">Add your first ingredient to start tracking stock.</p>
+            <Button className="mt-4" onClick={openAddIngredient}><Plus data-icon="inline-start" />Add ingredient</Button>
+          </Card>
+        ) : shown.length === 0 ? (
+          <Card className="p-10 text-center">
+            <p className="font-medium text-[#2B1D16]">{needle ? `No ingredients match "${query}"` : 'Nothing in this view'}</p>
+            <Button type="button" variant="outline" size="sm" className="mt-3" onClick={clearFilters}>Clear filters</Button>
+          </Card>
+        ) : (
+          <Paged items={shown} pageSize={8} label="ingredients" className="space-y-3">
+            {(row) => renderRow(row)}
+          </Paged>
+        )}
       </div>
+
+      {formOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4" onClick={closeForm}>
+          <div role="dialog" aria-modal="true" aria-label={formMode === 'add' ? 'Add ingredient' : 'Edit ingredient'} className="w-full max-w-md rounded-2xl border border-[#E8D8C4] bg-white p-6 text-card-foreground shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="font-heading text-xl font-bold">{formMode === 'add' ? 'Add ingredient' : 'Edit ingredient'}</h2>
+              <button type="button" onClick={closeForm} disabled={formSaving} aria-label="Close" className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-[#f1f1f2]"><X className="size-5" /></button>
+            </div>
+            <form onSubmit={handleIngredientSubmit} className="flex flex-col gap-4">
+              {([
+                ['Name', <input key="n" autoFocus value={formName} onChange={(event) => setFormName(event.target.value)} placeholder="Ingredient name" required disabled={formSaving} className="h-10 w-full rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm outline-none focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20" />],
+                [`Quantity (${formUnit})`, <input key="q" type="number" min="0" step="1" value={formQuantity} onChange={(event) => setFormQuantity(event.target.value)} placeholder="0" required disabled={formSaving} className="h-10 w-full rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm outline-none focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20" />],
+              ] as [string, React.ReactNode][]).map(([label, input]) => (
+                <label key={label} className="flex flex-col gap-1.5 text-sm font-medium">{label}{input}</label>
+              ))}
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1.5 text-sm font-medium">Unit
+                  <select value={formUnit} onChange={(event) => setFormUnit(event.target.value)} disabled={formSaving} className="h-10 rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm outline-none focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20">
+                    {measurementOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1.5 text-sm font-medium">Category
+                  <select value={formCategory} onChange={(event) => setFormCategory(event.target.value as CategoryKey)} disabled={formSaving} className="h-10 rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm outline-none focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20">
+                    {(Object.entries(categoryLabels) as [CategoryKey, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+              </div>
+              {formError && <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</p>}
+              <div className="mt-1 flex justify-end gap-3">
+                <Button type="button" variant="outline" onClick={closeForm} disabled={formSaving}>Cancel</Button>
+                <Button type="submit" disabled={formSaving}>{formSaving ? 'Saving...' : formMode === 'add' ? 'Add ingredient' : 'Save changes'}</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

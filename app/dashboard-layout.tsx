@@ -18,7 +18,7 @@ export function DashboardLayout({
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-[#FFF7F6]">
+    <div className="flex min-h-screen bg-[#FBF6EE]">
       <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
       <div className="flex min-w-0 flex-1 flex-col lg:ml-64">
         <TopNav onMenuClick={() => setMenuOpen(true)} />

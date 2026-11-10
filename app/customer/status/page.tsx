@@ -80,7 +80,7 @@ const statusCopy: Record<
   completed: {
     label: 'Completed',
     icon: CheckCircle2,
-    badge: 'bg-[#FDECEC] text-[#7F1623] border-[#E8B4B4]',
+    badge: 'bg-[#F6E3D3] text-[#A93615] border-[#E3C7A8]',
     note: 'This event is done. Thank you for ordering!',
   },
 };
@@ -214,23 +214,23 @@ export default function CustomerStatusPage() {
     <CustomerShell>
       <div className="mx-auto flex max-w-4xl flex-col gap-8">
         <header>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#9B1C2C]">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#C8431B]">
             Your catering requests
           </p>
-          <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
+          <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">
             My bookings
           </h1>
-          <p className="mt-2 text-[#2A1B1F]/70">
+          <p className="mt-2 text-[#2B1D16]/70">
             Track your submitted bookings and their current status.
           </p>
         </header>
 
         {loading ? (
-          <div className="rounded-xl border border-[#E8D2D2] bg-white p-12 text-center text-[#2A1B1F]/60">
+          <div className="rounded-xl border border-[#E8D8C4] bg-white p-12 text-center text-[#2B1D16]/60">
             Loading your bookings...
           </div>
         ) : bookings.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[#E8D2D2] bg-white p-12 text-center text-[#2A1B1F]/60">
+          <div className="rounded-xl border border-dashed border-[#E8D8C4] bg-white p-12 text-center text-[#2B1D16]/60">
             No bookings yet. Start a new order to see it here.
           </div>
         ) : (
@@ -270,14 +270,14 @@ export default function CustomerStatusPage() {
               return (
                 <article
                   key={booking.BookingID}
-                  className="overflow-hidden rounded-xl border border-[#E8D2D2] bg-white shadow-sm"
+                  className="overflow-hidden rounded-xl border border-[#E8D8C4] bg-white shadow-sm"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E8D2D2] bg-[#FDECEC] px-6 py-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E8D8C4] bg-[#F6E3D3] px-6 py-5">
                     <div>
-                      <h2 className="font-heading text-2xl font-bold uppercase leading-tight text-[#2A1B1F]">
+                      <h2 className="font-heading text-2xl font-bold uppercase leading-tight text-[#2B1D16]">
                         {title}
                       </h2>
-                      <p className="mt-1 text-sm text-[#2A1B1F]/60">Order #{booking.BookingID}</p>
+                      <p className="mt-1 text-sm text-[#2B1D16]/60">Order #{booking.BookingID}</p>
                     </div>
                     <span
                       className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold ${status.badge}`}
@@ -295,7 +295,7 @@ export default function CustomerStatusPage() {
                           <li key={label} className="flex flex-1 items-center last:flex-none">
                             <span
                               className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                                i <= step ? 'bg-[#9B1C2C] text-white' : 'bg-neutral-200 text-neutral-500'
+                                i <= step ? 'bg-[#C8431B] text-white' : 'bg-neutral-200 text-neutral-500'
                               }`}
                               aria-current={i === step ? 'step' : undefined}
                             >
@@ -303,14 +303,14 @@ export default function CustomerStatusPage() {
                             </span>
                             <span
                               className={`ml-2 text-xs font-semibold uppercase tracking-wide ${
-                                i <= step ? 'text-[#2A1B1F]' : 'text-[#2A1B1F]/40'
+                                i <= step ? 'text-[#2B1D16]' : 'text-[#2B1D16]/40'
                               }`}
                             >
                               {label}
                             </span>
                             {i < STEPS.length - 1 && (
                               <span
-                                className={`mx-3 h-0.5 flex-1 rounded ${i < step ? 'bg-[#9B1C2C]' : 'bg-neutral-200'}`}
+                                className={`mx-3 h-0.5 flex-1 rounded ${i < step ? 'bg-[#C8431B]' : 'bg-neutral-200'}`}
                                 aria-hidden="true"
                               />
                             )}
@@ -331,29 +331,29 @@ export default function CustomerStatusPage() {
                         { icon: Users, label: 'Guests', value: `${booking.GuestCount} guests` },
                       ].map(({ icon: Icon, label, value }) => (
                         <div key={label} className="flex items-start gap-3">
-                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#9B1C2C] text-white">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#C8431B] text-white">
                             <Icon className="size-4" aria-hidden="true" />
                           </span>
                           <div>
-                            <dt className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">{label}</dt>
-                            <dd className="font-semibold text-[#2A1B1F]">{value}</dd>
+                            <dt className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">{label}</dt>
+                            <dd className="font-semibold text-[#2B1D16]">{value}</dd>
                           </div>
                         </div>
                       ))}
                       {address && (
                         <div className="flex items-start gap-3 sm:col-span-2">
-                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#9B1C2C] text-white">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#C8431B] text-white">
                             <MapPin className="size-4" aria-hidden="true" />
                           </span>
                           <div>
-                            <dt className="text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">Drop-off location</dt>
-                            <dd className="font-semibold text-[#2A1B1F]">{address}</dd>
+                            <dt className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">Drop-off location</dt>
+                            <dd className="font-semibold text-[#2B1D16]">{address}</dd>
                             {pinned && (
                               <a
                                 href={`https://www.openstreetmap.org/?mlat=${pinned.lat}&mlon=${pinned.lng}#map=17/${pinned.lat}/${pinned.lng}`}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-sm font-semibold text-[#9B1C2C] underline"
+                                className="text-sm font-semibold text-[#C8431B] underline"
                               >
                                 View pin on map
                               </a>
@@ -365,26 +365,26 @@ export default function CustomerStatusPage() {
 
                     {/* MENU ITEMS */}
                     <div>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#2A1B1F]/60">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">
                         Selected menu items
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {booking.items.length === 0 ? (
-                          <span className="text-sm text-[#2A1B1F]/60">No menu items recorded.</span>
+                          <span className="text-sm text-[#2B1D16]/60">No menu items recorded.</span>
                         ) : (
                           booking.items.map((item) => (
                             <span
                               key={`${booking.BookingID}-${item.name}`}
-                              className="rounded-lg border border-[#E8D2D2] bg-white px-3 py-1.5 text-sm font-medium text-[#2A1B1F]"
+                              className="rounded-lg border border-[#E8D8C4] bg-white px-3 py-1.5 text-sm font-medium text-[#2B1D16]"
                             >
                               <div>
                               <span>{item.name}</span>
                               {item.quantity > 1 && (
-                                <span className="text-[#2A1B1F]/50">
+                                <span className="text-[#2B1D16]/50">
                                   {' '}× {item.quantity}
                                 </span>
                               )}
-                              <p className="mt-1 text-xs text-[#2A1B1F]/60">
+                              <p className="mt-1 text-xs text-[#2B1D16]/60">
                                 {item.price === null
                                   ? 'Price unavailable'
                                   : `${peso(item.price)} each`}
@@ -397,31 +397,31 @@ export default function CustomerStatusPage() {
                     </div>
 
                     {/* TOTAL */}
-                    <div className="space-y-1 border-t border-[#E8D2D2] pt-4 text-sm">
-                      <div className="flex justify-between text-[#2A1B1F]/70">
+                    <div className="space-y-1 border-t border-[#E8D8C4] pt-4 text-sm">
+                      <div className="flex justify-between text-[#2B1D16]/70">
                         <span>Food</span>
                         <span>
                           {foodTotal === null ? 'Unavailable' : peso(foodTotal)}
                         </span>
                       </div>
                       {deliveryFee > 0 && (
-                        <div className="flex justify-between text-[#2A1B1F]/70">
+                        <div className="flex justify-between text-[#2B1D16]/70">
                           <span>Delivery</span>
                           <span>{peso(deliveryFee)}</span>
                         </div>
                       )}
                       <div className="flex items-center justify-between pt-1">
-                        <span className="font-semibold text-[#2A1B1F]">Estimated total</span>
-                        <span className="text-xl font-bold text-[#9B1C2C]">
+                        <span className="font-semibold text-[#2B1D16]">Estimated total</span>
+                        <span className="text-xl font-bold text-[#C8431B]">
                           {estimatedTotal === null ? 'Unavailable' : peso(estimatedTotal)}
                         </span>
                       </div>
                     </div>
 
                     {(statusKey === 'pending' || statusKey === 'confirmed') && (
-                      <p className="rounded-lg bg-[#FDECEC] p-3 text-sm text-[#2A1B1F]">
+                      <p className="rounded-lg bg-[#F6E3D3] p-3 text-sm text-[#2B1D16]">
                         Need to cancel or change this booking? Please contact the caterer at{' '}
-                        <a href={`mailto:${OWNER_CONTACT}`} className="font-semibold text-[#9B1C2C] underline">
+                        <a href={`mailto:${OWNER_CONTACT}`} className="font-semibold text-[#C8431B] underline">
                           {OWNER_CONTACT}
                         </a>
                         .

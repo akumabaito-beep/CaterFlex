@@ -3,13 +3,13 @@ import type { CSSProperties } from 'react'
 /**
  * CaterFlex loading animation: the chef-hat "C" walking in place.
  * Sprites live in /public/loader/ (body.png, leg-left.png, leg-right.png).
- * Colour follows the surrounding text colour, e.g. className="text-[#8E1F2C]".
+ * Colour follows the surrounding text colour, e.g. className="text-[#C8431B]".
  */
 export function WalkingLoader({
   height = 200,
   label = 'Loading',
   showLabel = true,
-  className = 'text-[#8E1F2C]',
+  className = 'text-[#C8431B]',
 }: {
   height?: number
   label?: string

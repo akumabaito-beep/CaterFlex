@@ -21,7 +21,7 @@ const links = [
 ];
 
 const solid =
-  'inline-flex h-9 items-center justify-center rounded-lg bg-[#9B1C2C] px-4 text-sm font-medium text-white hover:bg-[#7F1623] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C] focus-visible:ring-offset-2';
+  'inline-flex h-9 items-center justify-center rounded-lg bg-[#C8431B] px-4 text-sm font-medium text-white hover:bg-[#A93615] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] focus-visible:ring-offset-2';
 
 export function CustomerShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -52,8 +52,8 @@ export function CustomerShell({ children }: { children: ReactNode }) {
                   key={link.href}
                   href={link.href}
                   aria-current={active ? 'page' : undefined}
-                  className={`text-xs font-semibold uppercase tracking-[0.16em] transition-colors hover:text-[#8E1F2C] ${
-                    active ? 'text-[#8E1F2C]' : 'text-muted-foreground'
+                  className={`text-xs font-semibold uppercase tracking-[0.16em] transition-colors hover:text-[#C8431B] ${
+                    active ? 'text-[#C8431B]' : 'text-muted-foreground'
                   }`}
                 >
                   {link.label}
@@ -73,7 +73,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
             aria-label={open ? 'Close menu' : 'Open menu'}
             aria-expanded={open}
             onClick={() => setOpen(!open)}
-            className="inline-flex size-9 items-center justify-center rounded-md border border-border text-[#2A1B1F] md:hidden"
+            className="inline-flex size-9 items-center justify-center rounded-md border border-border text-[#2B1D16] md:hidden"
           >
             {open ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
@@ -91,7 +91,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
                 onClick={() => setOpen(false)}
                 aria-current={isActive(link.match) ? 'page' : undefined}
                 className={`block py-3 text-sm font-semibold uppercase tracking-wide ${
-                  isActive(link.match) ? 'text-[#8E1F2C]' : 'text-muted-foreground'
+                  isActive(link.match) ? 'text-[#C8431B]' : 'text-muted-foreground'
                 }`}
               >
                 {link.label}

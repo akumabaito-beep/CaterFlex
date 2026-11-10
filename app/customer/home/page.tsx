@@ -23,13 +23,13 @@ export default async function CustomerHomePage() {
     <CustomerShell>
       <div className="mx-auto max-w-6xl space-y-14 px-5 py-8 lg:px-8 lg:py-10">
         {/* Welcome banner */}
-        <section className="relative overflow-hidden rounded-2xl bg-[#8E1F2C] px-6 py-10 text-white sm:px-10 lg:py-14" aria-labelledby="home-heading">
+        <section className="relative overflow-hidden rounded-2xl bg-[#2B1D16] px-6 py-10 text-white sm:px-10 lg:py-14" aria-labelledby="home-heading">
           <div className="relative z-10 max-w-md xl:max-w-lg">
             <p className="font-mono text-xs uppercase tracking-[0.24em] text-white/80">Welcome back</p>
             <h1 id="home-heading" className="mt-3 font-heading text-4xl font-bold uppercase leading-[1.05] tracking-tight sm:text-5xl">Hi {firstName}, what are we cooking?</h1>
             <p className="mt-4 text-base leading-7 text-white/85">Browse what&apos;s on the menu, then book an event or set up your weekly meals.</p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <Link href="/customer/inquiry" className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-white px-6 text-sm font-semibold leading-none text-[#8E1F2C] hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#8E1F2C]">
+              <Link href="/customer/inquiry" className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-white px-6 text-sm font-semibold leading-none text-[#C8431B] hover:bg-primary-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#C8431B]">
                 Start an order <ArrowRight className="size-4" aria-hidden="true" />
               </Link>
               <Link href="/customer/status" className="inline-flex h-12 items-center justify-center rounded-lg border border-white/50 px-6 text-sm font-semibold leading-none text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
@@ -57,8 +57,8 @@ export default async function CustomerHomePage() {
             <section aria-labelledby="new-heading">
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <p className="flex items-center gap-2 text-xs font-semibold text-[#9B1C2C]"><Sparkles className="size-4" aria-hidden="true" /> Just added</p>
-                  <h2 id="new-heading" className="mt-2 font-heading text-3xl font-bold uppercase tracking-tight text-[#2A1B1F]">New on the menu</h2>
+                  <p className="flex items-center gap-2 text-xs font-semibold text-[#C8431B]"><Sparkles className="size-4" aria-hidden="true" /> Just added</p>
+                  <h2 id="new-heading" className="mt-2 font-heading text-3xl font-bold uppercase tracking-tight text-[#2B1D16]">New on the menu</h2>
                 </div>
               </div>
               <div className="mt-6 px-3 sm:px-5">
@@ -68,7 +68,7 @@ export default async function CustomerHomePage() {
 
             {/* Full menu */}
             <section aria-labelledby="menu-heading">
-              <h2 id="menu-heading" className="font-heading text-3xl font-bold uppercase tracking-tight text-[#2A1B1F]">Our menu</h2>
+              <h2 id="menu-heading" className="font-heading text-3xl font-bold uppercase tracking-tight text-[#2B1D16]">Our menu</h2>
               <p className="mt-2 text-sm text-muted-foreground">Everything currently available for events and weekly meals.</p>
               <div className="mt-6"><MenuGrid items={items} /></div>
             </section>

@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { AuthSessionSync } from '@/components/auth/session-sync'
 
 export const metadata: Metadata = {
   title: 'CaterFlex - Catering Management',
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: 'light',
-  themeColor: '#D13A47',
+  themeColor: '#C8431B',
 }
 
 export default function RootLayout({
@@ -30,6 +31,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="light bg-background" suppressHydrationWarning>
       <body className="antialiased">
+        <AuthSessionSync />
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

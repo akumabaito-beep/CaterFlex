@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import { CustomerShell } from '@/app/customer/customer-shell';
 import { useAppState } from '@/lib/state';
+import { restoreSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Check, AlertCircle, CheckCircle2, Plus, X, CalendarDays, Clock, Users, Repeat, Pencil } from 'lucide-react';
@@ -388,8 +389,12 @@ const filteredMenuItems = isMealPrepDraft
         customerBookingDraft.venue ?? ''
       ).trim();
 
-      // Make sure the customer is logged in.
-      if (!currentUser?.id || Number.isNaN(Number(currentUser.id))) {
+      // Make sure the customer is logged in. The browser copy of the user can be empty after a
+      // page reload or a Google sign-in even though the sign-in cookie is valid, so reload it
+      // from the cookie before giving up.
+      if (!currentUser?.id) await restoreSession();
+      const sessionUser = useAppState.getState().currentUser;
+      if (!sessionUser?.id || Number.isNaN(Number(sessionUser.id))) {
         alert('Unable to identify your customer account. Please log in again.');
         return;
       }
@@ -638,31 +643,31 @@ const filteredMenuItems = isMealPrepDraft
       <div className="pb-28 lg:pb-0">
         {/* HEADER */}
         <div className="mb-8">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#9B1C2C]">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#C8431B]">
             {isMealPrepDraft ? 'Step 3 of 3' : 'Step 2 of 2'} · Choose your dishes
           </p>
-          <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
+          <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">
             Build your menu
           </h1>
-          <p className="mt-2 text-[#2A1B1F]/70">
+          <p className="mt-2 text-[#2B1D16]/70">
             Tap a dish to add it to your {isMealPrepDraft ? 'meal prep plan' : 'event'}.
           </p>
 
           {recap.length > 0 && (
-            <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-[#E8D2D2] bg-[#FDECEC] p-3">
+            <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border border-[#E8D8C4] bg-[#F6E3D3] p-3">
               {recap.map(({ icon: Icon, text }) => (
                 <span
                   key={text}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-[#2A1B1F]"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-[#2B1D16]"
                 >
-                  <Icon className="h-4 w-4 text-[#9B1C2C]" aria-hidden="true" />
+                  <Icon className="h-4 w-4 text-[#C8431B]" aria-hidden="true" />
                   {text}
                 </span>
               ))}
               <button
                 type="button"
                 onClick={() => router.push('/customer/inquiry')}
-                className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-[#9B1C2C] hover:bg-white"
+                className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold text-[#C8431B] hover:bg-white"
               >
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 Edit details
@@ -691,12 +696,12 @@ const filteredMenuItems = isMealPrepDraft
                           onClick={() => setSelectedMealPrepCategory(category.value)}
                           className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
                             active
-                              ? 'border-[#9B1C2C] bg-[#9B1C2C] text-white'
-                              : 'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/60'
+                              ? 'border-[#C8431B] bg-[#C8431B] text-white'
+                              : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:border-[#C8431B]/60'
                           }`}
                         >
                           {category.label}
-                          <span className={`ml-1.5 text-xs ${active ? 'text-white/80' : 'text-[#2A1B1F]/50'}`}>
+                          <span className={`ml-1.5 text-xs ${active ? 'text-white/80' : 'text-[#2B1D16]/50'}`}>
                             {count}
                           </span>
                         </button>
@@ -720,12 +725,12 @@ const filteredMenuItems = isMealPrepDraft
                           onClick={() => setSelectedCategory(category)}
                           className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
                             active
-                              ? 'border-[#9B1C2C] bg-[#9B1C2C] text-white'
-                              : 'border-[#E8D2D2] bg-white text-[#2A1B1F] hover:border-[#9B1C2C]/60'
+                              ? 'border-[#C8431B] bg-[#C8431B] text-white'
+                              : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:border-[#C8431B]/60'
                           }`}
                         >
                           {category}
-                          <span className={`ml-1.5 text-xs ${active ? 'text-white/80' : 'text-[#2A1B1F]/50'}`}>
+                          <span className={`ml-1.5 text-xs ${active ? 'text-white/80' : 'text-[#2B1D16]/50'}`}>
                             {count}
                           </span>
                         </button>
@@ -734,15 +739,15 @@ const filteredMenuItems = isMealPrepDraft
               </div>
 
             {loadingMenu ? (
-              <div className="rounded-xl border border-[#E8D2D2] bg-white p-10 text-center text-[#2A1B1F]/60">
+              <div className="rounded-xl border border-[#E8D8C4] bg-white p-10 text-center text-[#2B1D16]/60">
                 Loading menu items...
               </div>
             ) : dbMenuItems.length === 0 ? (
-              <div className="rounded-xl border border-[#E8D2D2] bg-white p-10 text-center text-[#2A1B1F]/60">
+              <div className="rounded-xl border border-[#E8D8C4] bg-white p-10 text-center text-[#2B1D16]/60">
                 No menu items are currently available.
               </div>
             ) : filteredMenuItems.length === 0 ? (
-              <div className="rounded-xl border border-[#E8D2D2] bg-white p-10 text-center text-[#2A1B1F]/60">
+              <div className="rounded-xl border border-[#E8D8C4] bg-white p-10 text-center text-[#2B1D16]/60">
                 No menu items found in this category.
               </div>
             ) : (
@@ -783,8 +788,8 @@ const filteredMenuItems = isMealPrepDraft
                       key={item.id}
                       className={`flex flex-col overflow-hidden rounded-xl border-2 bg-white shadow-sm transition-all ${
                         isSelected
-                          ? 'border-[#9B1C2C] shadow-md'
-                          : 'border-[#E8D2D2] hover:border-[#9B1C2C]/50'
+                          ? 'border-[#C8431B] shadow-md'
+                          : 'border-[#E8D8C4] hover:border-[#C8431B]/50'
                       }`}
                     >
                       <button
@@ -792,7 +797,7 @@ const filteredMenuItems = isMealPrepDraft
                         onClick={toggle}
                         aria-pressed={isSelected}
                         aria-label={`${isSelected ? 'Remove' : 'Add'} ${item.name}`}
-                        className="relative block overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#9B1C2C]"
+                        className="relative block overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C8431B]"
                       >
                         {item.photoUrl ? (
                           <img
@@ -801,17 +806,17 @@ const filteredMenuItems = isMealPrepDraft
                             className="h-44 w-full object-cover transition-transform duration-300 hover:scale-105"
                           />
                         ) : (
-                          <div className="flex h-44 w-full items-center justify-center bg-[#FDECEC] text-sm text-[#2A1B1F]/50">
+                          <div className="flex h-44 w-full items-center justify-center bg-[#F6E3D3] text-sm text-[#2B1D16]/50">
                             No photo available
                           </div>
                         )}
 
-                        <span className="absolute bottom-3 left-3 rounded-lg bg-white/90 px-3 py-1 text-xs font-semibold text-[#2A1B1F] backdrop-blur-sm">
+                        <span className="absolute bottom-3 left-3 rounded-lg bg-white/90 px-3 py-1 text-xs font-semibold text-[#2B1D16] backdrop-blur-sm">
                           {item.category || "Chef's selection"}
                         </span>
 
                         {isSelected && (
-                          <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-[#9B1C2C] text-white shadow">
+                          <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-[#C8431B] text-white shadow">
                             <Check className="h-5 w-5" aria-hidden="true" />
                           </span>
                         )}
@@ -819,16 +824,16 @@ const filteredMenuItems = isMealPrepDraft
 
                       <div className="flex flex-1 flex-col p-5">
                         <div className="flex items-start justify-between gap-3">
-                          <h3 className="font-heading text-lg font-bold uppercase leading-tight text-[#2A1B1F]">
+                          <h3 className="font-heading text-lg font-bold uppercase leading-tight text-[#2B1D16]">
                             {item.name}
                           </h3>
-                          <span className="shrink-0 text-lg font-bold text-[#9B1C2C]">
+                          <span className="shrink-0 text-lg font-bold text-[#C8431B]">
                             ₱{item.price.toFixed(2)}
                           </span>
                         </div>
 
                         {item.description && (
-                          <p className="mt-2 line-clamp-3 text-sm text-[#2A1B1F]/70">
+                          <p className="mt-2 line-clamp-3 text-sm text-[#2B1D16]/70">
                             {item.description}
                           </p>
                         )}
@@ -838,7 +843,7 @@ const filteredMenuItems = isMealPrepDraft
                             {item.allergyTags.map((tag) => (
                               <span
                                 key={tag}
-                                className="rounded-md bg-[#FDECEC] px-2 py-1 text-xs font-medium capitalize text-[#7F1623]"
+                                className="rounded-md bg-[#F6E3D3] px-2 py-1 text-xs font-medium capitalize text-[#A93615]"
                               >
                                 {tag.replace('_', ' ')}
                               </span>
@@ -864,7 +869,7 @@ const filteredMenuItems = isMealPrepDraft
                             className={`w-full ${
                               isSelected
                                 ? 'bg-green-600 hover:bg-green-700'
-                                : 'bg-[#9B1C2C] hover:bg-[#7D1623]'
+                                : 'bg-[#C8431B] hover:bg-[#A93615]'
                             } text-white`}
                           >
                             {isSelected ? (
@@ -883,10 +888,10 @@ const filteredMenuItems = isMealPrepDraft
                             <button
                               type="button"
                               onClick={toggle}
-                              className={`flex h-11 w-full items-center justify-center gap-2 rounded-lg border-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9B1C2C] ${
+                              className={`flex h-11 w-full items-center justify-center gap-2 rounded-lg border-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] ${
                                 isSelected
-                                  ? 'border-[#9B1C2C] bg-[#9B1C2C] text-white hover:bg-[#7F1623]'
-                                  : 'border-[#9B1C2C] bg-white text-[#9B1C2C] hover:bg-[#FDECEC]'
+                                  ? 'border-[#C8431B] bg-[#C8431B] text-white hover:bg-[#A93615]'
+                                  : 'border-[#C8431B] bg-white text-[#C8431B] hover:bg-[#F6E3D3]'
                               }`}
                             >
                               {isSelected ? (
@@ -913,14 +918,14 @@ const filteredMenuItems = isMealPrepDraft
           <div>
             <div
               id="order-summary"
-              className="flex flex-col overflow-hidden rounded-xl border border-[#E8D2D2] bg-white shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]"
+              className="flex flex-col overflow-hidden rounded-xl border border-[#E8D8C4] bg-white shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]"
             >
               <div className="flex-1 space-y-5 overflow-y-auto p-6">
               <div>
-                <h2 className="font-heading text-xl font-bold uppercase text-[#2A1B1F]">
+                <h2 className="font-heading text-xl font-bold uppercase text-[#2B1D16]">
                   Your order
                 </h2>
-                <p className="mt-1 text-sm text-[#2A1B1F]/60">
+                <p className="mt-1 text-sm text-[#2B1D16]/60">
                   {!hasAnySelection
                     ? 'No dishes selected yet.'
                     : isMealPrepDraft
@@ -943,21 +948,21 @@ const filteredMenuItems = isMealPrepDraft
 
                     return (
                       <div key={category.value}>
-                        <h3 className="mb-2 text-sm font-bold text-[#9B1C2C]">
+                        <h3 className="mb-2 text-sm font-bold text-[#C8431B]">
                           {category.label}
                         </h3>
 
-                        <ul className="divide-y divide-[#E8D2D2] rounded-lg border border-[#E8D2D2]">
+                        <ul className="divide-y divide-[#E8D8C4] rounded-lg border border-[#E8D8C4]">
                           {categorySelections.map((item) => (
                             <li
                               key={`${category.value}-${item.id}`}
                               className="flex items-center gap-2 p-3"
                             >
                               <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-semibold text-[#2A1B1F]">
+                                <p className="truncate text-sm font-semibold text-[#2B1D16]">
                                   {item.name}
                                 </p>
-                                <p className="text-xs text-[#2A1B1F]/60">
+                                <p className="text-xs text-[#2B1D16]/60">
                                   {peso(item.price)} each · {peso(item.price * item.quantity)} per delivery
                                 </p>
                               </div>
@@ -980,7 +985,7 @@ const filteredMenuItems = isMealPrepDraft
                                     }
                                   }}
                                   aria-label={`Decrease ${item.name} quantity`}
-                                  className="flex h-8 w-8 items-center justify-center rounded-md border border-[#E8D2D2] text-lg font-bold text-[#9B1C2C] hover:bg-[#FDECEC]"
+                                  className="flex h-8 w-8 items-center justify-center rounded-md border border-[#E8D8C4] text-lg font-bold text-[#C8431B] hover:bg-[#F6E3D3]"
                                 >
                                   −
                                 </button>
@@ -999,7 +1004,7 @@ const filteredMenuItems = isMealPrepDraft
                                     )
                                   }
                                   aria-label={`Increase ${item.name} quantity`}
-                                  className="flex h-8 w-8 items-center justify-center rounded-md border border-[#E8D2D2] text-lg font-bold text-[#9B1C2C] hover:bg-[#FDECEC]"
+                                  className="flex h-8 w-8 items-center justify-center rounded-md border border-[#E8D8C4] text-lg font-bold text-[#C8431B] hover:bg-[#F6E3D3]"
                                 >
                                   +
                                 </button>
@@ -1013,7 +1018,7 @@ const filteredMenuItems = isMealPrepDraft
                                     )
                                   }
                                   aria-label={`Remove ${item.name}`}
-                                  className="rounded-md p-1.5 text-[#9B1C2C] hover:bg-[#FDECEC]"
+                                  className="rounded-md p-1.5 text-[#C8431B] hover:bg-[#F6E3D3]"
                                 >
                                   <X className="h-4 w-4" aria-hidden="true" />
                                 </button>
@@ -1027,14 +1032,14 @@ const filteredMenuItems = isMealPrepDraft
                 </div>
               ) : (
             selectedItems.length > 0 && (
-              <ul className="max-h-56 divide-y divide-[#E8D2D2] overflow-y-auto rounded-lg border border-[#E8D2D2]">
+              <ul className="max-h-56 divide-y divide-[#E8D8C4] overflow-y-auto rounded-lg border border-[#E8D8C4]">
                 {selectedItems.map((item) => (
                   <li key={item.id} className="flex items-center gap-3 p-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-[#2A1B1F]">
+                      <p className="truncate text-sm font-semibold text-[#2B1D16]">
                         {item.name}
                       </p>
-                      <p className="text-xs text-[#2A1B1F]/60">
+                      <p className="text-xs text-[#2B1D16]/60">
                         {peso(item.price)} per serving
                       </p>
                     </div>
@@ -1043,7 +1048,7 @@ const filteredMenuItems = isMealPrepDraft
                       type="button"
                       onClick={() => deselectMenuItem(item.id)}
                       aria-label={`Remove ${item.name}`}
-                      className="rounded-md p-1.5 text-[#9B1C2C] hover:bg-[#FDECEC]"
+                      className="rounded-md p-1.5 text-[#C8431B] hover:bg-[#F6E3D3]"
                     >
                       <X className="h-4 w-4" aria-hidden="true" />
                     </button>
@@ -1054,20 +1059,20 @@ const filteredMenuItems = isMealPrepDraft
           )}
 
               {/* ESTIMATED COST */}
-              <div className="rounded-lg border border-[#E8D2D2] bg-[#FDECEC] p-4 text-sm text-[#2A1B1F]">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#9B1C2C]">
+              <div className="rounded-lg border border-[#E8D8C4] bg-[#F6E3D3] p-4 text-sm text-[#2B1D16]">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#C8431B]">
                   Estimated cost
                 </p>
                 <dl className="mt-2 space-y-1">
                   <div className="flex justify-between gap-2">
-                    <dt className="text-[#2A1B1F]/70">
+                    <dt className="text-[#2B1D16]/70">
                       Food ({peso(estimate.perServing)} × {estimate.servings}{' '}
                       {isMealPrepDraft ? 'servings / cycle' : 'guests'})
                     </dt>
                     <dd className="font-semibold">{peso(estimate.foodSubtotal)}</dd>
                   </div>
                   <div className="flex justify-between gap-2">
-                    <dt className="text-[#2A1B1F]/70">
+                    <dt className="text-[#2B1D16]/70">
                       Delivery
                       {estimate.distanceKm !== null && ` (${estimate.distanceKm.toFixed(1)} km)`}
                     </dt>
@@ -1075,27 +1080,27 @@ const filteredMenuItems = isMealPrepDraft
                       {estimate.distanceKm !== null ? peso(estimate.deliveryFee) : '—'}
                     </dd>
                   </div>
-                  <div className="flex justify-between gap-2 border-t border-[#E8D2D2] pt-2 text-base">
+                  <div className="flex justify-between gap-2 border-t border-[#E8D8C4] pt-2 text-base">
                     <dt className="font-bold">{isMealPrepDraft ? 'Per delivery' : 'Estimated total'}</dt>
-                    <dd className="font-bold text-[#9B1C2C]">{peso(estimate.total)}</dd>
+                    <dd className="font-bold text-[#C8431B]">{peso(estimate.total)}</dd>
                   </div>
                   {isMealPrepDraft && (
                     <div className="flex justify-between gap-2 pt-1">
                       <dt className="font-bold">
                         Plan total ({scheduledDeliveryCount} deliveries)
                       </dt>
-                      <dd className="font-bold text-[#9B1C2C]">
+                      <dd className="font-bold text-[#C8431B]">
                         {peso(estimate.total * scheduledDeliveryCount)}
                       </dd>
                     </div>
                   )}
                 </dl>
                 {!estimate.withinRange && (
-                  <p className="mt-2 text-xs font-semibold text-[#9B1C2C]">
+                  <p className="mt-2 text-xs font-semibold text-[#C8431B]">
                     This location is more than {MAX_DELIVERY_KM} km from the kitchen. The owner may decline it.
                   </p>
                 )}
-                <p className="mt-2 text-xs text-[#2A1B1F]/60">
+                <p className="mt-2 text-xs text-[#2B1D16]/60">
                   {isMealPrepDraft
                     ? 'Prices are locked when you subscribe, so later menu price changes will not affect this plan until you renew.'
                     : 'Estimate only. The final amount is set by the caterer when they confirm your booking.'}
@@ -1104,13 +1109,13 @@ const filteredMenuItems = isMealPrepDraft
 
               {/* DIETARY RESTRICTIONS */}
               {customerDietaryRestrictions.length > 0 && (
-                <div className="rounded-lg bg-[#FDECEC] p-3">
-                  <p className="mb-2 text-xs font-semibold text-[#2A1B1F]">Your dietary restrictions</p>
+                <div className="rounded-lg bg-[#F6E3D3] p-3">
+                  <p className="mb-2 text-xs font-semibold text-[#2B1D16]">Your dietary restrictions</p>
                   <div className="flex flex-wrap gap-1.5">
                     {customerDietaryRestrictions.map((tag) => (
                       <span
                         key={tag}
-                        className="rounded-md bg-white px-2 py-1 text-xs font-medium capitalize text-[#7F1623]"
+                        className="rounded-md bg-white px-2 py-1 text-xs font-medium capitalize text-[#A93615]"
                       >
                         {tag.replace('_', ' ')}
                       </span>
@@ -1137,11 +1142,11 @@ const filteredMenuItems = isMealPrepDraft
               </div>
 
               {/* Always visible, even with many dishes selected */}
-              <div className="border-t border-[#E8D2D2] bg-white p-4">
+              <div className="border-t border-[#E8D8C4] bg-white p-4">
                 <Button
                   onClick={handleSubmit}
                   disabled={!hasAnySelection || loadingMenu || isSubmitting}
-                  className="h-12 w-full rounded-lg bg-[#9B1C2C] font-semibold text-white hover:bg-[#7F1623] disabled:opacity-50"
+                  className="h-12 w-full rounded-lg bg-[#C8431B] font-semibold text-white hover:bg-[#A93615] disabled:opacity-50"
                 >
                   {isSubmitting ? 'Submitting...' : isMealPrepDraft ? 'Subscribe to this plan' : 'Submit Booking'}
                 </Button>
@@ -1152,13 +1157,13 @@ const filteredMenuItems = isMealPrepDraft
       </div>
 
       {/* MOBILE BOTTOM BAR */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E8D2D2] bg-white p-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#E8D8C4] bg-white p-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] lg:hidden">
         <div className="mx-auto flex max-w-3xl items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-[#2A1B1F]/60">
+            <p className="text-xs text-[#2B1D16]/60">
               {selectedItemCount} {selectedItemCount === 1 ? 'dish' : 'dishes'} · Estimated total
             </p>
-            <p className="text-lg font-bold text-[#9B1C2C]">{peso(estimate.total)}</p>
+            <p className="text-lg font-bold text-[#C8431B]">{peso(estimate.total)}</p>
           </div>
           <Button
             type="button"
@@ -1166,14 +1171,14 @@ const filteredMenuItems = isMealPrepDraft
             onClick={() =>
               document.getElementById('order-summary')?.scrollIntoView({ behavior: 'smooth' })
             }
-            className="h-11 rounded-lg border-[#9B1C2C] text-[#9B1C2C] hover:bg-[#FDECEC]"
+            className="h-11 rounded-lg border-[#C8431B] text-[#C8431B] hover:bg-[#F6E3D3]"
           >
             Review
           </Button>
           <Button
             onClick={handleSubmit}
             disabled={!hasAnySelection || loadingMenu || isSubmitting}
-            className="h-11 rounded-lg bg-[#9B1C2C] font-semibold text-white hover:bg-[#7F1623] disabled:opacity-50"
+            className="h-11 rounded-lg bg-[#C8431B] font-semibold text-white hover:bg-[#A93615] disabled:opacity-50"
           >
             Submit
           </Button>
@@ -1187,10 +1192,10 @@ const filteredMenuItems = isMealPrepDraft
             <div className="mb-5 flex gap-3">
               <AlertCircle className="h-6 w-6 shrink-0 text-red-600" />
               <div>
-                <h3 className="font-heading text-xl font-bold uppercase text-[#2A1B1F]">
+                <h3 className="font-heading text-xl font-bold uppercase text-[#2B1D16]">
                   Allergen conflict
                 </h3>
-                <p className="mt-2 text-sm text-[#2A1B1F]/70">
+                <p className="mt-2 text-sm text-[#2B1D16]/70">
                   Your selection includes items with declared allergens:{' '}
                   <span className="font-semibold text-red-700">
                     {conflictingAllergens.map((tag) => tag.replace('_', ' ')).join(', ')}
@@ -1206,13 +1211,13 @@ const filteredMenuItems = isMealPrepDraft
                 variant="outline"
                 onClick={() => setShowAllergenConfirm(false)}
                 disabled={isSubmitting}
-                className="h-11 rounded-lg border-[#9B1C2C] text-[#9B1C2C] hover:bg-[#FDECEC]"
+                className="h-11 rounded-lg border-[#C8431B] text-[#C8431B] hover:bg-[#F6E3D3]"
               >
                 Cancel
               </Button>
               <Button
                 type="button"
-                className="h-11 rounded-lg bg-[#9B1C2C] text-white hover:bg-[#7F1623]"
+                className="h-11 rounded-lg bg-[#C8431B] text-white hover:bg-[#A93615]"
                 onClick={() => {
                   setShowAllergenConfirm(false);
                   finalizeSubmit();
@@ -1229,17 +1234,17 @@ const filteredMenuItems = isMealPrepDraft
       {/* BOOKING SUCCESS MODAL */}
       {showBookingSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl border-2 border-[#E8D2D2] bg-white p-6 text-center shadow-xl">
+          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl border-2 border-[#E8D8C4] bg-white p-6 text-center shadow-xl">
             <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" aria-hidden="true" />
-            <h3 className="mt-3 font-heading text-2xl font-bold uppercase text-[#2A1B1F]">
+            <h3 className="mt-3 font-heading text-2xl font-bold uppercase text-[#2B1D16]">
               {isMealPrepDraft ? 'Meal prep submitted' : 'Booking submitted'}
             </h3>
-            <p className="mt-2 text-sm text-[#2A1B1F]/70">
+            <p className="mt-2 text-sm text-[#2B1D16]/70">
               Your request has been sent. The business owner will review it and confirm the details.
             </p>
             <Button
               type="button"
-              className="mt-6 h-11 w-full rounded-lg bg-[#9B1C2C] font-semibold text-white hover:bg-[#7F1623]"
+              className="mt-6 h-11 w-full rounded-lg bg-[#C8431B] font-semibold text-white hover:bg-[#A93615]"
               onClick={() => {
                 setShowBookingSuccess(false);
                 clearCustomerSession();

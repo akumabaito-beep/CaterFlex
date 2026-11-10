@@ -50,7 +50,7 @@ export default function Page() {
     <ServicesShowcase />
     <EventTypes />
     <HowItWorks />
-    <section id="order" className="relative isolate flex min-h-[calc(100svh-4rem)] scroll-mt-16 flex-col justify-center overflow-hidden bg-[#8E1F2C] py-12 text-white lg:py-8">
+    <section id="order" className="relative isolate flex min-h-[calc(100svh-4rem)] scroll-mt-16 flex-col justify-center overflow-hidden bg-[#2B1D16] py-12 text-white lg:py-8">
       <div className="mx-auto max-w-7xl px-6 text-center lg:px-10">
         <Reveal><h2 className="mx-auto max-w-3xl font-heading text-4xl font-bold leading-[1.08] tracking-tight text-white sm:text-5xl lg:text-6xl">Order Your Food &amp; Enjoy The Taste.</h2></Reveal>
       </div>

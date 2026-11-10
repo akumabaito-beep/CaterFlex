@@ -190,7 +190,7 @@ export default function SettingsPage() {
       <DashboardLayout>
         <div className="space-y-8 max-w-3xl">
           <div>
-            <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
+            <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">
               Operating Rules
             </h1>
             <p className="text-surface-muted-foreground mt-2">
@@ -213,7 +213,7 @@ export default function SettingsPage() {
     <DashboardLayout>
       <div className="space-y-8 max-w-3xl">
         <div>
-          <h1 className="font-heading text-4xl font-bold uppercase text-[#2A1B1F]">
+          <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">
             Operating Rules
           </h1>
 

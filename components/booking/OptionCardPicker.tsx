@@ -24,8 +24,8 @@ export function OptionCardPicker<T extends string>({
   return (
     <div className="h-full w-full rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-center gap-2">
-        <Icon className="size-5 text-[#8E1F2C]" aria-hidden="true" />
-        <p className="font-heading text-lg font-bold uppercase tracking-tight text-[#2A1B1F]">{title}</p>
+        <Icon className="size-5 text-[#C8431B]" aria-hidden="true" />
+        <p className="font-heading text-lg font-bold uppercase tracking-tight text-[#2B1D16]">{title}</p>
       </div>
 
       <div className="mt-3 grid gap-2" role="radiogroup" aria-label={title}>
@@ -38,9 +38,9 @@ export function OptionCardPicker<T extends string>({
               role="radio"
               aria-checked={selected}
               onClick={() => onChange(option.value)}
-              className={`flex h-14 items-center justify-between rounded-lg border px-4 text-left font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8E1F2C] ${
+              className={`flex h-14 items-center justify-between rounded-lg border px-4 text-left font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] ${
                 selected
-                  ? 'border-[#8E1F2C] bg-[#8E1F2C] text-white'
+                  ? 'border-[#C8431B] bg-[#C8431B] text-white'
                   : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
               }`}
             >
@@ -55,7 +55,7 @@ export function OptionCardPicker<T extends string>({
         })}
       </div>
 
-      <p className="mt-3 min-h-5 text-sm text-[#2A1B1F]" aria-live="polite">
+      <p className="mt-3 min-h-5 text-sm text-[#2B1D16]" aria-live="polite">
         {selectedOption ? `Selected: ${selectedOption.label}.` : ''}
       </p>
     </div>

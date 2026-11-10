@@ -1,39 +1,13 @@
 'use client'
 
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-} from 'recharts'
-import { MoreHorizontal } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
 
-
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-  type ChartConfig,
-} from '@/components/ui/chart'
-
-type RevenuePoint = {
-  date: string
-  revenue: number
-}
-
-type Activity = {
-  id: string
-  customerName: string
-  status: string
-  createdAt: string
-}
+type RevenuePoint = { date: string; revenue: number }
+type Activity = { id: string; customerName: string; status: string; createdAt: string }
 
 type RevenueActivityProps = {
   rangeLabel?: string
@@ -42,170 +16,62 @@ type RevenueActivityProps = {
   recentActivity: Activity[]
 }
 
-const chartConfig = {
-  revenue: {
-    label: 'Revenue',
-    color: '#9B1C2C',
-  },
-} satisfies ChartConfig
+const chartConfig = { revenue: { label: 'Revenue', color: '#C8431B' } } satisfies ChartConfig
 
-
-const AVATAR_COLORS = [
-  '#BA6A4C',
-  '#607456',
-  '#7B2525',
-  '#D9A05B',
-  '#4C6EBA',
-]
+const peso = (value: number) =>
+  `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 function initials(name: string) {
-  return name
-    .split(' ')
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase()
+  return name.split(' ').map((part) => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
 }
 
 function relativeTime(iso: string) {
-  const then = new Date(iso).getTime()
-  const now = Date.now()
-
-  const diff = now - then
-  const mins = Math.round(diff / 60000)
-
-  if (mins < 60) {
-    return `${Math.max(mins, 1)} min ago`
-  }
-
+  if (!iso || Number.isNaN(new Date(iso).getTime())) return ''
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  if (mins < 60) return `${Math.max(mins, 1)} min ago`
   const hours = Math.round(mins / 60)
-
-  if (hours < 24) {
-    return `${hours} hour${hours === 1 ? '' : 's'} ago`
-  }
-
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`
   const days = Math.round(hours / 24)
-
-  if (days === 1) {
-    return 'Yesterday'
-  }
-
-  return `${days} days ago`
+  return days === 1 ? 'Yesterday' : `${days} days ago`
 }
 
-function activityText(activity: Activity) {
-  switch (activity.status) {
-    case 'confirmed':
-      return {
-        verb: 'confirmed event',
-        target: `#${activity.id}`,
-      }
-
-    case 'completed':
-      return {
-        verb: 'completed event',
-        target: `#${activity.id}`,
-      }
-
-    case 'rejected':
-      return {
-        verb: 'had a booking declined',
-        target: `#${activity.id}`,
-      }
-
-    case 'cancelled':
-      return {
-        verb: 'cancelled booking',
-        target: `#${activity.id}`,
-      }
-
-    default:
-      return {
-        verb: 'requested a new booking',
-        target: `#${activity.id}`,
-      }
+function activityText(status: string) {
+  switch (status) {
+    case 'confirmed': return 'confirmed event'
+    case 'completed': return 'completed event'
+    case 'rejected': return 'had a booking declined'
+    case 'cancelled': return 'cancelled booking'
+    default: return 'requested a new booking'
   }
 }
 
-export function RevenueActivity({
-  rangeLabel = 'the past 30 days',
-  bucket = 'day',
-  revenueData,
-  recentActivity,
-}: RevenueActivityProps) {
-  const router = useRouter()
+export function RevenueActivity({ rangeLabel = 'the past 30 days', bucket = 'day', revenueData, recentActivity }: RevenueActivityProps) {
+  const total = revenueData.reduce((sum, point) => sum + Number(point.revenue || 0), 0)
+  const hasRevenue = revenueData.length > 0 && total > 0
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <section className="rounded-2xl border border-border bg-white p-6 lg:col-span-2" aria-label="Revenue">
+        <p className="text-sm text-muted-foreground">Paid revenue, {rangeLabel.toLowerCase()}</p>
+        <p className="mt-1 text-4xl font-bold tabular-nums text-[#2B1D16]">{peso(total)}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {bucket === 'week' ? 'Weekly totals' : bucket === 'month' ? 'Monthly totals' : 'Daily totals'}, counted by payment date.
+        </p>
 
-      {/* Revenue Trend */}
-      <Card className="p-6 lg:col-span-2">
-        <div className="mb-6 flex items-start justify-between">
-          <div>
-            <h2 className="font-heading text-lg font-bold text-card-foreground">
-              Revenue trend
-            </h2>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              Actual paid revenue, {rangeLabel.toLowerCase()}
-              {bucket === 'week' ? ' (weekly totals)' : bucket === 'month' ? ' (monthly totals)' : ''}.
-            </p>
-          </div>
-
-          <Button
-            variant="outline"
-            size="icon"
-            className="h-8 w-8 flex-shrink-0"
-            aria-label="Revenue options"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {revenueData.length === 0 ? (
-          <div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
-            No payment data available yet.
+        {!hasRevenue ? (
+          <div className="mt-6 flex h-[240px] items-center justify-center rounded-xl border border-dashed border-[#E8D8C4] text-sm text-muted-foreground">
+            No payments received in this range.
           </div>
         ) : (
-          <ChartContainer
-            config={chartConfig}
-            className="h-[280px] w-full"
-          >
-            <AreaChart
-              data={revenueData}
-              margin={{
-                left: 4,
-                right: 8,
-                top: 8,
-              }}
-            >
+          <ChartContainer config={chartConfig} className="mt-6 h-[240px] w-full">
+            <AreaChart data={revenueData} margin={{ left: 4, right: 8, top: 8 }}>
               <defs>
-                <linearGradient
-                  id="fillRevenue"
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop
-                    offset="5%"
-                    stopColor="var(--color-revenue)"
-                    stopOpacity={0.3}
-                  />
-
-                  <stop
-                    offset="95%"
-                    stopColor="var(--color-revenue)"
-                    stopOpacity={0.02}
-                  />
+                <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="var(--color-revenue)" stopOpacity={0.28} />
+                  <stop offset="95%" stopColor="var(--color-revenue)" stopOpacity={0.02} />
                 </linearGradient>
               </defs>
-
-              <CartesianGrid
-                vertical={false}
-                strokeDasharray="3 3"
-              />
-
+              <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis
                 dataKey="date"
                 tickLine={false}
@@ -215,172 +81,67 @@ export function RevenueActivity({
                 minTickGap={24}
                 tickFormatter={(value) => {
                   const date = new Date(`${value}T00:00:00Z`)
-
-                  if (Number.isNaN(date.getTime())) {
-                    return value
-                  }
-
-                  return date.toLocaleDateString('en-PH', {
-                    timeZone: 'UTC',
-                    month: 'short',
-                    ...(bucket === 'month' ? { year: '2-digit' } : { day: 'numeric' }),
-                  })
+                  if (Number.isNaN(date.getTime())) return value
+                  return date.toLocaleDateString('en-PH', { timeZone: 'UTC', month: 'short', ...(bucket === 'month' ? { year: '2-digit' } : { day: 'numeric' }) })
                 }}
               />
-
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                tickMargin={8}
-                width={55}
-                tickFormatter={(value) =>
-                  `₱${(Number(value) / 1000).toFixed(1)}k`
-                }
-              />
-
+              <YAxis tickLine={false} axisLine={false} tickMargin={8} width={55} tickFormatter={(value) => `₱${(Number(value) / 1000).toFixed(1)}k`} />
               <ChartTooltip
                 cursor={false}
                 content={
                   <ChartTooltipContent
                     labelFormatter={(value) => {
                       const date = new Date(`${String(value)}T00:00:00Z`)
-
-                      if (Number.isNaN(date.getTime())) {
-                        return String(value)
-                      }
-
-                      return date.toLocaleDateString('en-PH', {
-                        timeZone: 'UTC',
-                        year: 'numeric',
-                        month: 'long',
-                        ...(bucket === 'month' ? {} : { day: 'numeric' }),
-                      }) + (bucket === 'week' ? ' (week of)' : '')
+                      if (Number.isNaN(date.getTime())) return String(value)
+                      return date.toLocaleDateString('en-PH', { timeZone: 'UTC', year: 'numeric', month: 'long', ...(bucket === 'month' ? {} : { day: 'numeric' }) }) + (bucket === 'week' ? ' (week of)' : '')
                     }}
                     formatter={(value, name) => (
                       <span className="flex w-full justify-between gap-4">
-                        <span className="capitalize text-muted-foreground">
-                          {name}
-                        </span>
-
-                        <span className="font-mono font-medium">
-                          ₱
-                          {Number(value).toLocaleString(
-                            'en-PH',
-                            {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            }
-                          )}
-                        </span>
+                        <span className="capitalize text-muted-foreground">{name}</span>
+                        <span className="font-mono font-medium">{peso(Number(value))}</span>
                       </span>
                     )}
                   />
                 }
               />
-
-              <ChartLegend
-                content={<ChartLegendContent />}
-              />
-
-              <Area
-                dataKey="revenue"
-                type="monotone"
-                stroke="var(--color-revenue)"
-                fill="url(#fillRevenue)"
-                strokeWidth={2}
-              />
+              <Area dataKey="revenue" type="monotone" stroke="var(--color-revenue)" fill="url(#fillRevenue)" strokeWidth={2} />
             </AreaChart>
           </ChartContainer>
         )}
-      </Card>
+      </section>
 
-      {/* Recent Activity */}
-      <Card className="p-6">
-        <div className="mb-6 flex items-start justify-between">
+      <section className="rounded-2xl border border-border bg-white p-6" aria-label="Recent activity">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-heading text-lg font-bold text-card-foreground">
-              Recent activity
-            </h2>
-
-            <p className="mt-1 text-sm text-muted-foreground">
-              Latest booking updates.
-            </p>
+            <h2 className="font-heading text-lg font-bold text-card-foreground">Recent activity</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Latest booking updates.</p>
           </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-shrink-0"
-            onClick={() => router.push('/owner/bookings')}
-          >
-            View all
-          </Button>
+          <Link href="/owner/bookings" className="inline-flex shrink-0 items-center gap-1 rounded-full text-sm font-semibold text-[#C8431B] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]">
+            View all <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
         </div>
 
-        <div className="space-y-5">
-          {recentActivity.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No recent activity.
-            </p>
-          )}
-
-          {recentActivity.map((activity) => {
-            const { verb, target } =
-              activityText(activity)
-
-            const color =
-              AVATAR_COLORS[
-                Math.abs(
-                  activity.id
-                    .split('')
-                    .reduce(
-                      (total, character) =>
-                        total + character.charCodeAt(0),
-                      0
-                    )
-                ) % AVATAR_COLORS.length
-              ]
-
-            return (
-              <div
-                key={activity.id}
-                className="flex items-start gap-3"
-              >
-                {/* Avatar */}
-                <div
-                  className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
-                  style={{
-                    backgroundColor: color,
-                  }}
-                  aria-hidden="true"
-                >
+        {recentActivity.length === 0 ? (
+          <p className="mt-6 text-sm text-muted-foreground">No recent activity.</p>
+        ) : (
+          <ul className="mt-5 space-y-4">
+            {recentActivity.map((activity) => (
+              <li key={activity.id} className="flex items-start gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#F6E3D3] text-xs font-semibold text-[#C8431B]" aria-hidden="true">
                   {initials(activity.customerName)}
                 </div>
-
-                {/* Activity text */}
                 <div className="min-w-0">
                   <p className="text-sm leading-snug text-card-foreground">
-                    <span className="font-semibold">
-                      {activity.customerName}
-                    </span>{' '}
-
-                    {verb}{' '}
-
-                    <span className="font-semibold">
-                      {target}
-                    </span>
-                    .
+                    <span className="font-semibold">{activity.customerName}</span> {activityText(activity.status)}{' '}
+                    <span className="font-semibold">#{activity.id}</span>.
                   </p>
-
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {relativeTime(activity.createdAt)}
-                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{relativeTime(activity.createdAt)}</p>
                 </div>
-              </div>
-            )
-          })}
-        </div>
-      </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   )
 }

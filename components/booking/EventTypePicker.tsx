@@ -30,6 +30,11 @@ const EVENT_TYPES: { label: string; icon: LucideIcon }[] = [
   { label: OTHERS, icon: PenLine },
 ]
 
+/** Icon for an event type label. Anything typed under "Others" gets the party icon. */
+export function eventTypeIcon(label: string | null | undefined): LucideIcon {
+  return EVENT_TYPES.find((t) => t.label === label)?.icon ?? PartyPopper
+}
+
 const PRESETS = new Set(EVENT_TYPES.map((t) => t.label).filter((l) => l !== OTHERS))
 
 /**
@@ -51,8 +56,8 @@ export function EventTypePicker({
   return (
     <div className="w-full rounded-xl border border-border bg-card p-4 shadow-sm sm:p-6">
       <div className="flex items-center gap-2">
-        <PartyPopper className="size-5 text-[#8E1F2C]" aria-hidden="true" />
-        <p className="font-heading text-lg font-bold uppercase tracking-tight text-[#2A1B1F]">
+        <PartyPopper className="size-5 text-[#C8431B]" aria-hidden="true" />
+        <p className="font-heading text-lg font-bold uppercase tracking-tight text-[#2B1D16]">
           What are you celebrating?
         </p>
       </div>
@@ -75,9 +80,9 @@ export function EventTypePicker({
                   onChange(label)
                 }
               }}
-              className={`flex h-24 flex-col items-center justify-center gap-2 rounded-lg border px-2 text-center text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8E1F2C] ${
+              className={`flex h-24 flex-col items-center justify-center gap-2 rounded-lg border px-2 text-center text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] ${
                 isSelected
-                  ? 'border-[#8E1F2C] bg-[#8E1F2C] text-white'
+                  ? 'border-[#C8431B] bg-[#C8431B] text-white'
                   : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
               }`}
             >
@@ -90,7 +95,7 @@ export function EventTypePicker({
 
       {othersOn && (
         <div className="mt-4">
-          <label className="mb-2 block text-sm font-semibold text-[#2A1B1F]" htmlFor="event-type-other">
+          <label className="mb-2 block text-sm font-semibold text-[#2B1D16]" htmlFor="event-type-other">
             Tell us what kind of event *
           </label>
           <input
@@ -106,7 +111,7 @@ export function EventTypePicker({
         </div>
       )}
 
-      <p className="mt-3 min-h-5 text-sm text-[#2A1B1F]" aria-live="polite">
+      <p className="mt-3 min-h-5 text-sm text-[#2B1D16]" aria-live="polite">
         {value ? `Selected: ${value}.` : othersOn ? '' : 'Pick the kind of event.'}
       </p>
     </div>
