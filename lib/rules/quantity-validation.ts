@@ -1,7 +1,9 @@
+
 export function validatePerServingQuantity(value: number): string | null {
-  if (!Number.isInteger(value) || value < 1) {
-    return 'Per-serving quantity must be a whole number greater than or equal to 1.'
+  if (!Number.isFinite(value) || value <= 0) {
+    return 'Per-serving quantity must be a number greater than 0.'
   }
+
   return null
 }
 
