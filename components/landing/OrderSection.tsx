@@ -13,8 +13,13 @@ const foodPhotos = [
 
 export function OrderSection({ onOrder }: { onOrder: () => void }) {
   return (
+<<<<<<< Updated upstream
     <section className="relative flex min-h-[calc(100svh-4rem)] items-center overflow-hidden bg-white text-[#2B1D16]">
       <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[72%] overflow-hidden bg-[#F6E3D3] [clip-path:ellipse(88%_72%_at_25%_0%)]"><Image src="/bg123.jpg" alt="" fill sizes="100vw" priority className="object-cover" /><div className="absolute inset-0 bg-black/60" /></div>
+=======
+    <section className="relative flex min-h-[calc(100svh-4rem)] items-center overflow-hidden bg-white text-[#2A1B1F]">
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[72%] overflow-hidden bg-[#FDE6E6] [clip-path:ellipse(88%_72%_at_25%_0%)]"><Image src="/bg123.jpg" alt="" fill sizes="100vw" className="object-cover" priority/><div className="absolute inset-0 bg-black/60" /></div>
+>>>>>>> Stashed changes
       <div className="relative z-10 mx-auto grid w-full max-w-7xl items-center gap-10 px-6 py-10 lg:grid-cols-[0.9fr_1.1fr] lg:gap-8 lg:px-10">
         <Reveal className="relative z-20 max-w-xl">
           <div className="lg:-translate-y-[clamp(2rem,8svh,5rem)]">
