@@ -107,7 +107,7 @@ export function ServicesShowcase({ onBrowse: onBrowseProp }: { onBrowse?: () => 
   const Icon = s.icon
 
   return (
-    <section id="services" className="flex min-h-[calc(100svh-4rem)] scroll-mt-16 items-center bg-background px-6 py-12 lg:py-8">
+    <section id="services" className="flex min-h-[calc(100svh-4rem)] scroll-mt-16 items-center bg-[#F3E7D6] px-6 py-12 lg:py-8">
       <div className="mx-auto grid w-full max-w-7xl items-center gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
         <div className="grid">
           <Reveal className="col-start-1 row-start-1 self-center">

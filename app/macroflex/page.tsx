@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ArrowUpDown, Check, CheckCircle2, ChevronDown, RefreshCw, Search, Warehouse } from 'lucide-react'
+import { AlertTriangle, ArrowUpDown, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, RefreshCw, Search, Warehouse } from 'lucide-react'
 
 import { DashboardLayout } from '@/app/dashboard-layout'
 import { Paged } from '@/components/owner/Pagination'
@@ -23,12 +23,14 @@ type Tab = 'menu' | 'over'
 type Filter = 'all' | 'blocked' | 'ready'
 type SortKey = 'problems' | 'name' | 'category'
 
+const PER_PAGE = 3
+
 const peso = (value: number) => `₱${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`
 
 function SortMenu({ value, onChange }: { value: SortKey; onChange: (next: SortKey) => void }) {
   const [open, setOpen] = useState(false)
   const options: { key: SortKey; label: string }[] = [
-    { key: 'problems', label: "Can't make first" },
+    { key: 'problems', label: 'Short on stock first' },
     { key: 'name', label: 'Name A to Z' },
     { key: 'category', label: 'By category' },
   ]
@@ -48,87 +50,143 @@ function SortMenu({ value, onChange }: { value: SortKey; onChange: (next: SortKe
         {current.label}
         <ChevronDown className={`size-4 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
       </button>
-      {open && (
-        <ul role="listbox" aria-label="Sort dishes" className="owner-list-page absolute right-0 z-20 mt-2 w-52 overflow-hidden rounded-xl border border-[#E8D8C4] bg-white p-1 shadow-lg">
+        <ul role="listbox" aria-label="Sort dishes" aria-hidden={!open} className={`absolute right-0 z-20 mt-2 w-52 origin-top-right overflow-hidden rounded-xl border border-[#E8D8C4] bg-white p-1 shadow-lg transition duration-150 ease-out motion-reduce:transition-none ${open ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none -translate-y-1 scale-95 opacity-0'}`}>
           {options.map((o) => (
             <li key={o.key} role="option" aria-selected={o.key === value}>
-              <button type="button" onClick={() => { onChange(o.key); setOpen(false) }} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[#f1f1f2] ${o.key === value ? 'font-semibold text-[#C8431B]' : 'text-[#2B1D16]'}`}>
+              <button type="button" tabIndex={open ? 0 : -1} onClick={() => { onChange(o.key); setOpen(false) }} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-[#f1f1f2] ${o.key === value ? 'font-semibold text-[#C8431B]' : 'text-[#2B1D16]'}`}>
                 {o.label}
                 {o.key === value && <Check className="size-4" aria-hidden="true" />}
               </button>
             </li>
           ))}
         </ul>
-      )}
     </div>
   )
 }
 
 function ShortfallRow({ s }: { s: IngredientShortfall }) {
-  const pct = s.required > 0 ? Math.max(0, Math.min(100, (s.available / s.required) * 100)) : 0
   return (
-    <li>
-      <div className="flex items-baseline justify-between gap-3 text-sm">
-        <span className="min-w-0 truncate font-medium text-[#2B1D16]">{s.ingredientName}</span>
-        <span className="shrink-0 font-semibold text-[#C8431B]">needs {formatQuantity(s.shortBy, s.unitOfMeasure)} more</span>
-      </div>
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[#EFE1D0]" role="img" aria-label={`${Math.round(pct)}% of what is needed is in stock`}>
-        <div className="h-full rounded-full bg-[#C8431B]" style={{ width: `${pct}%` }} />
-      </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Have {formatQuantity(s.available, s.unitOfMeasure)} of {formatQuantity(s.required, s.unitOfMeasure)}
-      </p>
+    <li className="flex items-baseline justify-between gap-3 py-1 text-sm" title={`Have ${formatQuantity(s.available, s.unitOfMeasure)} of ${formatQuantity(s.required, s.unitOfMeasure)}`}>
+      <span className="min-w-0 truncate text-[#2B1D16]">{s.ingredientName}</span>
+      <span className="shrink-0 font-semibold tabular-nums text-[#C8431B]">needs {formatQuantity(s.shortBy, s.unitOfMeasure)} more</span>
     </li>
   )
 }
 
-function DishCard({ item }: { item: DishStatus }) {
-  const [showAll, setShowAll] = useState(false)
-  const blocked = item.status === 'insufficient'
-  const alts = showAll ? item.suggestions : item.suggestions.slice(0, 2)
+function Alternatives({ dish }: { dish: DishStatus }) {
+  const [page, setPage] = useState(1)
+
+  // Most useful first: dishes that use up leftovers, then the same category, then the closest price.
+  const ranked = useMemo(() => {
+    const seen = new Set<number>()
+    return dish.suggestions
+      .filter((a) => a.menuItemId !== dish.menuItemId && !seen.has(a.menuItemId) && seen.add(a.menuItemId))
+      .map((a) => ({
+        a,
+        score:
+          (a.usesLeftover?.length ? 0 : 4) +
+          (a.category === dish.category ? 0 : 2) +
+          Math.min(1, Math.abs((a.price || 0) - (dish.price || 0)) / Math.max(dish.price || 1, 1)),
+      }))
+      .sort((x, y) => x.score - y.score || x.a.itemName.localeCompare(y.a.itemName))
+      .map((x) => x.a)
+  }, [dish])
+
+  if (ranked.length === 0) {
+    return <div className="mt-3"><p className="rounded-xl bg-[#FBF6EE] p-3 text-sm text-muted-foreground">Nothing else on the menu fits what is left in stock.</p></div>
+  }
+  const pageCount = Math.ceil(ranked.length / PER_PAGE)
+  const safe = Math.min(page, pageCount)
+  const list = ranked.slice((safe - 1) * PER_PAGE, safe * PER_PAGE)
+
   return (
-    <article className={`flex flex-col rounded-2xl border bg-white p-5 transition-shadow hover:shadow-sm ${blocked ? 'border-[#E8D8C4]' : 'border-border'}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate font-semibold text-[#2B1D16]">{item.itemName}</h3>
-          <p className="mt-0.5 text-sm capitalize text-muted-foreground">{item.category || 'Uncategorised'} · {peso(item.price)}</p>
-        </div>
-        {blocked ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#F6E3D3] px-2.5 py-1 text-xs font-semibold text-[#C8431B]"><AlertTriangle className="size-3" aria-hidden="true" />Can&apos;t make</span>
-        ) : (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800"><CheckCircle2 className="size-3" aria-hidden="true" />Ready</span>
+    <div className="mt-3">
+      <div className="rounded-xl bg-[#FBF6EE] p-3">
+        <p className="text-sm font-medium text-[#2B1D16]">Try these instead</p>
+        <ul key={safe} className="owner-list-page mt-2 space-y-0.5">
+          {list.map((a) => (
+            <li key={a.menuItemId} className="flex items-baseline justify-between gap-3 rounded-lg px-2 py-1.5 text-sm">
+              <span className="min-w-0">
+                <span className="block truncate font-medium text-[#2B1D16]">{a.itemName}</span>
+                <span className="block truncate text-xs capitalize text-muted-foreground">
+                  {a.usesLeftover?.length ? `Uses up ${a.usesLeftover.map((l) => l.ingredientName).slice(0, 2).join(', ')}` : a.category || 'Menu item'}
+                </span>
+              </span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">{peso(a.price)}</span>
+            </li>
+          ))}
+        </ul>
+        {pageCount > 1 && (
+          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+            <span className="tabular-nums">{safe} of {pageCount}</span>
+            <div className="flex gap-1">
+              <button type="button" onClick={() => setPage(safe - 1)} disabled={safe <= 1} aria-label="Previous alternatives" className="inline-flex size-7 items-center justify-center rounded-full border border-[#E8D8C4] bg-white transition-colors hover:bg-[#f1f1f2] disabled:opacity-40 disabled:hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]"><ChevronLeft className="size-4" /></button>
+              <button type="button" onClick={() => setPage(safe + 1)} disabled={safe >= pageCount} aria-label="Next alternatives" className="inline-flex size-7 items-center justify-center rounded-full border border-[#E8D8C4] bg-white transition-colors hover:bg-[#f1f1f2] disabled:opacity-40 disabled:hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]"><ChevronRight className="size-4" /></button>
+            </div>
+          </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function DishCard({ item, open, onToggle }: { item: DishStatus; open: boolean; onToggle: () => void }) {
+  const blocked = item.status === 'insufficient'
+  const count = item.shortfalls.length
+  return (
+    <article className={`overflow-hidden rounded-2xl border bg-white transition-shadow hover:shadow-sm ${blocked ? 'border-[#E8D8C4]' : 'border-border'}`}>
+      <button
+        type="button"
+        onClick={blocked ? onToggle : undefined}
+        aria-expanded={blocked ? open : undefined}
+        disabled={!blocked}
+        className={`block w-full p-5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C8431B] ${blocked ? 'cursor-pointer' : 'cursor-default'}`}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate font-semibold text-[#2B1D16]">{item.itemName}</h3>
+            <p className="mt-1 text-sm capitalize text-muted-foreground">{item.category || 'Uncategorised'} · {peso(item.price)}</p>
+          </div>
+          {blocked && (open ? <ChevronDown className="mt-1 size-5 shrink-0 text-muted-foreground" aria-hidden="true" /> : <ChevronRight className="mt-1 size-5 shrink-0 text-muted-foreground" aria-hidden="true" />)}
+        </div>
+        <div className="mt-4">
+          {blocked ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#F6E3D3] px-2.5 py-1 text-xs font-semibold text-[#C8431B]"><AlertTriangle className="size-3" aria-hidden="true" />Short on stock</span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800"><CheckCircle2 className="size-3" aria-hidden="true" />Ready</span>
+          )}
+        </div>
+      </button>
+
+      <div className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${open ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'}`} aria-hidden={open}>
+        <div className="overflow-hidden">
+          <div className="min-h-[5.25rem] border-t border-[#F0E4D4] px-5 pb-4 pt-4">
+            {blocked ? (
+              <>
+                <p className="text-sm text-[#C8431B]">{count} ingredient{count === 1 ? '' : 's'} {count === 1 ? 'is' : 'are'} short.</p>
+                <button type="button" tabIndex={open ? -1 : 0} onClick={onToggle} className="mt-2 text-sm font-medium text-[#C8431B] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]">View details →</button>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">All required ingredients are in stock.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {blocked && (
-        <ul className="mt-4 space-y-3">
-          {item.shortfalls.map((s, i) => <ShortfallRow key={`${s.ingredientName}-${i}`} s={s} />)}
-        </ul>
-      )}
-
-      {blocked && item.suggestions.length > 0 && (
-        <div className="mt-4 rounded-xl bg-[#FBF6EE] p-3">
-          <p className="text-sm font-medium text-[#2B1D16]">Use up leftovers instead</p>
-          <ul className="mt-2 space-y-2">
-            {alts.map((a) => (
-              <li key={a.menuItemId} className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="min-w-0">
-                  <span className="font-medium text-[#2B1D16]">{a.itemName}</span>
-                  {a.usesMissingIngredient?.length ? <span className="block truncate text-xs text-muted-foreground">uses {a.usesMissingIngredient.join(', ')}</span> : null}
-                </span>
-                <span className="shrink-0 text-muted-foreground">{peso(a.price)}</span>
-              </li>
-            ))}
-          </ul>
-          {item.suggestions.length > 2 && (
-            <button type="button" onClick={() => setShowAll((v) => !v)} className="mt-2 text-xs font-semibold text-[#C8431B] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]">
-              {showAll ? 'Show fewer' : `Show ${item.suggestions.length - 2} more`}
-            </button>
-          )}
+        <div className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`} aria-hidden={!open}>
+          <div className="overflow-hidden">
+            <div className={`border-t border-[#F0E4D4] px-5 pb-5 pt-4 transition-opacity duration-300 motion-reduce:transition-none ${open ? 'opacity-100' : 'opacity-0'}`}>
+              <p className="text-sm font-medium text-[#2B1D16]">Missing ingredients</p>
+              <ul className="mt-1 divide-y divide-[#F0E4D4]" aria-label="Missing ingredients">
+                {item.shortfalls.map((sf, i) => <ShortfallRow key={`${sf.ingredientName}-${i}`} s={sf} />)}
+              </ul>
+              <Alternatives dish={item} />
+              <button type="button" tabIndex={open ? 0 : -1} onClick={onToggle} className="mt-3 text-sm font-medium text-[#C8431B] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]">Hide details</button>
+            </div>
+          </div>
         </div>
       )}
-
-      {!blocked && <p className="mt-4 text-sm text-muted-foreground">Every ingredient is in stock for one more serving.</p>}
     </article>
   )
 }
@@ -155,6 +213,8 @@ export default function MacroFlexPage() {
   const [filter, setFilter] = useState<Filter>('all')
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState<SortKey>('problems')
+  const [openIds, setOpenIds] = useState<Set<number>>(new Set())
+  const toggleOpen = (id: number) => setOpenIds((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
 
   const load = useCallback(async (initial: boolean) => {
     if (initial) setLoading(true); else setRefreshing(true)
@@ -194,7 +254,7 @@ export default function MacroFlexPage() {
 
   const chips: { key: Filter; label: string; count: number }[] = [
     { key: 'all', label: 'All', count: items.length },
-    { key: 'blocked', label: "Can't make", count: blockedCount },
+    { key: 'blocked', label: 'Short on stock', count: blockedCount },
     { key: 'ready', label: 'Ready', count: readyCount },
   ]
 
@@ -226,7 +286,7 @@ export default function MacroFlexPage() {
                 {blockedCount > 0 ? <AlertTriangle className="size-5 text-[#C8431B]" aria-hidden="true" /> : <CheckCircle2 className="size-5 text-emerald-700" aria-hidden="true" />}
                 <div>
                   <p className="font-semibold text-[#2B1D16]">
-                    {blockedCount > 0 ? `${blockedCount} of ${items.length} dishes can't be made right now` : 'Every dish on the menu can be made'}
+                    {blockedCount > 0 ? `${blockedCount} of ${items.length} dishes are short on ingredients` : 'Every dish has enough ingredients'}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {over.length > 0 ? `${over.length} ingredient${over.length === 1 ? ' is' : 's are'} stocked past storage capacity.` : 'Checked against stock after confirmed bookings and meal plans.'}
@@ -267,13 +327,21 @@ export default function MacroFlexPage() {
                   </div>
                 </div>
 
+                {visible.some((v) => v.status === 'insufficient') && (
+                  <div className="flex items-center justify-end gap-3 text-sm">
+                    <button type="button" onClick={() => setOpenIds(new Set(visible.filter((v) => v.status === 'insufficient').map((v) => v.menuItemId)))} className="font-medium text-[#C8431B] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]">Expand all</button>
+                    <span className="text-muted-foreground" aria-hidden="true">|</span>
+                    <button type="button" onClick={() => setOpenIds(new Set())} className="font-medium text-[#C8431B] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]">Collapse all</button>
+                  </div>
+                )}
+
                 {visible.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-[#E8D8C4] p-10 text-center text-sm text-muted-foreground">
                     {items.length === 0 ? 'No dishes on the menu yet.' : 'No dishes match that search.'}
                   </div>
                 ) : (
-                  <Paged key={`${filter}|${query}|${sort}`} items={visible} pageSize={9} label="dishes" className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {(item) => <DishCard key={item.menuItemId} item={item} />}
+                  <Paged key={`${filter}|${query}|${sort}`} items={visible} pageSize={9} label="dishes" className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {(item) => <DishCard key={item.menuItemId} item={item} open={openIds.has(item.menuItemId)} onToggle={() => toggleOpen(item.menuItemId)} />}
                   </Paged>
                 )}
               </>

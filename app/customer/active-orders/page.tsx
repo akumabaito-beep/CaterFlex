@@ -123,6 +123,13 @@ export default function MealPlansPage() {
     void refresh();
   }, [refresh]);
 
+  // Pop-up messages go away on their own.
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), notice.kind === 'ok' ? 3500 : 6000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
   const run = async (action: () => Promise<{ ok: boolean; error?: string }>, success: string) => {
     if (busy) return;
     setBusy(true);
@@ -187,23 +194,19 @@ export default function MealPlansPage() {
         {header}
 
         {notice && (
-          <div
-            role="status"
-            className={`flex items-start gap-2 rounded-lg border p-3 text-sm font-medium ${
-              notice.kind === 'ok'
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-                : 'border-red-200 bg-red-50 text-red-800'
-            }`}
-          >
-            {notice.kind === 'ok' ? (
-              <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
-            ) : (
-              <AlertCircle className="mt-0.5 size-4 shrink-0" />
-            )}
-            <span className="flex-1">{notice.text}</span>
-            <button type="button" aria-label="Dismiss" onClick={() => setNotice(null)}>
-              <X className="size-4" />
-            </button>
+          <div className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4">
+            <div
+              role={notice.kind === 'error' ? 'alert' : 'status'}
+              className={`toast-in pointer-events-auto flex max-w-md items-start gap-3 rounded-2xl px-4 py-3 text-sm font-medium shadow-xl ${
+                notice.kind === 'ok' ? 'bg-[#2B1D16] text-white' : 'border border-[#B3261E]/30 bg-white text-[#B3261E]'
+              }`}
+            >
+              {notice.kind === 'ok' ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#F2A07F]" /> : <AlertCircle className="mt-0.5 size-5 shrink-0" />}
+              <span className="flex-1">{notice.text}</span>
+              <button type="button" aria-label="Dismiss" onClick={() => setNotice(null)} className="rounded p-0.5 opacity-70 hover:opacity-100">
+                <X className="size-4" />
+              </button>
+            </div>
           </div>
         )}
 
@@ -262,13 +265,13 @@ export default function MealPlansPage() {
             return (
               <article
                 key={plan.id}
-                className="overflow-hidden rounded-xl border border-[#E8D8C4] bg-white shadow-sm"
+                className="overflow-hidden rounded-xl border border-[#DCC7A8] bg-white shadow-sm"
               >
                 <button
                   type="button"
                   aria-expanded={expanded}
                   onClick={() => setExpandedId(expanded ? null : plan.id)}
-                  className="flex w-full items-center gap-4 bg-[#F6E3D3] p-6 text-left transition-colors hover:bg-[#F6E3D3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C8431B]"
+                  className="flex w-full items-center gap-4 bg-[#FBF6EE] p-6 text-left transition-colors hover:bg-[#F6EEDF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C8431B]"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-heading text-2xl font-bold uppercase leading-tight text-[#2B1D16]">

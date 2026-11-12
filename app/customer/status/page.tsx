@@ -270,9 +270,9 @@ export default function CustomerStatusPage() {
               return (
                 <article
                   key={booking.BookingID}
-                  className="overflow-hidden rounded-xl border border-[#E8D8C4] bg-white shadow-sm"
+                  className="overflow-hidden rounded-xl border border-[#DCC7A8] bg-white shadow-sm"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E8D8C4] bg-[#F6E3D3] px-6 py-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#E8D8C4] bg-[#FBF6EE] px-6 py-5">
                     <div>
                       <h2 className="font-heading text-2xl font-bold uppercase leading-tight text-[#2B1D16]">
                         {title}

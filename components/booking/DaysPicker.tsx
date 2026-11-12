@@ -44,7 +44,7 @@ export function DaysPicker({
               className={`h-12 rounded-lg border text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] ${
                 on
                   ? 'border-[#C8431B] bg-[#C8431B] text-white'
-                  : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                  : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:bg-[#f1f1f2]'
               }`}
             >
               {w.short}

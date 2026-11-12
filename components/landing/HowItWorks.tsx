@@ -11,7 +11,7 @@ const steps = [
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="flex min-h-[calc(100svh-4rem)] scroll-mt-16 items-center bg-background px-6 py-12 lg:py-8">
+    <section id="how-it-works" className="flex min-h-[calc(100svh-4rem)] scroll-mt-16 items-center bg-[#F3E7D6] px-6 py-12 lg:py-8">
       <div className="mx-auto w-full max-w-7xl lg:px-10">
         <Reveal>
           <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#C8431B]">How it works</p>
@@ -22,7 +22,7 @@ export function HowItWorks() {
           {steps.map((step, i) => (
             <li key={step.title} className="relative pb-8 last:pb-0 lg:pb-0">
               {/* connector: vertical on small screens, horizontal on desktop */}
-              {i < steps.length - 1 && <span aria-hidden="true" className="absolute left-5 top-12 h-[calc(100%-2.5rem)] w-px bg-[#EBDDC9] sm:left-6 sm:top-14 lg:left-12 lg:top-6 lg:h-px lg:w-[calc(100%-2rem)]" />}
+              {i < steps.length - 1 && <span aria-hidden="true" className="absolute left-5 top-12 h-[calc(100%-2.5rem)] w-px bg-[#D9C3A5] sm:left-6 sm:top-14 lg:left-12 lg:top-6 lg:h-px lg:w-[calc(100%-2rem)]" />}
               <Reveal delay={i * 80} className="lg:h-full">
                 <div className="flex gap-5 sm:gap-6 lg:h-full lg:flex-col lg:gap-5">
                   <span className="relative flex size-10 shrink-0 items-center justify-center rounded-none bg-[#C8431B] font-heading text-lg font-bold text-white sm:size-12">{i + 1}</span>

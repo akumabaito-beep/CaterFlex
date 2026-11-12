@@ -16,7 +16,7 @@ const events = [
 
 export function EventTypes() {
   return (
-    <section id="events" className="flex min-h-[calc(100svh-4rem)] scroll-mt-16 items-center bg-card px-6 py-12 lg:py-8">
+    <section id="events" className="flex min-h-[calc(100svh-4rem)] scroll-mt-16 items-center bg-background px-6 py-12 lg:py-8">
       <div className="mx-auto w-full max-w-7xl lg:px-10">
         <Reveal>
           <p className="font-mono text-xs uppercase tracking-[0.24em] text-[#C8431B]">Every occasion</p>
@@ -28,7 +28,7 @@ export function EventTypes() {
           {events.map(({ title, text, icon: Icon }, i) => (
             <li key={title}>
               <Reveal delay={(i % 4) * 90} variant="scale" className="h-full">
-                <article className="flex h-full flex-col rounded-xl border border-border bg-background p-5 transition-transform hover:-translate-y-1 hover:shadow-lg">
+                <article className="flex h-full flex-col rounded-xl border border-[#E8D8C4] bg-white p-5 transition-transform hover:-translate-y-1 hover:shadow-lg">
                   <span className="flex size-10 items-center justify-center rounded-lg bg-primary-soft text-[#C8431B]"><Icon className="size-5" aria-hidden="true" /></span>
                   <h3 className="mt-4 font-heading text-base font-bold text-[#2B1D16]">{title}</h3>
                   <p className="mt-1.5 text-sm leading-5 text-muted-foreground">{text}</p>

@@ -37,7 +37,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
   const isActive = (match: string[]) => match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
 
   return (
-    <div className="min-h-screen bg-[#F3E8D8] text-foreground">
+    <div className="min-h-screen bg-[#EFE0CD] text-foreground">
       <header className="sticky top-0 z-50 border-b border-border/80 bg-card/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6 lg:px-10">
           <Link href="/customer/home" onClick={() => setOpen(false)} aria-label="CaterFlex home">
@@ -107,7 +107,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
       </header>
 
       <main
-        className="min-h-[calc(100vh-65px)] bg-top bg-repeat-y bg-[length:100%_auto] px-5 py-8 lg:px-8 lg:py-12"
+        className="min-h-[calc(100vh-65px)] bg-[#EFE0CD] bg-top bg-repeat-y bg-[length:100%_auto] px-5 py-8 lg:px-8 lg:py-12"
         style={{ backgroundImage: "url('/customer-bg.png')" }}
       >
         <div className="mx-auto max-w-6xl">{children}</div>

@@ -65,13 +65,13 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
 
       <aside
         aria-label="Owner navigation"
-        className={`fixed left-0 top-0 z-50 flex h-screen w-64 flex-col overflow-y-auto bg-[#2B1D16] px-4 py-6 text-white transition-transform duration-200 lg:z-30 lg:translate-x-0 ${
+        className={`fixed left-0 top-0 z-50 flex h-screen w-64 flex-col overflow-y-auto bg-[#2B1D16] px-4 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden text-white transition-transform duration-200 lg:z-30 lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="mb-8 flex items-center justify-between px-2">
+        <div className="mb-3 flex items-center justify-between px-2">
           <Link href="/owner/dashboard" onClick={onClose} aria-label="CaterFlex dashboard">
-            <img src="/logo.png" alt="CaterFlex" className="h-16 w-16 object-contain" />
+            <img src="/logo.png" alt="CaterFlex" className="h-12 w-12 object-contain" />
           </Link>
           <button
             type="button"
@@ -83,13 +83,13 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
           </button>
         </div>
 
-        <nav className="flex-1 space-y-6">
+        <nav className="flex-1 space-y-3">
           {sections.map((section) => (
             <div key={section.title}>
-              <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">
+              <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/55">
                 {section.title}
               </p>
-              <ul className="space-y-1">
+              <ul className="space-y-0.5">
                 {section.links.map((link) => {
                   const Icon = link.icon;
                   const active = isActive(link.href);
@@ -99,7 +99,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
                         href={link.href}
                         onClick={onClose}
                         aria-current={active ? 'page' : undefined}
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+                        className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
                           active
                             ? 'bg-white text-[#2B1D16] shadow-sm'
                             : 'text-white/85 hover:bg-white/10 hover:text-white'
@@ -116,7 +116,7 @@ export function Sidebar({ open = false, onClose }: { open?: boolean; onClose?: (
           ))}
         </nav>
 
-        <p className="mt-6 px-3 text-xs text-white/50">CaterFlex · Owner</p>
+        <p className="mt-3 px-3 text-xs text-white/50">CaterFlex · Owner</p>
       </aside>
     </>
   );

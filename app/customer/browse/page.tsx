@@ -868,7 +868,7 @@ const filteredMenuItems = isMealPrepDraft
                             onClick={toggle}
                             className={`w-full ${
                               isSelected
-                                ? 'bg-green-600 hover:bg-green-700'
+                                ? 'bg-[#2B1D16] hover:bg-[#1A110C]'
                                 : 'bg-[#C8431B] hover:bg-[#A93615]'
                             } text-white`}
                           >

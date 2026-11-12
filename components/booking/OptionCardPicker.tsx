@@ -41,12 +41,12 @@ export function OptionCardPicker<T extends string>({
               className={`flex h-14 items-center justify-between rounded-lg border px-4 text-left font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] ${
                 selected
                   ? 'border-[#C8431B] bg-[#C8431B] text-white'
-                  : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                  : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:bg-[#f1f1f2]'
               }`}
             >
               <span className="font-heading text-lg uppercase tracking-tight">{option.label}</span>
               {option.hint && (
-                <span className={`text-xs font-medium ${selected ? 'text-white/80' : 'text-emerald-900/70'}`}>
+                <span className={`text-xs font-medium ${selected ? 'text-white/80' : 'text-[#2B1D16]/70'}`}>
                   {option.hint}
                 </span>
               )}

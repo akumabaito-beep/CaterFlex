@@ -83,7 +83,7 @@ export function EventTypePicker({
               className={`flex h-24 flex-col items-center justify-center gap-2 rounded-lg border px-2 text-center text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] ${
                 isSelected
                   ? 'border-[#C8431B] bg-[#C8431B] text-white'
-                  : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+                  : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:bg-[#f1f1f2]'
               }`}
             >
               <Icon className="size-6" aria-hidden="true" />

@@ -562,13 +562,8 @@ export default function InventoryPage() {
             onKeyDown={(event) => { if (event.key === 'Escape') cancelEdit(); }}
             className="owner-list-page mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-[#E8D8C4] bg-[#FBF6EE] p-4"
           >
-            <div role="group" aria-label="How to change stock" className="inline-flex overflow-hidden rounded-lg border border-[#E8D8C4] bg-white text-sm font-semibold">
-              {([['set', 'Set to'], ['add', 'Add']] as const).map(([mode, label]) => (
-                <button key={mode} type="button" aria-pressed={editMode === mode} onClick={() => setEditMode(mode)} className={`px-3 py-1.5 transition-colors ${editMode === mode ? 'bg-[#C8431B] text-white' : 'text-[#2B1D16] hover:bg-[#f1f1f2]'}`}>{label}</button>
-              ))}
-            </div>
             <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-              {editMode === 'add' ? 'Amount received' : 'New stock'} ({ingredient.unit})
+              New stock ({ingredient.unit})
               <input autoFocus type="number" inputMode="numeric" min={0} step={1} value={editValue} onChange={(event) => setEditValue(event.target.value)} disabled={saving} className="h-9 w-36 rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm text-card-foreground outline-none focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20" />
             </label>
             <p className="pb-2 text-sm text-muted-foreground">{previewValid ? <>Stock will be <span className="font-semibold text-card-foreground">{formatQuantity(preview, ingredient.unit)}</span></> : 'Enter a whole number'}</p>

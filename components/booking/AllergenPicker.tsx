@@ -61,7 +61,7 @@ export function AllergenPicker({
           className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B] ${
             none
               ? 'border-[#C8431B] bg-[#C8431B] text-white'
-              : 'border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+              : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:bg-[#f1f1f2]'
           }`}
         >
           {none && <Check className="size-4" aria-hidden="true" />}
