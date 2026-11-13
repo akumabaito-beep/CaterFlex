@@ -54,3 +54,16 @@ export async function markNotificationRead(notificationId: number) {
   if (error) return { ok: false as const, error: error.message }
   return { ok: true as const }
 }
+
+export async function markAllNotificationsRead() {
+  const owner = await requireRole('owner')
+  if (!owner) return { ok: false as const, error: 'Owner access required.' }
+
+  const { error } = await createAdminClient()
+    .from('NOTIFICATION')
+    .update({ IsRead: true })
+    .eq('OperatorID', Number(owner.id))
+    .eq('IsRead', false)
+  if (error) return { ok: false as const, error: error.message }
+  return { ok: true as const }
+}
