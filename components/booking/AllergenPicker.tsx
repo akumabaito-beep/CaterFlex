@@ -23,6 +23,10 @@ const ICONS: Record<string, LucideIcon> = {
   gluten: Wheat,
   eggs: Egg,
   soy: Bean,
+  sesame: Bean,
+  sulfites: ShieldAlert,
+  corn: Wheat,
+  mustard: Bean,
   other: CircleHelp,
 }
 

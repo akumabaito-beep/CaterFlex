@@ -31,6 +31,7 @@ type Booking = {
   Status: string | null;
   EventType?: string | null;
   DeliveryFee?: number | null;
+  RejectionReason?: string | null;
 };
 
 type BookingItem = {
@@ -319,7 +320,7 @@ export default function CustomerStatusPage() {
                       </ol>
                     ) : (
                       <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-                        {status.note}
+                        {statusKey === 'rejected' && booking.RejectionReason ? `Reason: ${booking.RejectionReason}` : status.note}
                       </p>
                     )}
 

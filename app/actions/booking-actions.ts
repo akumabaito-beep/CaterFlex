@@ -10,7 +10,7 @@ import { computeBookingTotal, servingsForBookingItem } from '@/lib/rules/allocat
 import { deliveryFeeForVenue } from '../../lib/pricing'
 import { revalidatePath } from 'next/cache'
 
-const BOOKING_FIELDS = 'BookingID, EventType, CustomerID, OperatorID, EventDate, EventTime, Venue, GuestCount, Status, AllergenConflictFlag, IsArchived, ArchivedAt, DeliveryFee'
+const BOOKING_FIELDS = 'BookingID, EventType, CustomerID, OperatorID, EventDate, EventTime, Venue, GuestCount, Status, AllergenConflictFlag, IsArchived, ArchivedAt, DeliveryFee, RejectionReason'
 const BOOKING_ITEM_FIELDS = 'BookingItemID, BookingID, MenuItemID, Quantity, UnitPrice'
 
 type BookingDetails = {
@@ -1032,7 +1032,7 @@ export async function getOwnerFinancialData() {
     admin.from('BOOKING').select('BookingID, CustomerID, OperatorID, EventDate, EventTime, Venue, GuestCount, Status').eq('OperatorID', operatorId).order('EventDate', { ascending: false }),
     admin.from('INVOICE').select('InvoiceID, BookingID, TotalAmount, DateGenerated'),
     admin.from('PAYMENT').select('PaymentID, InvoiceID, Amount, PaymentType, Status, DatePaid').order('DatePaid', { ascending: false }),
-    admin.from('BOOKING_ITEM').select('BookingItemID, BookingID, MenuItemID, Quantity'),
+    admin.from('BOOKING_ITEM').select('BookingItemID, BookingID, MenuItemID, Quantity, UnitPrice'),
     admin.from('MENU_ITEM').select('MenuItemID, ItemName, Price'),
   ])
 
@@ -1072,9 +1072,11 @@ export async function recordOwnerPayment(input: { invoiceId: number; amount: num
   return { ok: true as const }
 }
 
-export async function updateBookingStatus(bookingId: number, newStatus: 'confirmed' | 'rejected') {
+export async function updateBookingStatus(bookingId: number, newStatus: 'confirmed' | 'rejected', reason?: string) {
   const owner = await requireRole('owner')
   if (!owner) return { ok: false as const, error: 'Owner access required.' }
+  const rejectionReason = reason?.trim().slice(0, 300) ?? ''
+  if (newStatus === 'rejected' && !rejectionReason) return { ok: false as const, error: 'Please choose a reason for rejecting this booking.' }
 
   const admin = createAdminClient()
   const { data: booking, error: fetchError } = await admin.from('BOOKING').select('BookingID, OperatorID, DeliveryFee').eq('BookingID', bookingId).maybeSingle()
@@ -1142,7 +1144,7 @@ const totalAmount = computeBookingTotal(
     }
   }
 
-  const { error } = await admin.from('BOOKING').update({ Status: newStatus }).eq('BookingID', bookingId)
+  const { error } = await admin.from('BOOKING').update({ Status: newStatus, RejectionReason: newStatus === 'rejected' ? rejectionReason : null }).eq('BookingID', bookingId)
   if (error) return { ok: false as const, error: error.message }
   return { ok: true as const }
 }

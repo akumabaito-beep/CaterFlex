@@ -203,6 +203,9 @@ export function LocationPicker({ value, onChange, inputClass, notesPlaceholder }
         )}
       </div>
 
+      <label className="block text-xs font-semibold text-[#2B1D16]/70">
+        Venue name, unit, floor or landmark (optional)
+      </label>
       <input
         type="text"
         value={address}
@@ -210,7 +213,7 @@ export function LocationPicker({ value, onChange, inputClass, notesPlaceholder }
           setAddress(e.target.value)
           if (pin) onChange(e.target.value ? formatPinnedAddress(e.target.value, pin.lat, pin.lng) : '')
         }}
-        placeholder={notesPlaceholder ?? 'Edit address / add unit, floor or landmark'}
+        placeholder={notesPlaceholder ?? 'e.g. Grand Ballroom, 2nd floor, near the church'}
         className={inputClass}
       />
       {error && <p className="text-xs text-[#C8431B]">{error}</p>}

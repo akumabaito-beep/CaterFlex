@@ -33,6 +33,11 @@ const FALLBACK_ALLERGEN_OPTIONS: AllergenType[] = [
   'gluten',
   'eggs',
   'soy',
+  'tree_nuts',
+  'sesame',
+  'sulfites',
+  'corn',
+  'mustard',
 ];
 
 export type MenuItemFormValues = Omit<

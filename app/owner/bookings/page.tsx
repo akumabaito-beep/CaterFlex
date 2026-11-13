@@ -60,6 +60,7 @@ type Booking = {
   ArchivedAt?: string | null;
   DeliveryFee?: number | null;
   EventType?: string | null;
+  RejectionReason?: string | null;
 };
 
 type MealPrepOrder = {
@@ -478,9 +479,14 @@ export default function BookingsPage() {
   // UPDATE BOOKING STATUS
   // ============================================================
 
+  const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectOther, setRejectOther] = useState('');
+
   const updateBookingStatus = async (
     bookingId: number,
-    status: 'confirmed' | 'rejected'
+    status: 'confirmed' | 'rejected',
+    reason?: string
   ) => {
     if (updatingId !== null) {
       return;
@@ -489,7 +495,7 @@ export default function BookingsPage() {
     setUpdatingId(bookingId);
 
     try {
-      const result = await updateBookingStatusAction(bookingId, status);
+      const result = await updateBookingStatusAction(bookingId, status, reason);
 
       if (!result.ok) {
         console.error('BOOKING STATUS UPDATE ERROR:', result.error);
@@ -508,6 +514,7 @@ export default function BookingsPage() {
             ? {
                 ...booking,
                 Status: status,
+                RejectionReason: status === 'rejected' ? reason ?? null : null,
               }
             : booking
         )
@@ -793,7 +800,7 @@ export default function BookingsPage() {
                     {hasUnsavedServingEdits && <p className="mt-1 text-xs text-muted-foreground">Save servings before confirming</p>}
                   </div>
                   <Button
-                    onClick={() => (isMeal ? updateMealPrepOrderStatus(booking.mealPrepOrderId!, 'rejected') : updateBookingStatus(booking.BookingID, 'rejected'))}
+                    onClick={() => (isMeal ? updateMealPrepOrderStatus(booking.mealPrepOrderId!, 'rejected') : (setRejectReason(''), setRejectOther(''), setRejectingId(booking.BookingID)))}
                     disabled={busy}
                     variant="outline"
                     className="gap-2"
@@ -830,6 +837,39 @@ export default function BookingsPage() {
 
   return (
     <DashboardLayout>
+      {rejectingId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2B1D16]/50 p-4" role="dialog" aria-modal="true" aria-label="Reject booking">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 className="font-heading text-2xl font-bold uppercase text-[#2B1D16]">Reject this booking?</h2>
+            <p className="mt-1 text-sm text-muted-foreground">The customer will see the reason you choose.</p>
+            <div className="mt-4 space-y-2">
+              {['Fully booked on that date', 'Not enough ingredients in stock', 'Venue is outside our delivery area', 'Not enough lead time', 'Other'].map((r) => (
+                <label key={r} className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm ${rejectReason === r ? 'border-[#C8431B] bg-[#F6E3D3]' : 'border-[#E8D8C4] hover:bg-[#f1f1f2]'}`}>
+                  <input type="radio" name="reject-reason" checked={rejectReason === r} onChange={() => setRejectReason(r)} className="accent-[#C8431B]" />
+                  {r}
+                </label>
+              ))}
+              {rejectReason === 'Other' && (
+                <input value={rejectOther} onChange={(e) => setRejectOther(e.target.value)} maxLength={200} placeholder="Tell the customer why" className="h-10 w-full rounded-lg border border-[#E8D8C4] px-3 text-sm outline-none focus:border-[#C8431B]" />
+              )}
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setRejectingId(null)}>Cancel</Button>
+              <Button
+                className="bg-[#C8431B] text-white hover:bg-[#A93615]"
+                disabled={!rejectReason || (rejectReason === 'Other' && !rejectOther.trim()) || updatingId !== null}
+                onClick={async () => {
+                  const id = rejectingId;
+                  await updateBookingStatus(id, 'rejected', rejectReason === 'Other' ? rejectOther.trim() : rejectReason);
+                  setRejectingId(null);
+                }}
+              >
+                Reject booking
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="space-y-6">
         <div>
           <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">Bookings</h1>

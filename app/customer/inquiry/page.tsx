@@ -49,12 +49,17 @@ import {
 
 const ALLERGEN_OPTIONS: AllergenType[] = [
   'shellfish',
+  'fish',
   'peanuts',
   'dairy',
   'gluten',
   'eggs',
   'soy',
   'tree_nuts',
+  'sesame',
+  'sulfites',
+  'corn',
+  'mustard',
   'other',
 ];
 

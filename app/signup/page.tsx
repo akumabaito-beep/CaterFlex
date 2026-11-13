@@ -27,11 +27,16 @@ export default function SignupPage() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const email = String(form.get('email') || '').trim();
+    const contact = String(form.get('contact') || '').replace(/[\s-]/g, '');
     const password = String(form.get('password') || '');
     const confirm = String(form.get('confirmPassword') || '');
 
     if (!email || password.length < 8) {
       setError('Enter your email and a password with at least 6 characters.');
+      return;
+    }
+    if (!/^(09|\+639)\d{9}$/.test(contact)) {
+      setError('Enter a valid mobile number, like 09171234567.');
       return;
     }
     if (password !== confirm) {
@@ -41,7 +46,7 @@ export default function SignupPage() {
 
     setPending(true);
     setError('');
-    const result = await signUpAccount({ email, password });
+    const result = await signUpAccount({ email, password, contact });
     setPending(false);
 
     if (!result.ok) {
@@ -84,6 +89,10 @@ export default function SignupPage() {
           <label htmlFor="email" className="flex flex-col gap-2 text-sm font-semibold">
             Email address
             <input id="email" name="email" type="email" required autoComplete="email" placeholder="you@example.com" className={fieldClass} />
+          </label>
+          <label htmlFor="contact" className="flex flex-col gap-2 text-sm font-semibold">
+            Contact number
+            <input id="contact" name="contact" type="tel" required inputMode="tel" autoComplete="tel" placeholder="09171234567" className={fieldClass} />
           </label>
           <label htmlFor="password" className="flex flex-col gap-2 text-sm font-semibold">
             Password

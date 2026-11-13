@@ -208,7 +208,8 @@ export default function PaymentsPage() {
           .filter((item) => item.BookingID === invoice.BookingID)
           .map((bookingItem) => {
             const menuItem = typedMenuItems.find((item) => item.MenuItemID === bookingItem.MenuItemID);
-            const unitPrice = Number(menuItem?.Price ?? 0);
+            // Use the price saved on the booking, never today's menu price.
+            const unitPrice = Number((bookingItem as { UnitPrice?: number | null }).UnitPrice ?? menuItem?.Price ?? 0);
             const quantity = Number(bookingItem.Quantity);
             return { name: menuItem?.ItemName ?? 'Unknown menu item', unitPrice, quantity, total: unitPrice * quantity };
           });
