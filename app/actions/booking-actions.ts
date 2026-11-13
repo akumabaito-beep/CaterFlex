@@ -10,7 +10,9 @@ import { computeBookingTotal, servingsForBookingItem } from '@/lib/rules/allocat
 import { deliveryFeeForVenue } from '../../lib/pricing'
 import { revalidatePath } from 'next/cache'
 
-const BOOKING_FIELDS = 'BookingID, EventType, CustomerID, OperatorID, EventDate, EventTime, Venue, GuestCount, Status, AllergenConflictFlag, IsArchived, ArchivedAt, DeliveryFee, RejectionReason'
+const BOOKING_FIELDS = 'BookingID, EventType, CustomerID, OperatorID, EventDate, EventTime, Venue, GuestCount, Status, AllergenConflictFlag, IsArchived, ArchivedAt, DeliveryFee'
+// RejectionReason needs supabase/add-rejection-reason.sql; fall back without it so bookings still load.
+const BOOKING_FIELDS_WITH_REASON = `${BOOKING_FIELDS}, RejectionReason`
 const BOOKING_ITEM_FIELDS = 'BookingItemID, BookingID, MenuItemID, Quantity, UnitPrice'
 
 type BookingDetails = {
@@ -658,7 +660,10 @@ export async function getCustomerBookings() {
   if (!customer) return { ok: false as const, error: 'Customer access required.', bookings: [], bookingItems: [] }
 
   const admin = createAdminClient()
-  const { data: bookings, error } = await admin.from('BOOKING').select(BOOKING_FIELDS).eq('CustomerID', Number(customer.id)).order('BookingID', { ascending: false })
+  const run = (fields: string) => admin.from('BOOKING').select(fields).eq('CustomerID', Number(customer.id)).order('BookingID', { ascending: false })
+  let { data: rawBookings, error } = await run(BOOKING_FIELDS_WITH_REASON)
+  if (error) ({ data: rawBookings, error } = await run(BOOKING_FIELDS))
+  const bookings = rawBookings as unknown as any[] | null
   if (error) return { ok: false as const, error: error.message, bookings: [], bookingItems: [] }
 
   const bookingIds = (bookings ?? []).map((booking) => booking.BookingID)
@@ -932,7 +937,12 @@ export async function getOwnerBookings() {
   const admin = createAdminClient()
   const operatorId = Number(owner.id)
   const [{ data: bookings, error }, { data: mealPrepOrders, error: mealPrepError }] = await Promise.all([
-    admin.from('BOOKING').select(BOOKING_FIELDS).eq('OperatorID', operatorId).order('BookingID', { ascending: false }),
+    (async () => {
+      const run = (fields: string) => admin.from('BOOKING').select(fields).eq('OperatorID', operatorId).order('BookingID', { ascending: false })
+      const first = await run(BOOKING_FIELDS_WITH_REASON)
+      const res = first.error ? await run(BOOKING_FIELDS) : first
+      return { data: res.data as unknown as any[] | null, error: res.error }
+    })(),
     admin.from('MEAL_PREP_ORDER').select('MealPrepOrderID, CustomerID, OperatorID, RecurrencePattern, MealsPerCycle, Status, AllergenConflictFlag, IsArchived, ArchivedAt, NextFulfillmentDate').eq('OperatorID', operatorId).order('MealPrepOrderID', { ascending: false }),
   ])
   if (error) return { ok: false as const, error: error.message, bookings: [], bookingItems: [], mealPrepOrders: [], mealPrepItems: [] }
