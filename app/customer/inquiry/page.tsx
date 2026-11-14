@@ -38,7 +38,7 @@ import { AvailabilityCalendar } from '@/components/booking/AvailabilityCalendar'
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   CalendarDays,
@@ -322,6 +322,7 @@ export default function InquiryPage() {
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [stepError, setStepError] = useState('');
+  const stepChangedAt = useRef(0);
   const [otherAllergy, setOtherAllergy] = useState('');
   const [allergenOptions, setAllergenOptions] = useState<AllergenType[]>(ALLERGEN_OPTIONS);
   const [loadingAllergies, setLoadingAllergies] = useState(true);
@@ -585,6 +586,7 @@ export default function InquiryPage() {
     const problem = stepProblem(step);
     setStepError(problem);
     if (problem) return;
+    stepChangedAt.current = Date.now();
     setStep((step + 1) as 2 | 3);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -596,8 +598,9 @@ export default function InquiryPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (step < 3) {
-      goNext();
+    // The click that moves to step 3 must not also submit the form.
+    if (step < 3 || Date.now() - stepChangedAt.current < 400) {
+      if (step < 3) goNext();
       return;
     }
 
@@ -1206,6 +1209,7 @@ export default function InquiryPage() {
 
               {step < 3 ? (
                 <Button
+                  key="next-btn"
                   type="button"
                   onClick={goNext}
                   disabled={loadingAvailability || Boolean(guestCountError)}
@@ -1215,6 +1219,7 @@ export default function InquiryPage() {
                 </Button>
               ) : (
                 <Button
+                  key="submit-btn"
                   type="submit"
                   disabled={Boolean(activeDate && dateAvailability && !dateAvailability.available) || loadingAvailability || Boolean(guestCountError)}
                   className="flex-1 h-11 rounded-lg bg-[#C8431B] text-white font-semibold hover:bg-[#A93615] disabled:opacity-50 disabled:cursor-not-allowed"
