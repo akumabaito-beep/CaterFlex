@@ -7,6 +7,7 @@ import { AuthShell } from '@/components/auth/AuthShell';
 import { GoogleButton, OrDivider } from '@/components/auth/GoogleButton';
 import { Button } from '@/components/ui/button';
 import { resendVerification, signUpAccount } from '@/lib/auth';
+import { saveCustomerContact } from '@/app/actions/profile-actions';
 
 const fieldClass =
   'h-12 w-full rounded-lg border border-border bg-white px-4 font-normal text-foreground outline-none placeholder:text-muted-foreground focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20';
@@ -19,7 +20,12 @@ export default function SignupPage() {
   // The form is inert until React has loaded, so an early submit can never fall back to a plain
   // browser GET that would put the email and password in the address bar.
   const [ready, setReady] = useState(false);
-  useEffect(() => setReady(true), []);
+  // After Google sign-in we come back here once to collect the phone number.
+  const [contactStep, setContactStep] = useState(false);
+  useEffect(() => {
+    setReady(true);
+    setContactStep(new URLSearchParams(window.location.search).get('step') === 'contact');
+  }, []);
   const [sentTo, setSentTo] = useState('');
   const [resendNote, setResendNote] = useState('');
 
@@ -56,10 +62,45 @@ export default function SignupPage() {
     setSentTo(result.email);
   }
 
+  async function handleContact(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const contact = String(new FormData(event.currentTarget).get('contact') || '');
+    setPending(true);
+    setError('');
+    const result = await saveCustomerContact(contact);
+    if (!result.ok) {
+      setPending(false);
+      setError(result.error);
+      return;
+    }
+    router.replace('/customer/home');
+  }
+
   async function handleResend() {
     setResendNote('');
     const result = await resendVerification(sentTo);
     setResendNote(result.ok ? 'We sent you a new link.' : result.error);
+  }
+
+  if (contactStep) {
+    return (
+      <AuthShell>
+        <section className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10" aria-labelledby="contact-heading">
+          <h1 id="contact-heading" className="text-center font-heading text-4xl font-bold uppercase tracking-tight text-[#2B1D16] sm:text-5xl">One last step</h1>
+          <p className="mt-3 text-center text-base leading-7 text-muted-foreground">Add your contact number so the caterer can reach you about your orders.</p>
+          <form onSubmit={handleContact} className="mt-8 flex flex-col gap-4">
+            <label htmlFor="contact" className="flex flex-col gap-2 text-sm font-semibold">
+              Contact number
+              <input id="contact" name="contact" type="tel" required autoFocus inputMode="tel" autoComplete="tel" placeholder="+63 917 123 4567" className={fieldClass} />
+            </label>
+            {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" disabled={pending || !ready} className="mt-2 h-12 w-full justify-center rounded-lg bg-[#C8431B] text-base font-semibold text-white shadow-none hover:bg-[#A93615]">
+              {pending ? 'Saving…' : 'Continue'}
+            </Button>
+          </form>
+        </section>
+      </AuthShell>
+    );
   }
 
   if (sentTo) {

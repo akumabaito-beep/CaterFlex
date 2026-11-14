@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
 
   const { data: existing, error: lookupError } = await admin
     .from('CUSTOMER')
-    .select('CustomerID, Name, Email, EmailVerified')
+    .select('CustomerID, Name, Email, EmailVerified, Contact')
     .ilike('Email', email)
     .maybeSingle()
   if (lookupError) return fail(request, 'google_failed')
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
     const { data: created, error: insertError } = await admin
       .from('CUSTOMER')
       .insert({ Name: name, Contact: '', Email: email, Password: null, EmailVerified: true })
-      .select('CustomerID, Name, Email, EmailVerified')
+      .select('CustomerID, Name, Email, EmailVerified, Contact')
       .single()
     if (insertError || !created) return fail(request, 'google_failed')
     customer = created
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
     email: customer.Email,
     role: 'customer',
   }
-  const response = NextResponse.redirect(new URL('/customer/home', request.url))
+  const response = NextResponse.redirect(new URL(String(customer.Contact ?? '').trim() ? '/customer/home' : '/signup?step=contact', request.url))
   response.cookies.set(SESSION_COOKIE, await encodeSession(user), {
     httpOnly: true,
     sameSite: 'lax',
