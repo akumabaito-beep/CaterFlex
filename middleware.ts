@@ -14,7 +14,9 @@ export async function middleware(request: NextRequest) {
 
    const publicRoutes = ['/', '/login', '/signup', '/menu']
   if (publicRoutes.includes(pathname)) {
-    if ((pathname === '/login' || pathname === '/signup') && tableSession) {
+    // A customer who just signed in with Google lands on /signup?step=contact to add a phone number.
+    const addingContact = pathname === '/signup' && request.nextUrl.searchParams.get('step') === 'contact'
+    if ((pathname === '/login' || pathname === '/signup') && tableSession && !addingContact) {
       return NextResponse.redirect(new URL(homeForRole(tableSession.role), request.url))
     }
     return NextResponse.next()
