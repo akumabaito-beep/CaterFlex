@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
+import { ContactPrompt } from '@/components/auth/ContactPrompt';
 import { useState } from 'react';
 import { signOutAccount } from '@/lib/auth';
 
@@ -105,6 +106,7 @@ export function CustomerShell({ children }: { children: ReactNode }) {
           </nav>
         )}
       </header>
+      <ContactPrompt />
 
       <main
         className="min-h-[calc(100vh-65px)] bg-[#EFE0CD] bg-top bg-repeat-y bg-[length:100%_auto] px-5 py-8 lg:px-8 lg:py-12"

@@ -94,7 +94,7 @@ export async function signUpCustomer(input: {
   const contact = input.contact?.trim() ?? ''
 
   if (contact && !/^(09|\+639)\d{9}$/.test(contact.replace(/[\s-]/g, ''))) {
-    return { ok: false, error: 'Enter a valid mobile number, like 09171234567.' }
+    return { ok: false, error: 'Enter a valid mobile number, like +63 917 123 4567.' }
   }
   if (!email || !name || password.length < 8) {
     return { ok: false, error: 'Enter your email and a password with at least 8 characters.' }

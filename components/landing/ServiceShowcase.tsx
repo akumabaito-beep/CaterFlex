@@ -109,7 +109,7 @@ export function ServicesShowcase({ onBrowse: onBrowseProp }: { onBrowse?: () => 
   return (
     <section id="services" className="flex min-h-[calc(100svh-4rem)] scroll-mt-16 items-center bg-[#F3E7D6] px-6 py-12 lg:py-8">
       <div className="mx-auto grid w-full max-w-7xl items-center gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
-        <div className="grid">
+        <div className="relative z-30 grid">
           <Reveal className="col-start-1 row-start-1 self-center">
             <div inert={visible} aria-hidden={visible} className={cn('transition-opacity duration-300', visible && 'pointer-events-none opacity-0')}>
               <p className="flex items-center gap-2 text-xs font-semibold text-[#C8431B]"><ChefHat className="size-4" aria-hidden="true" /> What we do</p>
@@ -124,7 +124,7 @@ export function ServicesShowcase({ onBrowse: onBrowseProp }: { onBrowse?: () => 
             role="region"
             aria-label={`${s.title} details`}
             aria-hidden={!visible}
-            className={cn('col-start-1 row-start-1 self-center rounded-xl border border-border bg-card p-6 shadow-xl outline-none sm:p-8', !visible && 'hidden')}
+            className={cn('relative z-30 col-start-1 row-start-1 self-center rounded-xl border border-border bg-card p-6 shadow-xl outline-none sm:p-8', !visible && 'hidden')}
           >
             <div ref={bodyRef}>
               <div className="flex items-start justify-between">

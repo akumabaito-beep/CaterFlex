@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     email: customer.Email,
     role: 'customer',
   }
-  const response = NextResponse.redirect(new URL('/customer/inquiry', request.url))
+  const response = NextResponse.redirect(new URL('/customer/home', request.url))
   response.cookies.set(SESSION_COOKIE, await encodeSession(user), {
     httpOnly: true,
     sameSite: 'lax',

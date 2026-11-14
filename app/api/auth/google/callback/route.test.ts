@@ -63,7 +63,7 @@ describe('Google callback', () => {
     googleReturns(goodClaims)
     const inserted = db({})
     const res = await GET(request())
-    expect(location(res)).toBe('/customer/inquiry')
+    expect(location(res)).toBe('/customer/home')
     expect(inserted).toHaveBeenCalledWith({ Name: 'Juan Dela Cruz', Contact: '', Email: 'Juan@Gmail.com', Password: null, EmailVerified: true })
     expect(res.headers.get('set-cookie')).toContain('session=token')
   })
@@ -72,7 +72,7 @@ describe('Google callback', () => {
     googleReturns(goodClaims)
     const inserted = db({ customer: { CustomerID: 5, Name: 'Juan', Email: 'juan@gmail.com' } })
     const res = await GET(request())
-    expect(location(res)).toBe('/customer/inquiry')
+    expect(location(res)).toBe('/customer/home')
     expect(inserted).not.toHaveBeenCalled()
   })
 

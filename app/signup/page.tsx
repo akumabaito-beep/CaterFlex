@@ -36,7 +36,7 @@ export default function SignupPage() {
       return;
     }
     if (!/^(09|\+639)\d{9}$/.test(contact)) {
-      setError('Enter a valid mobile number, like 09171234567.');
+      setError('Enter a valid mobile number, like +63 917 123 4567.');
       return;
     }
     if (password !== confirm) {
@@ -92,7 +92,7 @@ export default function SignupPage() {
           </label>
           <label htmlFor="contact" className="flex flex-col gap-2 text-sm font-semibold">
             Contact number
-            <input id="contact" name="contact" type="tel" required inputMode="tel" autoComplete="tel" placeholder="09171234567" className={fieldClass} />
+            <input id="contact" name="contact" type="tel" required inputMode="tel" autoComplete="tel" placeholder="+63 917 123 4567" className={fieldClass} />
           </label>
           <label htmlFor="password" className="flex flex-col gap-2 text-sm font-semibold">
             Password

@@ -33,7 +33,7 @@ describe('email confirmation link', () => {
   it('confirms the account and signs the customer in', async () => {
     db({ CustomerID: 4, Name: 'Maria', Email: 'm@x.com', EmailVerifyExpires: future })
     const res = await call('good')
-    expect(where(res)).toBe('/customer/inquiry')
+    expect(where(res)).toBe('/customer/home')
     expect(update).toHaveBeenCalledWith({ EmailVerified: true, EmailVerifyTokenHash: null, EmailVerifyExpires: null })
     expect(res.headers.get('set-cookie')).toContain('session=token')
   })
