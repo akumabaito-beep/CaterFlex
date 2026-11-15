@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
+import { Dropdown } from '@/components/owner/Dropdown';
 
 import { getScrapSuggestionsForBlockedDishes } from '@/lib/rules/scrapSuggestions';
 
@@ -722,22 +723,30 @@ export default function InventoryPage() {
             </div>
             <form onSubmit={handleIngredientSubmit} className="flex flex-col gap-4">
               {([
-                ['Name', <input key="n" autoFocus value={formName} onChange={(event) => setFormName(event.target.value)} placeholder="Ingredient name" required disabled={formSaving} className="h-10 w-full rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm outline-none focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20" />],
-                [`Quantity (${formUnit})`, <input key="q" type="number" min="0" step="1" value={formQuantity} onChange={(event) => setFormQuantity(event.target.value)} placeholder="0" required disabled={formSaving} className="h-10 w-full rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm outline-none focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20" />],
+                ['Name', <input key="n" autoFocus value={formName} onChange={(event) => setFormName(event.target.value)} placeholder="Ingredient name" required disabled={formSaving} className="h-11 w-full rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm outline-none transition-colors focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20" />],
+                [`Quantity (${formUnit})`, <input key="q" type="number" min="0" step="1" value={formQuantity} onChange={(event) => setFormQuantity(event.target.value)} placeholder="0" required disabled={formSaving} className="h-11 w-full rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm outline-none transition-colors focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20" />],
               ] as [string, React.ReactNode][]).map(([label, input]) => (
                 <label key={label} className="flex flex-col gap-1.5 text-sm font-medium">{label}{input}</label>
               ))}
               <div className="grid grid-cols-2 gap-3">
-                <label className="flex flex-col gap-1.5 text-sm font-medium">Unit
-                  <select value={formUnit} onChange={(event) => setFormUnit(event.target.value)} disabled={formSaving} className="h-10 rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm outline-none focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20">
-                    {measurementOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1.5 text-sm font-medium">Category
-                  <select value={formCategory} onChange={(event) => setFormCategory(event.target.value as CategoryKey)} disabled={formSaving} className="h-10 rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm outline-none focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20">
-                    {(Object.entries(categoryLabels) as [CategoryKey, string][]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
-                </label>
+                <div className="flex flex-col gap-1.5 text-sm font-medium">Unit
+                  <Dropdown
+                    ariaLabel="Unit"
+                    value={formUnit}
+                    disabled={formSaving}
+                    onChange={setFormUnit}
+                    groups={[{ options: measurementOptions.map((unit) => ({ value: unit, label: unit })) }]}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5 text-sm font-medium">Category
+                  <Dropdown
+                    ariaLabel="Category"
+                    value={formCategory}
+                    disabled={formSaving}
+                    onChange={(value) => setFormCategory(value as CategoryKey)}
+                    groups={[{ options: (Object.entries(categoryLabels) as [CategoryKey, string][]).map(([value, label]) => ({ value, label })) }]}
+                  />
+                </div>
               </div>
               {formError && <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{formError}</p>}
               <div className="mt-1 flex justify-end gap-3">

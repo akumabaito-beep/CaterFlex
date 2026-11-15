@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/app/dashboard-layout';
 import type { DayOfWeek } from '@/lib/types';
 import type { OperatorSettingRow } from '@/lib/settings-types';
+import { Dropdown, type DropdownGroup } from '@/components/owner/Dropdown';
 import { CalendarDays, Check, Clock, Minus, Plus, Save, Users } from 'lucide-react';
 import {
   loadOperatingRules,
@@ -62,6 +63,27 @@ function normalizeTime(value: string | null): string {
   // Supabase may return PostgreSQL time as HH:MM:SS.
   // HTML time inputs expect HH:MM.
   return value.slice(0, 5);
+}
+
+const fmtTime = (t: string) => {
+  const [h, m] = t.split(':').map(Number);
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+};
+
+/** Half-hour choices grouped by part of the day. Keeps the saved time even when it is not on the half hour. */
+function timeGroups(current: string, notBefore?: string, notAfter?: string): DropdownGroup[] {
+  const slots: string[] = [];
+  for (let m = 0; m < 24 * 60; m += 30) {
+    slots.push(`${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`);
+  }
+  if (current && !slots.includes(current)) slots.push(current);
+  slots.sort();
+  const usable = slots.filter((t) => t === current || ((!notBefore || t > notBefore) && (!notAfter || t < notAfter)));
+  const part = (label: string, from: string, to: string): DropdownGroup => ({
+    label,
+    options: usable.filter((t) => t >= from && t < to).map((t) => ({ value: t, label: fmtTime(t) })),
+  });
+  return [part('Early morning', '00:00', '06:00'), part('Morning', '06:00', '12:00'), part('Afternoon', '12:00', '18:00'), part('Evening', '18:00', '24:00')].filter((g) => g.options.length > 0);
 }
 
 const stepperBtn =
@@ -324,12 +346,16 @@ export default function SettingsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="hours-start" className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">Opens</label>
-                  <input id="hours-start" type="time" value={settings.operatingHoursStart} onChange={(e) => updateSettings({ operatingHoursStart: e.target.value })} className={timeInput} />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">Opens</span>
+                  <div className="mt-1.5">
+                    <Dropdown ariaLabel="Opening time" value={settings.operatingHoursStart} onChange={(v) => updateSettings({ operatingHoursStart: v })} groups={timeGroups(settings.operatingHoursStart, undefined, settings.operatingHoursEnd || undefined)} placeholder="Choose time" />
+                  </div>
                 </div>
                 <div>
-                  <label htmlFor="hours-end" className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">Closes</label>
-                  <input id="hours-end" type="time" value={settings.operatingHoursEnd} onChange={(e) => updateSettings({ operatingHoursEnd: e.target.value })} className={timeInput} />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">Closes</span>
+                  <div className="mt-1.5">
+                    <Dropdown ariaLabel="Closing time" value={settings.operatingHoursEnd} onChange={(v) => updateSettings({ operatingHoursEnd: v })} groups={timeGroups(settings.operatingHoursEnd, settings.operatingHoursStart || undefined)} placeholder="Choose time" />
+                  </div>
                 </div>
               </div>
               {hoursInvalid && <p role="alert" className="mt-2 text-sm font-medium text-[#B3261E]">Closing time must be after opening time.</p>}
