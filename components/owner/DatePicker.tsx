@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
@@ -36,6 +36,16 @@ export function DatePicker({
     return { year: base.getFullYear(), month: base.getMonth() }
   })
   const root = useRef<HTMLDivElement>(null)
+  const panel = useRef<HTMLDivElement>(null)
+  const [alignRight, setAlignRight] = useState(false)
+
+  // Open towards the left when the calendar would run off the right edge of the screen.
+  useLayoutEffect(() => {
+    if (!open || !root.current) return
+    const trigger = root.current.getBoundingClientRect()
+    const width = panel.current?.offsetWidth ?? 288
+    setAlignRight(trigger.left + width > window.innerWidth - 12)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -84,7 +94,7 @@ export function DatePicker({
       </button>
 
       {open && (
-        <div role="dialog" aria-label="Choose a date" className="owner-popover absolute left-0 top-full z-50 mt-2 w-72 rounded-2xl border border-[#E8D8C4] bg-white p-4 shadow-xl">
+        <div ref={panel} role="dialog" aria-label="Choose a date" className={`owner-popover absolute top-full z-50 mt-2 w-72 max-w-[calc(100vw-1.5rem)] ${alignRight ? 'right-0' : 'left-0'} rounded-2xl border border-[#E8D8C4] bg-white p-4 shadow-xl`}>
           <div className="flex items-center justify-between">
             <button type="button" onClick={() => step(-1)} aria-label="Previous month" className="flex size-8 items-center justify-center rounded-full text-[#C8431B] hover:bg-[#F6E3D3]">
               <ChevronLeft className="size-4" aria-hidden="true" />
