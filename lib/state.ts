@@ -525,10 +525,15 @@ export const useAppState = create<AppState>(
      */
     setCustomerBookingDraft: (
       draft
-    ) =>
+    ) => {
+      // Keep a copy for this browser tab so "Edit details" still has the answers after a reload.
+      try {
+        sessionStorage.setItem('caterflex-booking-draft', JSON.stringify(draft))
+      } catch {}
       set({
         customerBookingDraft: draft,
-      }),
+      })
+    },
 
     /**
      * Set the customer's selected order type.
@@ -542,14 +547,18 @@ export const useAppState = create<AppState>(
      * Clears customer-only temporary state
      * after a booking or meal-prep submission.
      */
-    clearCustomerSession: () =>
+    clearCustomerSession: () => {
+      try {
+        sessionStorage.removeItem('caterflex-booking-draft')
+      } catch {}
       set({
         selectedMenuItemIds: [],
         mealPrepSelections: [],
         customerDietaryRestrictions: [],
         customerBookingDraft: {},
         customerOrderType: 'catering',
-      }),
+      })
+    },
 
     /**
      * Replace the current alert list.

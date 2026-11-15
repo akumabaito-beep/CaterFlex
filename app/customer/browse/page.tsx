@@ -8,6 +8,8 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Check, AlertCircle, CheckCircle2, Plus, X, CalendarDays, Clock, Users, Repeat, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Paged } from '@/components/owner/Pagination';
+import { PagedList } from '@/components/customer/PagedList';
 import { estimateOrder, MAX_DELIVERY_KM } from '@/lib/pricing';
 import { supabase } from '@/lib/supabase';
 import { createBooking, createMealPrepOrder } from '@/app/actions/booking-actions';
@@ -751,8 +753,14 @@ const filteredMenuItems = isMealPrepDraft
                 No menu items found in this category.
               </div>
             ) : (
-              <div className="grid gap-5 sm:grid-cols-2">
-                {filteredMenuItems.map((item) => {
+              <Paged
+                key={`${isMealPrepDraft ? selectedMealPrepCategory : selectedCategory}`}
+                items={filteredMenuItems}
+                pageSize={6}
+                label="dishes"
+                className="grid gap-5 sm:grid-cols-2"
+              >
+                {(item) => {
                   const isSelected = isMealPrepDraft
                   ? mealPrepSelections.some(
                       (selection) =>
@@ -909,8 +917,8 @@ const filteredMenuItems = isMealPrepDraft
                       </div>
                     </div>
                   );
-                })}
-              </div>
+                }}
+              </Paged>
             )}
           </div>
 
@@ -918,9 +926,9 @@ const filteredMenuItems = isMealPrepDraft
           <div>
             <div
               id="order-summary"
-              className="flex flex-col overflow-hidden rounded-xl border border-[#E8D8C4] bg-white shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]"
+              className="flex flex-col overflow-hidden rounded-xl border border-[#E8D8C4] bg-white shadow-sm lg:sticky lg:top-24"
             >
-              <div className="flex-1 space-y-5 overflow-y-auto p-6">
+              <div className="flex-1 space-y-5 p-6">
               <div>
                 <h2 className="font-heading text-xl font-bold uppercase text-[#2B1D16]">
                   Your order
@@ -952,12 +960,15 @@ const filteredMenuItems = isMealPrepDraft
                           {category.label}
                         </h3>
 
-                        <ul className="divide-y divide-[#E8D8C4] rounded-lg border border-[#E8D8C4]">
-                          {categorySelections.map((item) => (
-                            <li
-                              key={`${category.value}-${item.id}`}
-                              className="flex items-center gap-2 p-3"
-                            >
+                        <PagedList
+                          items={categorySelections}
+                          pageSize={3}
+                          className="divide-y divide-[#E8D8C4] rounded-lg border border-[#E8D8C4]"
+                          itemClassName="flex items-center gap-2 p-3"
+                          getKey={(item) => `${category.value}-${item.id}`}
+                        >
+                          {(item) => (
+                            <>
                               <div className="min-w-0 flex-1">
                                 <p className="truncate text-sm font-semibold text-[#2B1D16]">
                                   {item.name}
@@ -1023,18 +1034,24 @@ const filteredMenuItems = isMealPrepDraft
                                   <X className="h-4 w-4" aria-hidden="true" />
                                 </button>
                               </div>
-                            </li>
-                          ))}
-                        </ul>
+                                                        </>
+                          )}
+                        </PagedList>
                       </div>
                     );
                   })}
                 </div>
               ) : (
             selectedItems.length > 0 && (
-              <ul className="max-h-56 divide-y divide-[#E8D8C4] overflow-y-auto rounded-lg border border-[#E8D8C4]">
-                {selectedItems.map((item) => (
-                  <li key={item.id} className="flex items-center gap-3 p-3">
+              <PagedList
+                items={selectedItems}
+                pageSize={4}
+                className="divide-y divide-[#E8D8C4] rounded-lg border border-[#E8D8C4]"
+                itemClassName="flex items-center gap-3 p-3"
+                getKey={(item) => item.id}
+              >
+                {(item) => (
+                  <>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-[#2B1D16]">
                         {item.name}
@@ -1052,9 +1069,9 @@ const filteredMenuItems = isMealPrepDraft
                     >
                       <X className="h-4 w-4" aria-hidden="true" />
                     </button>
-                  </li>
-                ))}
-              </ul>
+                                    </>
+                )}
+              </PagedList>
             )
           )}
 
@@ -1248,10 +1265,10 @@ const filteredMenuItems = isMealPrepDraft
               onClick={() => {
                 setShowBookingSuccess(false);
                 clearCustomerSession();
-                router.push('/customer/active-orders');
+                router.push(isMealPrepDraft ? '/customer/active-orders' : '/customer/status');
               }}
             >
-              View my active orders
+              {isMealPrepDraft ? 'View my meal plans' : 'View my requests'}
             </Button>
           </div>
         </div>

@@ -358,7 +358,6 @@ export default function MealPlansPage() {
                     {/* DETAILS */}
                     <div className="grid gap-4 sm:grid-cols-2">
                       {[
-                        { icon: Utensils, label: 'Dishes', value: plan.dishes.map((d) => d.name).join(', ') || '—' },
                         { icon: Users, label: 'Servings per delivery', value: String(plan.servings) },
                         { icon: Clock, label: plan.method === 'delivery' ? 'Delivery time' : 'Pickup time', value: formatTime(plan.time) },
                         { icon: Calendar, label: 'Schedule', value: scheduleLabel(plan) },
@@ -388,6 +387,33 @@ export default function MealPlansPage() {
                           </div>
                         </div>
                       ))}
+                    </div>
+
+                    {/* DISHES */}
+                    <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">
+                        Selected dishes
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {plan.dishes.length === 0 ? (
+                          <span className="text-sm text-[#2B1D16]/60">No dishes recorded.</span>
+                        ) : (
+                          plan.dishes.map((dish) => (
+                            <span
+                              key={`${plan.id}-${dish.id}`}
+                              className="rounded-lg border border-[#E8D8C4] bg-white px-3 py-1.5 text-sm font-medium text-[#2B1D16]"
+                            >
+                              <span className="inline-flex items-center gap-2">
+                                <Utensils className="size-3.5 text-[#C8431B]" aria-hidden="true" />
+                                {dish.name}
+                              </span>
+                              <p className="mt-1 text-xs text-[#2B1D16]/60">
+                                {plan.servings} {plan.servings === 1 ? 'serving' : 'servings'} per delivery
+                              </p>
+                            </span>
+                          ))
+                        )}
+                      </div>
                     </div>
 
                     {/* PRICE */}

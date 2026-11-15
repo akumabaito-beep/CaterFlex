@@ -77,6 +77,7 @@ export default function InquiryPage() {
     bookings,
     operatorSettings,
     customerOrderType,
+    customerBookingDraft,
     loadOperatorSettings,
     setCustomerOrderType,
     setCustomerBookingDraft,
@@ -229,24 +230,42 @@ export default function InquiryPage() {
    * ============================================================
    */
 
-  const [cateringForm, setCateringForm] = useState({
-    eventType: '',
-    eventDate: '',
-    eventTime: '12:00',
-    venue: '',
-    guestCount: '',
-    specialRequests: '',
-  });
+  // "Edit details" on the menu page comes back here: refill the form from the saved draft.
+  const draft = (() => {
+    if (Object.keys(customerBookingDraft).length > 0) return customerBookingDraft;
+    try {
+      const saved = sessionStorage.getItem('caterflex-booking-draft');
+      return saved ? (JSON.parse(saved) as typeof customerBookingDraft) : customerBookingDraft;
+    } catch {
+      return customerBookingDraft;
+    }
+  })();
+  const draftIsCatering = draft.orderType === 'catering';
+  const draftIsMealPrep = draft.orderType === 'meal_prep';
+  const splitOther = (text?: string | null) => {
+    const lines = String(text ?? '').split('\n');
+    const other = lines.find((l) => l.startsWith('Other allergy: '))?.slice(15) ?? '';
+    return { text: lines.filter((l) => !l.startsWith('Other allergy: ')).join('\n'), other };
+  };
 
-  const [mealPrepForm, setMealPrepForm] = useState({
-    subscriptionWeeks: 1 as SubscriptionWeeks,
-    startDate: '',
-    deliveryDays: [1, 3] as number[],
-    fulfillmentTime: '10:00',
-    fulfillmentMethod: 'pickup' as FulfillmentMethod,
-    address: '',
-    specialRequests: '',
-  });
+  const [cateringForm, setCateringForm] = useState(() => ({
+    eventType: draftIsCatering ? String(draft.eventType ?? '') : '',
+    eventDate: draftIsCatering ? String(draft.eventDate ?? '') : '',
+    eventTime: draftIsCatering && draft.eventTime ? String(draft.eventTime) : '12:00',
+    venue: draftIsCatering ? String(draft.venue ?? '') : '',
+    guestCount: draftIsCatering && draft.guestCount ? String(draft.guestCount) : '',
+    specialRequests: draftIsCatering ? splitOther(draft.specialRequests).text : '',
+  }));
+
+  const [mealPrepForm, setMealPrepForm] = useState(() => ({
+    subscriptionWeeks: (draftIsMealPrep && draft.subscriptionWeeks ? draft.subscriptionWeeks : 1) as SubscriptionWeeks,
+    startDate: draftIsMealPrep ? String(draft.eventDate ?? '') : '',
+    deliveryDays: (draftIsMealPrep && draft.deliveryDays?.length ? draft.deliveryDays : [1, 3]) as number[],
+    fulfillmentTime: draftIsMealPrep && draft.eventTime ? String(draft.eventTime) : '10:00',
+    fulfillmentMethod: (draftIsMealPrep && draft.fulfillmentMethod ? draft.fulfillmentMethod : 'pickup') as FulfillmentMethod,
+    address: draftIsMealPrep && draft.fulfillmentMethod === 'delivery' ? String(draft.venue ?? '') : '',
+    specialRequests: draftIsMealPrep ? splitOther(draft.specialRequests).text : '',
+  }));
 
   const toggleDeliveryDay = (day: number) => {
     setMealPrepForm((prev) => {
@@ -323,7 +342,14 @@ export default function InquiryPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [stepError, setStepError] = useState('');
   const stepChangedAt = useRef(0);
-  const [otherAllergy, setOtherAllergy] = useState('');
+  useEffect(() => {
+    if (Object.keys(customerBookingDraft).length === 0 && draft.orderType) {
+      setCustomerOrderType(draft.orderType);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const restoredOther = useRef(false);
+  const [otherAllergy, setOtherAllergy] = useState(() => splitOther(draft.specialRequests).other);
   const [allergenOptions, setAllergenOptions] = useState<AllergenType[]>(ALLERGEN_OPTIONS);
   const [loadingAllergies, setLoadingAllergies] = useState(true);
   const [allergyTagRows, setAllergyTagRows] = useState<Array<{ AllergyTagID: number; AllergenName: string }>>([]);
@@ -551,6 +577,13 @@ export default function InquiryPage() {
       throw new Error(result.error);
     }
   };
+
+  // Coming back via "Edit details": tick "Other" again once the saved allergies have loaded.
+  useEffect(() => {
+    if (loadingAllergies || restoredOther.current || !otherAllergy.trim()) return;
+    restoredOther.current = true;
+    setDietary((prev) => (prev.includes('other' as AllergenType) ? prev : [...prev, 'other' as AllergenType]));
+  }, [loadingAllergies, otherAllergy]);
 
   const otherNote =
     dietary.includes('other' as AllergenType) && otherAllergy.trim()
