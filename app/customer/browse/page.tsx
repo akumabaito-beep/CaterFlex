@@ -926,9 +926,9 @@ const filteredMenuItems = isMealPrepDraft
           <div>
             <div
               id="order-summary"
-              className="flex max-h-none flex-col overflow-visible rounded-xl border border-[#E8D8C4] bg-white shadow-sm lg:static"
+              className="flex flex-col overflow-hidden rounded-xl border border-[#E8D8C4] bg-white shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)]"
             >
-              <div className="flex-1 space-y-5 p-6">
+              <div className="flex-1 space-y-5 overflow-y-auto p-6">
               <div>
                 <h2 className="font-heading text-xl font-bold uppercase text-[#2B1D16]">
                   Your order
