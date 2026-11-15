@@ -824,6 +824,32 @@ if (!validation.valid) {
   return { ok: false as const, error: validation.failures.map((failure) => failure.message).join(' ') }
 }
 
+  // Stock is part of the booking rules: the dishes must be makeable from the ingredients on hand,
+  // after the ingredients already promised to other confirmed bookings and meal plans.
+  try {
+    // Loaded on demand: the stock module creates a browser client when imported.
+    const { checkOrderSufficiencyWithAllocations } = await import('../../lib/macroflex')
+    const stock = await checkOrderSufficiencyWithAllocations(
+      selectedMenuItemIds.map((id) => ({ menuItemId: Number(id), servings: guestCount })),
+      guestCount,
+      eventDate,
+      undefined,
+      admin,
+    )
+    if (!stock.hasNoIngredients && !stock.sufficient) {
+      const dishes = [...new Set(stock.shortfalls.flatMap((shortfall) => shortfall.contributingItems.map((item) => item.itemName)))].filter(Boolean)
+      const missing = stock.shortfalls.map((shortfall) => `${shortfall.ingredientName} (short by ${Math.ceil(shortfall.shortBy)} ${shortfall.unitOfMeasure})`)
+      await createNotification(operatorId, 'insufficient_ingredients', `A booking for ${eventDate} (${guestCount} guests) was blocked because of low stock: ${missing.join(', ')}.`)
+      return {
+        ok: false as const,
+        error: `We don't have enough ingredients for ${dishes.length ? dishes.join(', ') : 'some of these dishes'} on that date. Try fewer guests, a different dish or another date.`,
+      }
+    }
+  } catch (stockError) {
+    // If stock cannot be read, do not block the customer; the owner still reviews every booking.
+    console.error('Stock check failed', stockError)
+  }
+
   // Get the active menu prices from the price history table.
   const { data: activePrices, error: priceError } = await admin
     .from('PRICES')

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/app/dashboard-layout';
 import type { DayOfWeek } from '@/lib/types';
 import type { OperatorSettingRow } from '@/lib/settings-types';
+import { EventTypeManager } from '@/components/owner/EventTypeManager';
 import { Dropdown, type DropdownGroup } from '@/components/owner/Dropdown';
 import { CalendarDays, Check, Clock, Minus, Plus, Save, Users } from 'lucide-react';
 import {
@@ -391,6 +392,8 @@ export default function SettingsPage() {
             </section>
           </div>
         </div>
+
+        <EventTypeManager />
       </div>
     </DashboardLayout>
   );

@@ -7,6 +7,7 @@ import { useAppState } from '@/lib/state';
 import { supabase } from '@/lib/supabase';
 import { getCustomerBookings } from '@/app/actions/booking-actions';
 import { OWNER_CONTACT } from '@/lib/constants';
+import { Paged } from '@/components/owner/Pagination';
 
 import { parsePinnedAddress } from '@/lib/kitchen';
 
@@ -235,8 +236,8 @@ export default function CustomerStatusPage() {
             No bookings yet. Start a new order to see it here.
           </div>
         ) : (
-          <div className="flex flex-col gap-6">
-            {bookings.map((booking) => {
+          <Paged items={bookings} pageSize={5} label="requests" className="flex flex-col gap-6">
+            {(booking) => {
               const statusKey = booking.Status?.toLowerCase() ?? 'pending';
               const status = statusCopy[statusKey] ?? statusCopy.pending;
               const StatusIcon = status.icon;
@@ -431,8 +432,8 @@ export default function CustomerStatusPage() {
                   </div>
                 </article>
               );
-            })}
-          </div>
+            }}
+          </Paged>
         )}
       </div>
     </CustomerShell>

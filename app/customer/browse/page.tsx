@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Check, AlertCircle, CheckCircle2, Plus, X, CalendarDays, Clock, Users, Repeat, Pencil } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { getDishStock } from '@/app/actions/stock-actions';
 import { Paged } from '@/components/owner/Pagination';
 import { PagedList } from '@/components/customer/PagedList';
 import { estimateOrder, MAX_DELIVERY_KM } from '@/lib/pricing';
@@ -59,6 +60,12 @@ const mealPrepCategories = [
   /*
    * Load menu items from Supabase.
    */
+  // Servings the kitchen can still make per dish, so dishes it can't make are marked.
+  const [dishStock, setDishStock] = useState<Record<number, number>>({});
+  useEffect(() => {
+    getDishStock().then(setDishStock).catch(() => setDishStock({}));
+  }, []);
+
   useEffect(() => {
     const loadMenuItems = async () => {
       try {
@@ -771,7 +778,11 @@ const filteredMenuItems = isMealPrepDraft
                   const itemConflicts = checkAllergenConflict(item, customerDietaryRestrictions);
                   const hasAllergyConflict = itemConflicts.length > 0;
                   
+                  const servingsNeeded = isMealPrepDraft ? 1 : Math.max(1, Number(customerBookingDraft.guestCount) || 1);
+                  const stockLeft = dishStock[Number(item.id)];
+                  const lacksStock = stockLeft !== undefined && stockLeft < servingsNeeded;
                   const toggle = () => {
+                    if (lacksStock && !isSelected) return;
                     if (isMealPrepDraft) {
                       if (isSelected) {
                         removeMealPrepSelection(
@@ -804,14 +815,15 @@ const filteredMenuItems = isMealPrepDraft
                         type="button"
                         onClick={toggle}
                         aria-pressed={isSelected}
+                        aria-disabled={lacksStock && !isSelected}
                         aria-label={`${isSelected ? 'Remove' : 'Add'} ${item.name}`}
-                        className="relative block overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C8431B]"
+                        className={`relative block overflow-hidden text-left ${lacksStock && !isSelected ? 'cursor-not-allowed' : ''} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#C8431B]`}
                       >
                         {item.photoUrl ? (
                           <img
                             src={item.photoUrl}
                             alt={`${item.name} food`}
-                            className="h-44 w-full object-cover transition-transform duration-300 hover:scale-105"
+                            className={`h-44 w-full object-cover transition-transform duration-300 ${lacksStock ? 'opacity-50 grayscale' : 'hover:scale-105'}`}
                           />
                         ) : (
                           <div className="flex h-44 w-full items-center justify-center bg-[#F6E3D3] text-sm text-[#2B1D16]/50">
@@ -822,6 +834,12 @@ const filteredMenuItems = isMealPrepDraft
                         <span className="absolute bottom-3 left-3 rounded-lg bg-white/90 px-3 py-1 text-xs font-semibold text-[#2B1D16] backdrop-blur-sm">
                           {item.category || "Chef's selection"}
                         </span>
+
+                        {lacksStock && (
+                          <span className="absolute left-3 top-3 rounded-lg bg-[#2B1D16] px-3 py-1 text-xs font-semibold text-white">
+                            {stockLeft === 0 ? 'Out of stock' : `Only ${stockLeft} ${stockLeft === 1 ? 'serving' : 'servings'} left`}
+                          </span>
+                        )}
 
                         {isSelected && (
                           <span className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-[#C8431B] text-white shadow">

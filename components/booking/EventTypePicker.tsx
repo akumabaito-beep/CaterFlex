@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { getEventTypes } from '@/app/actions/event-type-actions'
+import { DEFAULT_EVENT_TYPES } from '@/lib/event-types'
 import {
   Briefcase,
   Cake,
@@ -17,25 +19,24 @@ import {
 
 const OTHERS = 'Others'
 
-const EVENT_TYPES: { label: string; icon: LucideIcon }[] = [
-  { label: 'Wedding', icon: Heart },
-  { label: 'Birthday', icon: Cake },
-  { label: 'Corporate Event', icon: Briefcase },
-  { label: 'Debut', icon: Sparkles },
-  { label: 'Christening', icon: Baby },
-  { label: 'Graduation', icon: GraduationCap },
-  { label: 'Anniversary', icon: Gift },
-  { label: 'Family Gathering', icon: Users },
-  { label: 'Holiday Party', icon: PartyPopper },
-  { label: OTHERS, icon: PenLine },
-]
+const KNOWN_ICONS: Record<string, LucideIcon> = {
+  Wedding: Heart,
+  Birthday: Cake,
+  'Corporate Event': Briefcase,
+  Debut: Sparkles,
+  Christening: Baby,
+  Graduation: GraduationCap,
+  Anniversary: Gift,
+  'Family Gathering': Users,
+  'Holiday Party': PartyPopper,
+  [OTHERS]: PenLine,
+}
 
 /** Icon for an event type label. Anything typed under "Others" gets the party icon. */
 export function eventTypeIcon(label: string | null | undefined): LucideIcon {
-  return EVENT_TYPES.find((t) => t.label === label)?.icon ?? PartyPopper
+  return (label && KNOWN_ICONS[label]) || PartyPopper
 }
 
-const PRESETS = new Set(EVENT_TYPES.map((t) => t.label).filter((l) => l !== OTHERS))
 
 /**
  * Pick an event type; "Others" reveals a box to type your own.
@@ -50,7 +51,18 @@ export function EventTypePicker({
   onChange: (value: string) => void
   inputClass: string
 }) {
-  const [othersOn, setOthersOn] = useState(value !== '' && !PRESETS.has(value))
+  // The owner edits this list under Operating Rules. "Others" is always offered last.
+  const [types, setTypes] = useState<string[]>(DEFAULT_EVENT_TYPES)
+  useEffect(() => {
+    getEventTypes().then(setTypes).catch(() => setTypes(DEFAULT_EVENT_TYPES))
+  }, [])
+  const PRESETS = useMemo(() => new Set(types), [types])
+  const typeList = useMemo(() => [...types.map((label) => ({ label, icon: eventTypeIcon(label) })), { label: OTHERS, icon: PenLine }], [types])
+  const [othersOn, setOthersOn] = useState(value !== '' && !DEFAULT_EVENT_TYPES.includes(value))
+  // A value that turns out to be one of the owner's types is not "Others".
+  useEffect(() => {
+    if (value && PRESETS.has(value)) setOthersOn(false)
+  }, [PRESETS, value])
   const selected = othersOn ? OTHERS : PRESETS.has(value) ? value : ''
 
   return (
@@ -63,7 +75,7 @@ export function EventTypePicker({
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5" role="radiogroup" aria-label="Event type">
-        {EVENT_TYPES.map(({ label, icon: Icon }) => {
+        {typeList.map(({ label, icon: Icon }) => {
           const isSelected = selected === label
           return (
             <button
