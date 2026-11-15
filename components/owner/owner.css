@@ -99,3 +99,7 @@
   background-color: #f1f1f2;
 }
 .owner-main button:disabled { box-shadow: none; }
+
+/* Dropdowns and date popovers open with a short pop. */
+.owner-popover { animation: owner-pop 0.16s ease-out both; transform-origin: top; }
+@media (prefers-reduced-motion: reduce) { .owner-popover { animation: none; } }

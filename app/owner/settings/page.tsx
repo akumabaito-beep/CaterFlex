@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/app/dashboard-layout';
 import type { DayOfWeek } from '@/lib/types';
 import type { OperatorSettingRow } from '@/lib/settings-types';
-import { Card } from '@/components/ui/card';
+import { CalendarDays, Check, Clock, Minus, Plus, Save, Users } from 'lucide-react';
 import {
   loadOperatingRules,
   saveOperatingRules as saveOperatingRulesAction,
@@ -62,6 +62,34 @@ function normalizeTime(value: string | null): string {
   // Supabase may return PostgreSQL time as HH:MM:SS.
   // HTML time inputs expect HH:MM.
   return value.slice(0, 5);
+}
+
+const stepperBtn =
+  'flex size-8 items-center justify-center rounded-lg border border-[#E8D8C4] bg-white text-[#C8431B] transition-colors hover:bg-[#f1f1f2] disabled:pointer-events-none disabled:opacity-30';
+
+function Stepper({ value, onChange, disabled, label, min = 0 }: { value: number; onChange: (v: number) => void; disabled?: boolean; label: string; min?: number }) {
+  return (
+  <div className={`flex items-center gap-1.5 ${disabled ? 'opacity-40' : ''}`}>
+    <button type="button" disabled={disabled || value <= min} onClick={() => onChange(Math.max(min, value - 1))} aria-label={`Decrease ${label}`} className={stepperBtn}>
+      <Minus className="size-4" aria-hidden="true" />
+    </button>
+    <input
+      type="number"
+      min={min}
+      value={value}
+      disabled={disabled}
+      aria-label={label}
+      onChange={(e) => {
+        const v = parseInt(e.target.value, 10);
+        onChange(Number.isNaN(v) ? min : Math.max(v, min));
+      }}
+      className="h-8 w-12 rounded-lg border border-transparent bg-transparent text-center text-sm font-semibold text-[#2B1D16] outline-none focus:border-[#C8431B] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+    />
+    <button type="button" disabled={disabled} onClick={() => onChange(value + 1)} aria-label={`Increase ${label}`} className={stepperBtn}>
+      <Plus className="size-4" aria-hidden="true" />
+    </button>
+  </div>
+);
 }
 
 export default function SettingsPage() {
@@ -185,233 +213,157 @@ export default function SettingsPage() {
     setSaving(false);
   }
 
+  const openDays = settings.operatingDays.length;
+  const fmt = (t: string) => {
+    if (!t) return '—';
+    const [h, m] = t.split(':').map(Number);
+    return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+  };
+  const hoursInvalid = Boolean(settings.operatingHoursStart && settings.operatingHoursEnd && settings.operatingHoursStart >= settings.operatingHoursEnd);
+
+  const header = (
+    <div>
+      <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">Operating Rules</h1>
+      <p className="mt-2 text-surface-muted-foreground">
+        Set when you take bookings and how many you can handle. Customers only see dates that fit these rules.
+      </p>
+    </div>
+  );
+
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="space-y-8 max-w-3xl">
-          <div>
-            <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">
-              Operating Rules
-            </h1>
-            <p className="text-surface-muted-foreground mt-2">
-              Configure availability and capacity thresholds used when
-              validating bookings.
-            </p>
+        <div className="space-y-8">
+          {header}
+          <div className="grid gap-6 lg:grid-cols-[1fr_20rem]" aria-busy="true">
+            <div className="h-96 animate-pulse rounded-2xl border border-[#E8D8C4] bg-white" />
+            <div className="h-72 animate-pulse rounded-2xl border border-[#E8D8C4] bg-white" />
           </div>
-
-          <Card className="p-6">
-            <p className="text-sm text-muted-foreground">
-              Loading operating rules...
-            </p>
-          </Card>
         </div>
       </DashboardLayout>
     );
   }
 
+  const timeInput =
+    'mt-1.5 h-11 w-full rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm text-[#2B1D16] outline-none transition-colors focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20';
+
   return (
     <DashboardLayout>
-      <div className="space-y-8 max-w-3xl">
-        <div>
-          <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">
-            Operating Rules
-          </h1>
-
-          <p className="text-surface-muted-foreground mt-2">
-            Configure availability and capacity thresholds used when
-            validating bookings.
-          </p>
-        </div>
+      <div className="space-y-8">
+        {header}
 
         {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
+          <div role="alert" className="rounded-xl border border-[#B3261E]/30 bg-[#F8DDD9] px-4 py-3 text-sm font-medium text-[#B3261E]">{error}</div>
         )}
-
         {message && (
-          <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-            {message}
+          <div role="status" className="flex items-center gap-2 rounded-xl border border-[#C8431B]/30 bg-[#F6E3D3] px-4 py-3 text-sm font-medium text-[#2B1D16]">
+            <Check className="size-4 text-[#C8431B]" aria-hidden="true" /> {message}
           </div>
         )}
 
-        <Card className="p-6">
-          <h2 className="font-heading text-lg font-bold text-card-foreground mb-4">
-            Operating Days
-          </h2>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {ALL_DAYS.map((day) => (
-              <label
-                key={day}
-                className="flex items-center gap-2 cursor-pointer text-sm text-card-foreground"
-              >
-                <input
-                  type="checkbox"
-                  checked={settings.operatingDays.includes(day)}
-                  onChange={() => toggleDay(day)}
-                  className="rounded border-border"
-                />
-
-                {DAY_LABELS[day]}
-              </label>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <h2 className="font-heading text-lg font-bold text-card-foreground mb-4">
-            Operating Hours
-          </h2>
-
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm text-muted-foreground">
-                Start
-              </label>
-
-              <input
-                type="time"
-                value={settings.operatingHoursStart}
-                onChange={(e) =>
-                  updateSettings({
-                    operatingHoursStart: e.target.value,
-                  })
-                }
-                className="mt-1 w-full px-3 py-2 border border-border rounded-lg"
-              />
+        <div className="grid items-start gap-6 lg:grid-cols-[1fr_20rem]">
+          {/* WEEKLY SCHEDULE */}
+          <section className="overflow-hidden rounded-2xl border border-[#E8D8C4] bg-white">
+            <div className="flex items-center gap-3 border-b border-[#E8D8C4] px-6 py-4">
+              <span className="flex size-10 items-center justify-center rounded-xl bg-[#F6E3D3] text-[#C8431B]"><CalendarDays className="size-5" aria-hidden="true" /></span>
+              <div>
+                <h2 className="font-heading text-lg font-bold uppercase text-[#2B1D16]">Weekly schedule</h2>
+                <p className="text-sm text-[#2B1D16]/60">Turn a day on, then set how many bookings it can take.</p>
+              </div>
             </div>
 
-            <div>
-              <label className="text-sm text-muted-foreground">
-                End
-              </label>
-
-              <input
-                type="time"
-                value={settings.operatingHoursEnd}
-                onChange={(e) =>
-                  updateSettings({
-                    operatingHoursEnd: e.target.value,
-                  })
-                }
-                className="mt-1 w-full px-3 py-2 border border-border rounded-lg"
-              />
+            <div className="hidden grid-cols-[1fr_9.5rem_9.5rem] gap-4 border-b border-[#E8D8C4] bg-[#FBF6EE] px-6 py-2 text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60 sm:grid">
+              <span>Day</span>
+              <span>Catering events</span>
+              <span>Meal prep orders</span>
             </div>
-          </div>
-        </Card>
 
-        <Card className="p-6">
-          <h2 className="font-heading text-lg font-bold text-card-foreground mb-4">
-            Max Events Per Day
-          </h2>
+            <ul className="divide-y divide-[#E8D8C4]">
+              {ALL_DAYS.map((day) => {
+                const open = settings.operatingDays.includes(day);
+                return (
+                  <li key={day} className={`grid items-center gap-3 px-6 py-3.5 transition-colors sm:grid-cols-[1fr_9.5rem_9.5rem] sm:gap-4 ${open ? 'bg-white' : 'bg-[#FBF6EE]'}`}>
+                    <label className="flex cursor-pointer items-center gap-3">
+                      <input type="checkbox" checked={open} onChange={() => toggleDay(day)} className="peer sr-only" />
+                      <span aria-hidden="true" className="relative h-6 w-11 shrink-0 rounded-full bg-[#E8D8C4] transition-colors peer-checked:bg-[#C8431B] peer-focus-visible:ring-2 peer-focus-visible:ring-[#C8431B]/40 after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-5" />
+                      <span className="font-semibold text-[#2B1D16]">{DAY_LABELS[day]}</span>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${open ? 'bg-[#F6E3D3] text-[#C8431B]' : 'bg-[#E8D8C4]/60 text-[#2B1D16]/60'}`}>{open ? 'Open' : 'Closed'}</span>
+                    </label>
 
-          <div className="space-y-3">
-            {ALL_DAYS.map((day) => (
-              <div
-                key={day}
-                className="flex items-center justify-between gap-4"
-              >
-                <span className="text-sm text-card-foreground w-28">
-                  {DAY_LABELS[day]}
-                </span>
+                    <div className="flex items-center justify-between gap-3 sm:justify-start">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60 sm:hidden">Catering</span>
+                      <Stepper
+                        label={`${DAY_LABELS[day]} catering events`}
+                        value={settings.maxEventsPerDay[day]}
+                        disabled={!open}
+                        onChange={(v) => updateSettings({ maxEventsPerDay: { ...settings.maxEventsPerDay, [day]: v } })}
+                      />
+                    </div>
 
-                <input
-                  type="number"
-                  min={0}
-                  value={settings.maxEventsPerDay[day]}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value, 10);
+                    <div className="flex items-center justify-between gap-3 sm:justify-start">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60 sm:hidden">Meal prep</span>
+                      <Stepper
+                        label={`${DAY_LABELS[day]} meal prep orders`}
+                        value={settings.maxMealPrepOrdersPerDay[day]}
+                        disabled={!open}
+                        onChange={(v) => updateSettings({ maxMealPrepOrdersPerDay: { ...settings.maxMealPrepOrdersPerDay, [day]: v } })}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
 
-                    updateSettings({
-                      maxEventsPerDay: {
-                        ...settings.maxEventsPerDay,
-                        [day]: Number.isNaN(value) ? 0 : Math.max(value, 0),
-                      },
-                    });
-                  }}
-                  className="w-24 px-3 py-2 border border-border rounded-lg text-right"
-                />
+          {/* SIDE COLUMN */}
+          <div className="space-y-6 lg:sticky lg:top-24">
+            <section className="rounded-2xl border border-[#E8D8C4] bg-white p-6">
+              <div className="mb-4 flex items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-[#F6E3D3] text-[#C8431B]"><Clock className="size-5" aria-hidden="true" /></span>
+                <h2 className="font-heading text-lg font-bold uppercase text-[#2B1D16]">Hours</h2>
               </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <h2 className="font-heading text-lg font-bold text-card-foreground mb-4">
-            Max Meal Prep Orders Per Day
-          </h2>
-
-          <div className="space-y-3">
-            {ALL_DAYS.map((day) => (
-              <div
-                key={day}
-                className="flex items-center justify-between gap-4"
-              >
-                <span className="text-sm text-card-foreground w-28">
-                  {DAY_LABELS[day]}
-                </span>
-
-                <input
-                  type="number"
-                  min={0}
-                  value={settings.maxMealPrepOrdersPerDay[day]}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value, 10);
-
-                    updateSettings({
-                      maxMealPrepOrdersPerDay: {
-                        ...settings.maxMealPrepOrdersPerDay,
-                        [day]: Number.isNaN(value) ? 0 : Math.max(value, 0),
-                      },
-                    });
-                  }}
-                  className="w-24 px-3 py-2 border border-border rounded-lg text-right"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="hours-start" className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">Opens</label>
+                  <input id="hours-start" type="time" value={settings.operatingHoursStart} onChange={(e) => updateSettings({ operatingHoursStart: e.target.value })} className={timeInput} />
+                </div>
+                <div>
+                  <label htmlFor="hours-end" className="text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60">Closes</label>
+                  <input id="hours-end" type="time" value={settings.operatingHoursEnd} onChange={(e) => updateSettings({ operatingHoursEnd: e.target.value })} className={timeInput} />
+                </div>
               </div>
-            ))}
+              {hoursInvalid && <p role="alert" className="mt-2 text-sm font-medium text-[#B3261E]">Closing time must be after opening time.</p>}
+            </section>
+
+            <section className="rounded-2xl border border-[#E8D8C4] bg-white p-6">
+              <div className="mb-4 flex items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-xl bg-[#F6E3D3] text-[#C8431B]"><Users className="size-5" aria-hidden="true" /></span>
+                <h2 className="font-heading text-lg font-bold uppercase text-[#2B1D16]">Guest limit</h2>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm text-[#2B1D16]/70">Max guests per event</span>
+                <Stepper label="Max guests per event" min={1} value={settings.maxGuestsPerEvent} onChange={(v) => updateSettings({ maxGuestsPerEvent: v })} />
+              </div>
+            </section>
+
+            <section className="rounded-2xl bg-[#2B1D16] p-6 text-white">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/60">Summary</p>
+              <p className="mt-2 font-heading text-2xl font-bold uppercase leading-tight">
+                Open {openDays} {openDays === 1 ? 'day' : 'days'} a week
+              </p>
+              <p className="mt-1 text-sm text-white/80">
+                {fmt(settings.operatingHoursStart)} to {fmt(settings.operatingHoursEnd)} · up to {settings.maxGuestsPerEvent} guests
+              </p>
+              <button
+                type="button"
+                onClick={saveSettings}
+                disabled={saving || hoursInvalid}
+                className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#C8431B] font-semibold text-white transition-colors hover:bg-[#A93615] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Save className="size-4" aria-hidden="true" /> {saving ? 'Saving...' : 'Save operating rules'}
+              </button>
+            </section>
           </div>
-        </Card>
-
-        <Card className="p-6">
-          <h2 className="font-heading text-lg font-bold text-card-foreground mb-4">
-            Guest Limit
-          </h2>
-
-          <label className="text-sm text-muted-foreground">
-            Max guests per event
-          </label>
-
-          <input
-            type="number"
-            min={1}
-            value={settings.maxGuestsPerEvent}
-            onChange={(e) => {
-              const value = parseInt(e.target.value, 10);
-
-              updateSettings({
-                maxGuestsPerEvent: Number.isNaN(value)
-                  ? 1
-                  : Math.max(value, 1),
-              });
-            }}
-            className="mt-1 w-full max-w-xs px-3 py-2 border border-border rounded-lg"
-          />
-        </Card>
-
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-surface-muted-foreground">
-            Changes are saved to Supabase when you click Save Operating Rules.
-          </p>
-
-          <button
-            type="button"
-            onClick={saveSettings}
-            disabled={saving}
-            className="px-5 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Saving...' : 'Save Operating Rules'}
-          </button>
         </div>
       </div>
     </DashboardLayout>

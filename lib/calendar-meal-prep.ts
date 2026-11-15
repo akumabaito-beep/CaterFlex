@@ -46,16 +46,20 @@ export function expandMealPrepOrdersForMonth(orders: CalendarMealPrepOrder[], ye
     const start = order.nextFulfillmentDate.slice(0, 10)
     const pattern = order.recurrencePattern.toLowerCase()
     const dates: string[] = []
+    // Plans last 1, 2 or 4 weeks. When no end date was saved, never show more than 4 weeks so the
+    // calendar does not repeat deliveries month after month.
+    const planEnd = order.termEnd ? order.termEnd.slice(0, 10) : addDaysUtc(start, 27)
     if (order.deliveryDays && order.deliveryDays.length > 0) {
       // Subscription plan: every chosen weekday from the next delivery until the plan's last day.
-      const limit = order.termEnd && order.termEnd.slice(0, 10) < last ? order.termEnd.slice(0, 10) : last
+      const limit = planEnd < last ? planEnd : last
       for (let date = firstDeliveryOnOrAfter(start, order.deliveryDays); date <= limit && dates.length < 400; date = nextDeliveryAfter(date, order.deliveryDays)) {
         if (date >= first) dates.push(date)
       }
       return dates.map((fulfillmentDate) => ({ ...order, fulfillmentDate }))
     }
     const step = pattern === 'weekly' ? 7 : pattern === 'biweekly' ? 14 : 0
-    for (let date = start; date <= last; date = step ? addDaysUtc(date, step) : last + 'x') {
+    const stop = planEnd < last ? planEnd : last
+    for (let date = start; date <= stop; date = step ? addDaysUtc(date, step) : last + 'x') {
       if (date >= first) dates.push(date)
       if (!step) break
     }

@@ -8,7 +8,7 @@ import { RevenueActivity } from '@/components/owner/RevenueActivity'
 import { DateRangePicker } from '@/components/owner/DateRangePicker'
 import type { RangeInput, ResolvedRange } from '@/lib/date-range'
 import { getOwnerDashboardData } from '@/app/actions/dashboard-actions'
-import { ArrowRight, CalendarClock, HandCoins, PackageMinus, RefreshCw } from 'lucide-react'
+import { ArrowRight, CalendarClock, CalendarDays, CheckCircle2, ClipboardList, HandCoins, PackageMinus, Percent, RefreshCw, Wallet } from 'lucide-react'
 
 type DashboardData = {
   pendingBookings: number
@@ -113,6 +113,9 @@ export default function OwnerDashboard() {
     )
   }
 
+  const hour = Number(new Date().toLocaleString('en-PH', { hour: 'numeric', hour12: false, timeZone: 'Asia/Manila' }))
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+
   const attention = [
     { key: 'pending', label: 'Bookings to review', value: dashboard.pendingBookings, display: String(dashboard.pendingBookings), href: '/owner/bookings', cta: 'Review', icon: CalendarClock },
     { key: 'stock', label: 'Ingredients running low', value: dashboard.lowStockItems, display: String(dashboard.lowStockItems), href: '/owner/inventory', cta: 'Restock', icon: PackageMinus },
@@ -120,25 +123,41 @@ export default function OwnerDashboard() {
   ]
 
   const stats = [
-    { label: 'Confirmed events', value: String(dashboard.confirmedBookings) },
-    { label: 'Total bookings', value: String(dashboard.totalBookings) },
-    { label: 'Completion rate', value: `${dashboard.completionRate}%` },
-    { label: 'Revenue, all time', value: formatPrice(dashboard.totalRevenue) },
+    { label: 'Confirmed events', value: String(dashboard.confirmedBookings), icon: CheckCircle2 },
+    { label: 'Total bookings', value: String(dashboard.totalBookings), icon: ClipboardList },
+    { label: 'Completion rate', value: `${dashboard.completionRate}%`, icon: Percent },
+    { label: 'Revenue, all time', value: formatPrice(dashboard.totalRevenue), icon: Wallet },
   ]
 
   return (
     <DashboardLayout>
       <div className={`flex flex-col gap-6 transition-opacity ${refreshing ? 'opacity-70' : ''}`}>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="font-heading text-4xl font-bold uppercase text-[#2B1D16]">Dashboard</h1>
-            <p className="mt-1 text-muted-foreground">Welcome back. Here is what needs you today.</p>
+        <section className="relative overflow-hidden rounded-3xl bg-[#2B1D16] p-6 text-white sm:p-8">
+          <span className="pointer-events-none absolute -right-16 -top-16 size-64 rounded-full bg-[#C8431B]/30 blur-2xl" aria-hidden="true" />
+          <div className="relative flex flex-wrap items-end justify-between gap-5">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">{greeting}</p>
+              <h1 className="mt-2 font-heading text-4xl font-bold uppercase leading-none sm:text-5xl">Dashboard</h1>
+              <p className="mt-3 max-w-xl text-white/80">
+                {dashboard.pendingBookings > 0
+                  ? `${dashboard.pendingBookings} ${dashboard.pendingBookings === 1 ? 'booking is' : 'bookings are'} waiting for your review`
+                  : 'No bookings are waiting for review'}
+                {dashboard.lowStockItems > 0 ? `, and ${dashboard.lowStockItems} ${dashboard.lowStockItems === 1 ? 'ingredient is' : 'ingredients are'} running low.` : '.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/owner/bookings" className="inline-flex h-10 items-center gap-2 rounded-full bg-[#C8431B] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#A93615] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                Review bookings <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
+              <Link href="/owner/calendar" className="inline-flex h-10 items-center gap-2 rounded-full border border-white/30 px-5 text-sm font-semibold text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                <CalendarDays className="size-4" aria-hidden="true" /> Calendar
+              </Link>
+              <button type="button" onClick={() => setRange({ ...range })} disabled={refreshing} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/30 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/10 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+                <RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
+              </button>
+            </div>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={() => setRange({ ...range })} disabled={refreshing}>
-            <RefreshCw className={`size-4 ${refreshing ? 'animate-spin' : ''}`} data-icon="inline-start" aria-hidden="true" />
-            Refresh
-          </Button>
-        </div>
+        </section>
 
         <section aria-label="Needs attention" className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {attention.map((item) => {
@@ -160,7 +179,7 @@ export default function OwnerDashboard() {
           })}
         </section>
 
-        <div className="space-y-2">
+        <div className="space-y-2 rounded-2xl border border-[#E8D8C4] bg-white p-5">
           <DateRangePicker value={range} onChange={setRange} disabled={refreshing} />
           <p className="text-sm text-muted-foreground">
             Showing <span className="font-semibold text-[#2B1D16]">{dashboard.range.label}</span>
@@ -176,11 +195,16 @@ export default function OwnerDashboard() {
           recentActivity={dashboard.recentActivity}
         />
 
-        <section aria-label="Totals" className="grid grid-cols-2 divide-x divide-y divide-[#E8D8C4] overflow-hidden rounded-2xl border border-[#E8D8C4] bg-white lg:grid-cols-4 lg:divide-y-0">
+        <section aria-label="Totals" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {stats.map((stat) => (
-            <div key={stat.label} className="p-5">
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
-              <p className="mt-1 text-2xl font-bold tabular-nums text-[#2B1D16]">{stat.value}</p>
+            <div key={stat.label} className="flex items-center gap-4 rounded-2xl border border-[#E8D8C4] bg-white p-5">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-[#F6E3D3] text-[#C8431B]">
+                <stat.icon className="size-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm text-muted-foreground">{stat.label}</p>
+                <p className="mt-0.5 truncate text-2xl font-bold tabular-nums text-[#2B1D16]">{stat.value}</p>
+              </div>
             </div>
           ))}
         </section>

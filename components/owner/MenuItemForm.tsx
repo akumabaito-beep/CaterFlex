@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { Card } from '@/components/ui/card';
+import { Dropdown, type DropdownGroup } from '@/components/owner/Dropdown';
 import { Button } from '@/components/ui/button';
 import { Check, X } from 'lucide-react';
 
@@ -871,185 +872,161 @@ export function MenuItemForm({
    * Shared input styling.
    */
   const inputClass =
-    'mt-1 w-full px-3 py-2 border border-border rounded-lg bg-input text-card-foreground';
+    'mt-1.5 h-11 w-full rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm text-[#2B1D16] outline-none transition-colors placeholder:text-[#2B1D16]/40 focus:border-[#C8431B] focus:ring-2 focus:ring-[#C8431B]/20';
+  const labelClass = 'text-xs font-semibold uppercase tracking-wide text-[#2B1D16]/60';
+  const sectionClass = 'rounded-2xl border border-[#E8D8C4] bg-[#FBF6EE] p-5';
+  const sectionTitle = 'mb-4 font-heading text-sm font-bold uppercase tracking-wide text-[#C8431B]';
+
+  const ingredientGroups: DropdownGroup[] = Object.entries(
+    ingredients.reduce<Record<IngredientCategory, DbIngredient[]>>(
+      (groups, ingredient) => {
+        groups[getIngredientCategory(ingredient)].push(ingredient)
+        return groups
+      },
+      { meats: [], dairy: [], baking: [], produce: [], pantry: [], herbs_spices: [], other: [] }
+    )
+  )
+    .filter(([, list]) => list.length > 0)
+    .map(([category, list]) => ({
+      label: ingredientCategoryLabels[category as IngredientCategory],
+      options: list.map((ingredient) => ({
+        value: String(ingredient.IngredientID),
+        label: ingredient.IngredientName,
+        hint: ingredient.UnitOfMeasure || 'unit',
+      })),
+    }));
+  const pickedUnit =
+    ingredients.find((ingredient) => String(ingredient.IngredientID) === ingredientId)?.UnitOfMeasure || 'unit';
+  const allergenList = (
+    allergyTags.length > 0
+      ? allergyTags
+      : FALLBACK_ALLERGEN_OPTIONS.map((name, index) => ({ AllergyTagID: index + 1, AllergenName: name }))
+  );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2B1D16]/55 p-4">
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
 
         {/* HEADER */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-heading text-xl font-bold text-card-foreground">
-            {isEditing
-              ? 'Edit Menu Item'
-              : 'Add Menu Item'}
-          </h2>
+        <div className="flex items-start justify-between gap-4 border-b border-[#E8D8C4] px-6 py-5">
+          <div>
+            <h2 className="font-heading text-2xl font-bold uppercase text-[#2B1D16]">
+              {isEditing ? 'Edit menu item' : 'Add menu item'}
+            </h2>
+            <p className="mt-1 text-sm text-[#2B1D16]/60">
+              {isEditing
+                ? 'Changes to the price only apply to new orders. Old bookings keep the price they were made at.'
+                : 'Add a dish, its price and the ingredients it needs per serving.'}
+            </p>
+          </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-muted-foreground hover:bg-muted"
+            className="rounded-full p-2 text-[#2B1D16]/60 transition-colors hover:bg-[#f1f1f2] hover:text-[#2B1D16]"
             aria-label="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="size-5" />
           </button>
         </div>
 
-        {/* ERROR MESSAGE */}
-        {errorMessage && (
-          <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {errorMessage}
-          </div>
-        )}
-
-        {/* LOADING */}
         {loadingData ? (
-          <div className="py-12 text-center text-muted-foreground">
-            Loading menu item data...
-          </div>
+          <div className="py-16 text-center text-[#2B1D16]/60">Loading menu item data...</div>
         ) : (
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-6"
-          >
-            {/* BASIC INFORMATION */}
-            <div className="grid md:grid-cols-2 gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+            <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
 
-              {/* NAME */}
-              <div className="md:col-span-2">
-                <label className="text-sm text-muted-foreground">
-                  Name *
-                </label>
+              {errorMessage && (
+                <div role="alert" className="rounded-xl border border-[#B3261E]/30 bg-[#F8DDD9] p-3 text-sm font-medium text-[#B3261E]">
+                  {errorMessage}
+                </div>
+              )}
 
-                <input
-                  required
-                  value={form.name}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      name:
-                        e.target.value,
-                    })
-                  }
-                  className={inputClass}
-                  placeholder="Dish name"
-                />
-              </div>
+              {/* BASICS */}
+              <section className={sectionClass}>
+                <h3 className={sectionTitle}>Dish details</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Name *</label>
+                    <input
+                      required
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      className={inputClass}
+                      placeholder="Dish name"
+                    />
+                  </div>
 
-              {/* DESCRIPTION */}
-              <div className="md:col-span-2">
-                <label className="text-sm text-muted-foreground">
-                  Description *
-                </label>
+                  <div className="md:col-span-2">
+                    <label className={labelClass}>Description *</label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      className={`${inputClass} h-auto py-2.5`}
+                      placeholder="Short description for customers"
+                    />
+                  </div>
 
-                <textarea
-                  required
-                  rows={3}
-                  value={form.description}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      description:
-                        e.target.value,
-                    })
-                  }
-                  className={inputClass}
-                  placeholder="Short description for customers"
-                />
-              </div>
+                  <div>
+                    <label className={labelClass}>Category</label>
+                    <Dropdown
+                      className="mt-1.5"
+                      ariaLabel="Category"
+                      value={form.category as string}
+                      onChange={(category) => setForm({ ...form, category: category as MenuItem['category'] })}
+                      groups={[{ options: CATEGORIES.map((c) => ({ value: c as string, label: c.charAt(0).toUpperCase() + c.slice(1) })) }]}
+                    />
+                  </div>
 
-              {/* CATEGORY */}
-              <div>
-                <label className="text-sm text-muted-foreground">
-                  Category
-                </label>
+                  <div>
+                    <label className={labelClass}>Price per serving</label>
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 mt-[3px] -translate-y-1/2 text-sm font-semibold text-[#C8431B]">₱</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={priceInput}
+                        onChange={(e) => setPriceInput(e.target.value)}
+                        className={`${inputClass} pl-7`}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
 
-                <select
-                  value={form.category}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      category:
-                        e.target
-                          .value as MenuItem['category'],
-                    })
-                  }
-                  className={inputClass}
-                >
-                  {CATEGORIES.map(
-                    (category) => (
-                      <option
-                        key={category}
-                        value={category}
-                      >
-                        {category
-                          .charAt(0)
-                          .toUpperCase() +
-                          category.slice(1)}
-                      </option>
-                    )
-                  )}
-                </select>
-              </div>
+                  <div>
+                    <label className={labelClass}>Prep time (days)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.prepTimeDays}
+                      onChange={(e) => setForm({ ...form, prepTimeDays: parseInt(e.target.value, 10) || 0 })}
+                      className={inputClass}
+                    />
+                  </div>
 
-              {/* PRICE */}
-              <div>
-                <label className="text-sm text-muted-foreground">
-                  Price (₱)
-                </label>
+                  <div className="flex items-end">
+                    <label className="flex h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-lg border border-[#E8D8C4] bg-white px-3 text-sm text-[#2B1D16]">
+                      <span className="font-medium">Available for ordering</span>
+                      <input
+                        type="checkbox"
+                        checked={form.availability !== false}
+                        onChange={(e) => setForm({ ...form, availability: e.target.checked })}
+                        className="peer sr-only"
+                      />
+                      <span aria-hidden="true" className="relative h-6 w-11 rounded-full bg-[#E8D8C4] transition-colors peer-checked:bg-[#C8431B] after:absolute after:left-0.5 after:top-0.5 after:size-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-5" />
+                    </label>
+                  </div>
+                </div>
+              </section>
 
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={priceInput}
-                  onChange={(e) => {
-                    setPriceInput(
-                      e.target.value
-                    );
-                  }}
-                  className={inputClass}
-                  placeholder="0.00"
-                />
-              </div>
-
-              {/* PREP TIME */}
-              <div>
-                <label className="text-sm text-muted-foreground">
-                  Prep time (days)
-                </label>
-
-                <input
-                  type="number"
-                  min={0}
-                  value={
-                    form.prepTimeDays
-                  }
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      prepTimeDays:
-                        parseInt(
-                          e.target.value,
-                          10
-                        ) || 0,
-                    })
-                  }
-                  className={inputClass}
-                />
-              </div>
-            </div>
-
-
-            {/* MENU PHOTO */}
-            <div>
-              <p className="text-sm font-medium text-card-foreground mb-3">
-                Menu Photo
-              </p>
-
-              <div className="rounded-xl border border-border bg-muted/20 p-4">
+              {/* PHOTO */}
+              <section className={sectionClass}>
+                <h3 className={sectionTitle}>Photo</h3>
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <div className="flex h-32 w-full items-center justify-center overflow-hidden rounded-lg border border-border bg-muted sm:w-40">
+                  <div className="flex h-32 w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#DCC7A8] bg-white sm:w-44">
                     {photoPreview ? (
                       <img
                         src={photoPreview}
@@ -1057,22 +1034,14 @@ export function MenuItemForm({
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <div className="px-3 text-center text-sm text-muted-foreground">
-                        No photo selected
-                      </div>
+                      <span className="px-3 text-center text-sm text-[#2B1D16]/50">No photo selected</span>
                     )}
                   </div>
 
                   <div className="flex flex-1 flex-col gap-2">
-                    <p className="text-sm font-medium text-card-foreground">
-                      Add a photo
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      JPG, PNG, or WebP. Maximum 5 MB.
-                    </p>
-
-                    <label className="inline-flex w-fit cursor-pointer items-center rounded-lg border border-border bg-[#F6E3D3] px-4 py-2 text-sm font-medium text-card-foreground transition hover:bg-muted">
-                      Choose Photo
+                    <p className="text-xs text-[#2B1D16]/60">JPG, PNG or WebP. Up to 5 MB.</p>
+                    <label className="inline-flex h-10 w-fit cursor-pointer items-center rounded-full bg-[#C8431B] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#A93615]">
+                      {photoPreview ? 'Change photo' : 'Choose photo'}
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
@@ -1097,249 +1066,128 @@ export function MenuItemForm({
                         }}
                       />
                     </label>
-
-                    {selectedPhoto && (
-                      <p className="text-xs text-muted-foreground">
-                        Selected: {selectedPhoto.name}
-                      </p>
-                    )}
+                    {selectedPhoto && <p className="text-xs text-[#2B1D16]/60">Selected: {selectedPhoto.name}</p>}
                   </div>
                 </div>
-              </div>
-            </div>
+              </section>
 
-            {/* AVAILABILITY */}
-            <label className="flex items-center gap-3 text-sm text-card-foreground">
-              <input
-                type="checkbox"
-                checked={form.availability !== false}
-                onChange={(e) => setForm({ ...form, availability: e.target.checked })}
-                className="rounded border-border"
-              />
-              <span>Available for ordering</span>
-            </label>
-
-            {/* ALLERGENS */}
-            <div>
-              <p className="text-sm font-medium text-card-foreground mb-3">
-                Allergens
-              </p>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {(
-                  allergyTags.length > 0
-                    ? allergyTags
-                    : FALLBACK_ALLERGEN_OPTIONS.map(
-                        (
-                          name,
-                          index
-                        ) => ({
-                          AllergyTagID:
-                            index + 1,
-                          AllergenName:
-                            name,
-                        })
-                      )
-                ).map((tag) => {
-                  const allergen =
-                    tag.AllergenName as AllergenType;
-
-                  return (
-                    <label
-                      key={
-                        tag.AllergyTagID
-                      }
-                      className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-card-foreground transition-colors hover:bg-muted/50"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={form.allergyTags.includes(
-                          allergen
-                        )}
-                        onChange={() =>
-                          toggleAllergen(
-                            allergen
-                          )
-                        }
-                        className="peer sr-only"
-                      />
-
-                      <span
-                        aria-hidden="true"
-                        className="flex size-4 items-center justify-center rounded border border-input text-transparent transition-colors peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground"
+              {/* ALLERGENS */}
+              <section className={sectionClass}>
+                <h3 className={sectionTitle}>Allergens in this dish</h3>
+                <div className="flex flex-wrap gap-2">
+                  {allergenList.map((tag) => {
+                    const allergen = tag.AllergenName as AllergenType;
+                    const checked = form.allergyTags.includes(allergen);
+                    return (
+                      <label
+                        key={tag.AllergyTagID}
+                        className={`flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium capitalize transition-colors ${
+                          checked ? 'border-[#C8431B] bg-[#C8431B] text-white' : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:bg-[#f1f1f2]'
+                        }`}
                       >
-                        <Check />
-                      </span>
+                        <input type="checkbox" checked={checked} onChange={() => toggleAllergen(allergen)} className="sr-only" />
+                        {checked && <Check className="size-3.5" aria-hidden="true" />}
+                        {tag.AllergenName.replace('_', ' ')}
+                      </label>
+                    );
+                  })}
+                </div>
+              </section>
 
-                      <span className="capitalize">
-                        {tag.AllergenName.replace(
-                          '_',
-                          ' '
-                        )}
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
+              {/* REQUIRED INGREDIENTS */}
+              <section className={sectionClass}>
+                <h3 className={sectionTitle}>Ingredients per serving</h3>
 
-            {/* REQUIRED INGREDIENTS */}
-            <div>
-              <p className="text-sm font-medium text-card-foreground mb-3">
-                Required ingredients (per serving)
-              </p>
-
-              {/* CURRENT INGREDIENTS */}
-              {form.requiredIngredients
-                .length > 0 && (
-                <ul className="space-y-2 mb-3">
-                  {form.requiredIngredients.map(
-                    (required) => (
+                {form.requiredIngredients.length > 0 ? (
+                  <ul className="mb-4 grid gap-2 sm:grid-cols-2">
+                    {form.requiredIngredients.map((required) => (
                       <li
-                        key={
-                          required.id
-                        }
-                        className="flex items-center justify-between p-2 bg-muted/50 rounded-lg text-sm"
+                        key={required.id}
+                        className="flex items-center justify-between gap-2 rounded-xl border border-[#E8D8C4] bg-white px-3 py-2 text-sm"
                       >
-                        <span className="text-card-foreground">
-                          {
-                            required.name
-                          }{' '}
-                          —{' '}
-                          {
-                            required.qty
-                          }
-                          {
-                            required.unit
-                          }
+                        <span className="min-w-0 truncate font-medium text-[#2B1D16]">{required.name}</span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span className="rounded-full bg-[#F6E3D3] px-2.5 py-0.5 text-xs font-semibold text-[#C8431B]">
+                            {required.qty} {required.unit}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeIngredient(required.id)}
+                            aria-label={`Remove ${required.name}`}
+                            className="rounded-full p-1 text-[#2B1D16]/50 transition-colors hover:bg-[#F8DDD9] hover:text-[#B3261E]"
+                          >
+                            <X className="size-4" />
+                          </button>
                         </span>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            removeIngredient(
-                              required.id
-                            )
-                          }
-                          className="text-red-600 text-xs hover:underline"
-                        >
-                          Remove
-                        </button>
                       </li>
-                    )
-                  )}
-                </ul>
-              )}
-
-              {/* ADD INGREDIENT */}
-              <div className="flex flex-wrap gap-2 items-end">
-
-                {/* INGREDIENT */}
-                <div className="flex-1 min-w-[180px]">
-                  <label className="text-xs text-muted-foreground">
-                    Ingredient
-                  </label>
-
-                  <select
-                    value={
-                      ingredientId
-                    }
-                    onChange={(e) =>
-                      setIngredientId(
-                        e.target.value
-                      )
-                    }
-                    className={inputClass}
-                  >
-                    <option value="">
-                      Select…
-                    </option>
-
-                    {Object.entries(
-                      ingredients.reduce<Record<IngredientCategory, DbIngredient[]>>(
-                        (groups, ingredient) => {
-                          const category = getIngredientCategory(ingredient)
-                          groups[category].push(ingredient)
-                          return groups
-                        },
-                        { meats: [], dairy: [], baking: [], produce: [], pantry: [], herbs_spices: [], other: [] }
-                      )
-                    ).map(([category, categoryIngredients]) => categoryIngredients.length > 0 && (
-                      <optgroup key={category} label={ingredientCategoryLabels[category as IngredientCategory]}>
-                        {categoryIngredients.map((ingredient) => (
-                          <option key={ingredient.IngredientID} value={String(ingredient.IngredientID)}>
-                            {ingredient.IngredientName} ({ingredient.UnitOfMeasure || 'unit'})
-                          </option>
-                        ))}
-                      </optgroup>
                     ))}
-                  </select>
+                  </ul>
+                ) : (
+                  <p className="mb-4 rounded-xl border border-dashed border-[#DCC7A8] bg-white px-4 py-3 text-sm text-[#2B1D16]/60">
+                    No ingredients yet. Add what one serving needs so stock can be checked.
+                  </p>
+                )}
+
+                <div className="grid gap-3 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
+                  <div>
+                    <label className={labelClass}>Ingredient</label>
+                    <Dropdown
+                      className="mt-1.5"
+                      searchable
+                      ariaLabel="Ingredient"
+                      placeholder="Choose an ingredient"
+                      value={ingredientId}
+                      onChange={setIngredientId}
+                      groups={ingredientGroups}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Qty ({pickedUnit})</label>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={ingredientQty}
+                      onChange={(e) => setIngredientQty(e.target.value)}
+                      className={inputClass}
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={addIngredient}
+                    className="h-11 rounded-lg bg-[#2B1D16] px-5 text-white hover:bg-black"
+                  >
+                    Add
+                  </Button>
                 </div>
-
-                {/* QUANTITY */}
-                <div className="w-24">
-                    <label className="text-xs text-muted-foreground">
-                    Qty ({ingredients.find((ingredient) => String(ingredient.IngredientID) === ingredientId)?.UnitOfMeasure || 'unit'})
-                  </label>
-
-                  <input
-                    type="number"
-  min={1}
-  step={1}
-  value={
-  ingredientQty
-                    }
-                    onChange={(e) =>
-                      setIngredientQty(
-                        e.target.value
-                      )
-                    }
-                    className={inputClass}
-                    placeholder="0"
-                  />
-                </div>
-
-                {/* ADD BUTTON */}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={
-                    addIngredient
-                  }
-                >
-                  Add
-                </Button>
-              </div>
+              </section>
             </div>
 
             {/* ACTION BUTTONS */}
-            <div className="flex gap-3 pt-2 border-t border-border">
-              <Button
-                type="submit"
-                disabled={saving}
-                className="flex-1 bg-primary text-white hover:bg-brand"
-              >
-                {saving
-                  ? 'Saving...'
-                  : isEditing
-                  ? 'Save Changes'
-                  : 'Add Item'}
-              </Button>
-
+            <div className="flex gap-3 border-t border-[#E8D8C4] bg-white px-6 py-4">
               <Button
                 type="button"
                 variant="outline"
-                className="flex-1"
+                className="h-11 flex-1 rounded-lg border-[#E8D8C4] text-[#2B1D16] hover:bg-[#f1f1f2]"
                 onClick={onClose}
                 disabled={saving}
               >
                 Cancel
               </Button>
+              <Button
+                type="submit"
+                disabled={saving}
+                className="h-11 flex-[2] rounded-lg bg-[#C8431B] font-semibold text-white hover:bg-[#A93615]"
+              >
+                {saving ? 'Saving...' : isEditing ? 'Save changes' : 'Add item'}
+              </Button>
             </div>
           </form>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

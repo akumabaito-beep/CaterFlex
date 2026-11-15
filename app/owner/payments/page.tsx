@@ -1,5 +1,7 @@
 'use client';
 
+import { DatePicker } from '@/components/owner/DatePicker';
+
 import { DashboardLayout } from '@/app/dashboard-layout';
 import { getOwnerFinancialData, recordOwnerPayment } from '@/app/actions/booking-actions';
 import type { PaymentType, Invoice, Payment } from '@/lib/types';
@@ -418,10 +420,10 @@ export default function PaymentsPage() {
                 ))}
                 <div className="ml-auto flex flex-wrap items-center gap-2 text-sm">
                   <label className="sr-only" htmlFor="pay-from">From</label>
-                  <input id="pay-from" type="date" value={periodStart} max={periodEnd} onChange={(e) => { setPeriodStart(e.target.value); setRangeKey('custom'); }} className="h-9 rounded-full border border-[#E8D8C4] bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]" />
+                  <DatePicker id="pay-from" value={periodStart} max={periodEnd} onChange={(v) => { setPeriodStart(v); setRangeKey('custom'); }} />
                   <span className="text-muted-foreground">to</span>
                   <label className="sr-only" htmlFor="pay-to">To</label>
-                  <input id="pay-to" type="date" value={periodEnd} min={periodStart} onChange={(e) => { setPeriodEnd(e.target.value); setRangeKey('custom'); }} className="h-9 rounded-full border border-[#E8D8C4] bg-white px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C8431B]" />
+                  <DatePicker id="pay-to" value={periodEnd} min={periodStart} onChange={(v) => { setPeriodEnd(v); setRangeKey('custom'); }} />
                 </div>
               </div>
             </section>

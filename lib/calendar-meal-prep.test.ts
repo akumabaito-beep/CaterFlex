@@ -19,11 +19,15 @@ describe('calendar item filtering', () => {
 })
 
 describe('expandMealPrepOrdersForMonth', () => {
-  it('repeats weekly across months beyond 28 days', () => {
-    expect(expandMealPrepOrdersForMonth([order()], 2026, 3).map((x) => x.fulfillmentDate)).toEqual(['2026-03-05', '2026-03-12', '2026-03-19', '2026-03-26'])
+  it('repeats weekly across months while the plan term lasts', () => {
+    expect(expandMealPrepOrdersForMonth([order({ termEnd: '2026-03-31' })], 2026, 3).map((x) => x.fulfillmentDate)).toEqual(['2026-03-05', '2026-03-12', '2026-03-19', '2026-03-26'])
   })
   it('repeats biweekly', () => {
-    expect(expandMealPrepOrdersForMonth([order({ recurrencePattern: 'biweekly', nextFulfillmentDate: '2026-03-01' })], 2026, 3).map((x) => x.fulfillmentDate)).toEqual(['2026-03-01', '2026-03-15', '2026-03-29'])
+    expect(expandMealPrepOrdersForMonth([order({ recurrencePattern: 'biweekly', nextFulfillmentDate: '2026-03-01', termEnd: '2026-03-31' })], 2026, 3).map((x) => x.fulfillmentDate)).toEqual(['2026-03-01', '2026-03-15', '2026-03-29'])
+  })
+  it('stops after 4 weeks when a plan has no saved end date', () => {
+    expect(expandMealPrepOrdersForMonth([order({ nextFulfillmentDate: '2026-03-01' })], 2026, 3).map((x) => x.fulfillmentDate)).toEqual(['2026-03-01', '2026-03-08', '2026-03-15', '2026-03-22'])
+    expect(expandMealPrepOrdersForMonth([order({ nextFulfillmentDate: '2026-03-01' })], 2026, 5)).toEqual([])
   })
   it('shows one-time orders once', () => {
     expect(expandMealPrepOrdersForMonth([order({ recurrencePattern: 'one-time', nextFulfillmentDate: '2026-03-10' })], 2026, 3).map((x) => x.fulfillmentDate)).toEqual(['2026-03-10'])
@@ -33,7 +37,7 @@ describe('expandMealPrepOrdersForMonth', () => {
     expect(expandMealPrepOrdersForMonth(orders, 2026, 1).map((x) => x.status)).toEqual(['pending', 'active', 'paused'])
   })
   it('uses date-only arithmetic independent of timezone', () => {
-    const dates = expandMealPrepOrdersForMonth([order({ nextFulfillmentDate: '2026-03-01' })], 2026, 3).map((x) => x.fulfillmentDate)
+    const dates = expandMealPrepOrdersForMonth([order({ nextFulfillmentDate: '2026-03-01', termEnd: '2026-03-31' })], 2026, 3).map((x) => x.fulfillmentDate)
     expect(dates).toEqual(['2026-03-01', '2026-03-08', '2026-03-15', '2026-03-22', '2026-03-29'])
   })
 })
