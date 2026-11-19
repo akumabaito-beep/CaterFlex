@@ -125,17 +125,28 @@ function countCateringBookingsForDate(
 /**
  * Counts meal-prep bookings occupying capacity on a specific date.
  */
+
 function countMealPrepBookingsForDate(
   bookings: Booking[],
   eventDate: string
 ): number {
-  return bookings.filter(
-    (booking) =>
-      isMealPrepBooking(booking) &&
-      booking.eventDate === eventDate &&
-      occupiesCapacity(booking.status)
-  ).length;
+  return bookings.filter((booking) => {
+    if (!isMealPrepBooking(booking) || !occupiesCapacity(booking.status)) {
+      return false;
+    }
+
+    // Count the plan if it has a delivery scheduled on this date.
+    if (booking.scheduledDeliveries?.length) {
+      return booking.scheduledDeliveries.some(
+        (delivery) => delivery.date === eventDate
+      );
+    }
+
+    // Fallback for older meal-prep records without a delivery schedule.
+    return booking.eventDate === eventDate;
+  }).length;
 }
+
 
 /**
  * Checks daily catering-event capacity.

@@ -1003,16 +1003,28 @@ export async function updateBookingItemServings(bookingId: number, items: { book
   if (itemError) return { ok: false as const, error: itemError.message }
   const validIds = new Set((existingItems ?? []).map((item) => Number(item.BookingItemID)))
   if (items.some((item) => !validIds.has(Number(item.bookingItemId)))) return { ok: false as const, error: 'One or more dishes do not belong to this booking.' }
-  const { error: updateError } = await admin.from('BOOKING_ITEM').upsert(
-    items.map((item) => ({
-      BookingItemID: item.bookingItemId,
-      BookingID: bookingId,
-      MenuItemID: (existingItems ?? []).find((existing) => Number(existing.BookingItemID) === Number(item.bookingItemId))?.MenuItemID,
-      Quantity: item.servings,
-    })),
-    { onConflict: 'BookingItemID' },
+  
+const updateResults = await Promise.all(
+  items.map((item) =>
+    admin
+      .from('BOOKING_ITEM')
+      .update({
+        Quantity: item.servings,
+      })
+      .eq('BookingItemID', item.bookingItemId)
+      .eq('BookingID', bookingId)
   )
-  if (updateError) return { ok: false as const, error: updateError.message }
+)
+
+const failedUpdate = updateResults.find((result) => result.error)
+
+if (failedUpdate?.error) {
+  return {
+    ok: false as const,
+    error: failedUpdate.error.message,
+  }
+}
+
   revalidatePath('/owner/bookings')
   return { ok: true as const }
 }
