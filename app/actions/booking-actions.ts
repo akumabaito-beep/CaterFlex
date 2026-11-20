@@ -278,31 +278,18 @@ export async function createMealPrepOrder(
   )
 
   // Check operator settings and existing meal-prep orders.
-  const [
-    { data: operatorSettingsRow, error: settingsError },
-    { data: existingMealPrepRows, error: existingMealPrepError },
-  ] = await Promise.all([
-    admin
-      .from('OPERATOR_SETTINGS')
-      .select(
-        'OperatorID, DayOfWeek, OperatingStartTime, OperatingEndTime, MaxCateringEventsPerDay, MaxMealPrepOrdersPerDay, MaxGuestCountPerEvent'
-      )
-      .eq('OperatorID', operatorId),
+  // Check operator settings and existing meal-prep deliveries.
+  const scheduledDates = [...new Set(sortedDeliveries.map((delivery) => delivery.date))]
 
-    admin
-      .from('MEAL_PREP_ORDER')
-      .select('MealPrepOrderID, CustomerID, OperatorID, NextFulfillmentDate, MealsPerCycle, Status')
-      .eq('OperatorID', operatorId)
-      .eq('NextFulfillmentDate', firstDeliveryDate)
-      .in('Status', ['pending', 'active']),
-  ])
+  const { data: operatorSettingsRow, error: settingsError } = await admin
+    .from('OPERATOR_SETTINGS')
+    .select(
+      'OperatorID, DayOfWeek, OperatingStartTime, OperatingEndTime, MaxCateringEventsPerDay, MaxMealPrepOrdersPerDay, MaxGuestCountPerEvent'
+    )
+    .eq('OperatorID', operatorId)
 
   if (settingsError) {
     return { ok: false as const, error: settingsError.message }
-  }
-
-  if (existingMealPrepError) {
-    return { ok: false as const, error: existingMealPrepError.message }
   }
 
   if (!operatorSettingsRow?.length) {
@@ -312,79 +299,88 @@ export async function createMealPrepOrder(
     }
   }
 
-  const maxEventsPerDay = {} as OperatorSettings['maxEventsPerDay']
+  // Fetch existing delivery records for every date in this subscription.
+  const { data: existingDeliveryRows, error: deliveryRowsError } = await admin
+    .from('MEAL_PREP_DELIVERY')
+    .select('MealPrepOrderID, DeliveryDate')
+    .in('DeliveryDate', scheduledDates)
+
+  if (deliveryRowsError) {
+    return { ok: false as const, error: deliveryRowsError.message }
+  }
+
+  // Only pending and active orders should use meal-prep capacity.
+  const existingOrderIds = [
+    ...new Set(
+      (existingDeliveryRows ?? []).map((row) => Number(row.MealPrepOrderID))
+    ),
+  ]
+
+  const { data: existingOrders, error: existingOrdersError } =
+    existingOrderIds.length > 0
+      ? await admin
+          .from('MEAL_PREP_ORDER')
+          .select('MealPrepOrderID, OperatorID, Status')
+          .eq('OperatorID', operatorId)
+          .in('MealPrepOrderID', existingOrderIds)
+          .in('Status', ['pending', 'active'])
+      : { data: [], error: null }
+
+  if (existingOrdersError) {
+    return { ok: false as const, error: existingOrdersError.message }
+  }
+
+  const capacityOrderIds = new Set(
+    (existingOrders ?? []).map((order) => Number(order.MealPrepOrderID))
+  )
+
+  // Count each existing meal-prep order once per delivery date.
+  const ordersPerDate = new Map<string, Set<number>>()
+
+  for (const delivery of existingDeliveryRows ?? []) {
+    const orderId = Number(delivery.MealPrepOrderID)
+    const date = String(delivery.DeliveryDate).slice(0, 10)
+
+    if (!capacityOrderIds.has(orderId)) continue
+
+    const orderIdsForDate = ordersPerDate.get(date) ?? new Set<number>()
+    orderIdsForDate.add(orderId)
+    ordersPerDate.set(date, orderIdsForDate)
+  }
+
+  // Build the operator's daily meal-prep limits.
   const maxMealPrepFulfillmentsPerDay =
     {} as OperatorSettings['maxMealPrepFulfillmentsPerDay']
 
   for (const row of operatorSettingsRow) {
     const day = Number(row.DayOfWeek) as DayOfWeek
-    maxEventsPerDay[day] = Number(row.MaxCateringEventsPerDay ?? 0)
+
     maxMealPrepFulfillmentsPerDay[day] = Number(
       row.MaxMealPrepOrdersPerDay ?? 0
     )
   }
 
-  const settings: OperatorSettings = {
-    operatingDays: Object.keys(maxEventsPerDay).map(Number) as DayOfWeek[],
-    operatingHoursStart: String(operatorSettingsRow[0].OperatingStartTime),
-    operatingHoursEnd: String(operatorSettingsRow[0].OperatingEndTime),
-    maxEventsPerDay,
-    maxGuestsPerEvent: Number(operatorSettingsRow[0].MaxGuestCountPerEvent),
-    maxMealPrepFulfillmentsPerDay,
+  // Reject the subscription if any scheduled delivery date is already full.
+  for (const date of scheduledDates) {
+    // Use UTC so the weekday is calculated from the YYYY-MM-DD date itself.
+    const dayOfWeek = new Date(`${date}T00:00:00Z`).getUTCDay() as DayOfWeek
+
+    const maximum = maxMealPrepFulfillmentsPerDay[dayOfWeek] ?? 0
+    const existingCount = ordersPerDate.get(date)?.size ?? 0
+
+    if (existingCount >= maximum) {
+      const failureMessage =
+        `Meal-prep capacity is full for ${date} (${existingCount}/${maximum}). Please choose another schedule.`
+
+      await createNotification(
+        operatorId,
+        'capacity_conflict',
+        `A meal-prep order was blocked for ${date}: ${failureMessage}`
+      )
+
+      return { ok: false as const, error: failureMessage }
+    }
   }
-
-  const candidateBooking = {
-    id: 'new-meal-prep-order',
-    customerId: String(customerId),
-    customerName: '',
-    customerEmail: '',
-    orderType: 'meal_prep',
-    eventDate: firstDeliveryDate,
-    eventTime,
-    eventType: '',
-    venue: deliveryAddress,
-    guestCount: mealsPerCycle,
-    specialRequests: '',
-    status: 'pending',
-    selectedMenuItemIds: selectedMenuItemIds.map(String),
-    dietaryRestrictions: [],
-    eventProfileId: '',
-    totalCost: 0,
-    paymentsReceived: 0,
-    createdAt: new Date().toISOString(),
-    validationPassed: false,
-    ruleViolations: [],
-  } satisfies Booking
-
-  const validation = validateBooking(
-    candidateBooking,
-    settings,
-    (existingMealPrepRows ?? []).map((row) => ({
-      ...candidateBooking,
-      id: String(row.MealPrepOrderID),
-      customerId: String(row.CustomerID),
-      eventDate: String(row.NextFulfillmentDate),
-      guestCount: Number(row.MealsPerCycle),
-      status: String(row.Status) as Booking['status'],
-    })),
-    [],
-    []
-  )
-
-  if (!validation.valid) {
-    const failureMessage = validation.failures
-      .map((failure) => failure.message)
-      .join(' ')
-
-    await createNotification(
-      operatorId,
-      'capacity_conflict',
-      `A meal-prep order for ${firstDeliveryDate} was blocked: ${failureMessage}`
-    )
-
-    return { ok: false as const, error: failureMessage }
-  }
-
   // Get the active prices so the order keeps its original price snapshots.
   const { data: activePrices, error: priceError } = await admin
     .from('PRICES')
@@ -628,6 +624,94 @@ export async function createMealPrepOrder(
   return {
     ok: true as const,
     mealPrepOrderId,
+  }
+}
+
+export async function getMealPrepAvailability() {
+  const customer = await requireRole('customer')
+
+  if (!customer) {
+    return {
+      ok: false as const,
+      error: 'Customer access required.',
+      orders: [],
+    }
+  }
+
+  const admin = createAdminClient()
+  const operatorId = 2
+
+  // Only pending and active orders occupy meal-prep capacity.
+  const { data: orders, error: ordersError } = await admin
+    .from('MEAL_PREP_ORDER')
+    .select('MealPrepOrderID, Status, NextFulfillmentDate')
+    .eq('OperatorID', operatorId)
+    .in('Status', ['pending', 'active'])
+
+  if (ordersError) {
+    return {
+      ok: false as const,
+      error: ordersError.message,
+      orders: [],
+    }
+  }
+
+  const orderIds = (orders ?? []).map((order) =>
+    Number(order.MealPrepOrderID)
+  )
+
+  if (orderIds.length === 0) {
+    return {
+      ok: true as const,
+      orders: [],
+    }
+  }
+
+  // Retrieve every scheduled delivery date for these orders.
+  const { data: deliveries, error: deliveriesError } = await admin
+    .from('MEAL_PREP_DELIVERY')
+    .select('MealPrepOrderID, DeliveryDate')
+    .in('MealPrepOrderID', orderIds)
+
+  if (deliveriesError) {
+    return {
+      ok: false as const,
+      error: deliveriesError.message,
+      orders: [],
+    }
+  }
+
+  const datesByOrderId = new Map<number, string[]>()
+
+  for (const delivery of deliveries ?? []) {
+    const orderId = Number(delivery.MealPrepOrderID)
+    const date = String(delivery.DeliveryDate).slice(0, 10)
+
+    const dates = datesByOrderId.get(orderId) ?? []
+    dates.push(date)
+    datesByOrderId.set(orderId, dates)
+  }
+
+  return {
+    ok: true as const,
+    orders: (orders ?? []).map((order) => {
+      const orderId = Number(order.MealPrepOrderID)
+      const deliveryDates = datesByOrderId.get(orderId) ?? []
+
+      // Fallback for older orders without delivery records.
+      const dates =
+        deliveryDates.length > 0
+          ? [...new Set(deliveryDates)]
+          : order.NextFulfillmentDate
+            ? [String(order.NextFulfillmentDate).slice(0, 10)]
+            : []
+
+      return {
+        id: orderId,
+        status: String(order.Status),
+        deliveryDates: dates,
+      }
+    }),
   }
 }
 
