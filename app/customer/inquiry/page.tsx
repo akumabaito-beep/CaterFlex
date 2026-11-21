@@ -1054,7 +1054,7 @@ export default function InquiryPage() {
                 <li key={label} className="flex flex-1 items-center gap-2" aria-current={current ? 'step' : undefined}>
                   <span className={`flex size-6 shrink-0 items-center justify-center rounded-full ${current || done ? 'bg-[#C8431B] text-white' : 'bg-[#F3E7D6] text-[#2B1D16]/60'}`}>{n}</span>
                   <span className={`hidden sm:block ${current ? 'text-[#2B1D16]' : 'text-[#2B1D16]/50'}`}>
-                    {isMealPrep && n === 1 ? 'Plan & schedule' : label}
+                    {isMealPrep && n === 1 ? 'Plan & Schedule' : label}
                   </span>
                   {n < 3 && <span className={`h-px flex-1 ${done ? 'bg-[#C8431B]' : 'bg-[#E8D8C4]'}`} />}
                 </li>

@@ -1405,7 +1405,7 @@ const filteredMenuItems = isMealPrepDraft
       </div>
 
       {/* DISH SELECTION ALLERGEN CONFIRMATION MODAL */}
-      {pendingAllergenSelection && (
+      {showDishAllergenConfirm && pendingAllergenSelection && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2B1D16]/60 p-4">
           <div
             role="alertdialog"
