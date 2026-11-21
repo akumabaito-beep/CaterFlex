@@ -21,6 +21,26 @@ import {
 } from '@/lib/rules/allergenFiltering';
 import type { MenuItem } from '@/lib/types';
 
+function getCustomIngredientConflicts(
+  item: MenuItem,
+  customAllergies: string[]
+): string[] {
+  const allergySet = new Set(
+    customAllergies.map((allergy) =>
+      allergy.trim().toLocaleLowerCase()
+    )
+  );
+
+  return Array.from(
+    new Set(
+      item.requiredIngredients
+        .filter((ingredient) =>
+          allergySet.has(ingredient.name.trim().toLocaleLowerCase())
+        )
+        .map((ingredient) => ingredient.name)
+    )
+  );
+}
 
 export default function BrowsePage() {
   const router = useRouter();
@@ -41,6 +61,18 @@ export default function BrowsePage() {
     clearCustomerSession,
   } = useAppState();
 
+  const customAllergyText = String(
+    customerBookingDraft.specialRequests ?? ''
+  )
+    .split('\n')
+    .find((line) => /^Other allergy:\s*/i.test(line))
+    ?.replace(/^Other allergy:\s*/i, '') ?? '';
+  
+  const customIngredientAllergies = customAllergyText
+    .split(',')
+    .map((allergy) => allergy.trim().toLocaleLowerCase())
+    .filter(Boolean);
+    
   const [dbMenuItems, setDbMenuItems] = useState<MenuItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedMealPrepCategory, setSelectedMealPrepCategory] = useState<
@@ -131,6 +163,30 @@ const mealPrepCategories = [
           return;
         }
 
+        // Get dish-to-ingredient relationships
+        const { data: dishIngredients, error: dishIngredientError } =
+        await supabase
+          .from('DISH_INGREDIENT')
+          .select('MenuItemID, IngredientID, QuantityRequiredPerServing');
+
+        if (dishIngredientError) {
+        console.error('DISH_INGREDIENT loading error:', dishIngredientError);
+        alert(`Failed to load dish ingredients: ${dishIngredientError.message}`);
+        return;
+        }
+
+        // Get ingredient names and units
+        const { data: ingredients, error: ingredientError } =
+        await supabase
+          .from('INGREDIENT')
+          .select('IngredientID, IngredientName, UnitOfMeasure');
+
+        if (ingredientError) {
+        console.error('INGREDIENT loading error:', ingredientError);
+        alert(`Failed to load ingredients: ${ingredientError.message}`);
+        return;
+        }
+
         // Convert database menu items into application's MenuItem format
         const formattedItems: MenuItem[] = (menuData ?? []).map(
           (item: {
@@ -182,7 +238,24 @@ const mealPrepCategories = [
                 fat: 0,
               },
         
-              requiredIngredients: [],
+              requiredIngredients: (dishIngredients ?? [])
+            .filter(
+              (relation) => relation.MenuItemID === item.MenuItemID
+            )
+            .flatMap((relation) => {
+              const ingredient = (ingredients ?? []).find(
+                (entry) => entry.IngredientID === relation.IngredientID
+              );
+
+              return ingredient
+                ? [{
+                    id: String(ingredient.IngredientID),
+                    name: ingredient.IngredientName,
+                    qty: Number(relation.QuantityRequiredPerServing ?? 0),
+                    unit: ingredient.UnitOfMeasure ?? '',
+                  }]
+                : [];
+            }),
               inventoryStatus: 'available',
             };
           }
@@ -347,8 +420,23 @@ const filteredMenuItems = isMealPrepDraft
       selectedItems,
       customerDietaryRestrictions
     );
-
-    const hasSelectionConflicts = conflictingAllergens.length > 0;
+    
+    const conflictingCustomIngredients = Array.from(
+      new Set(
+        selectedItems.flatMap((item) =>
+          getCustomIngredientConflicts(item, customIngredientAllergies)
+        )
+      )
+    );
+    
+    const hasSelectionConflicts =
+      conflictingAllergens.length > 0 ||
+      conflictingCustomIngredients.length > 0;
+    
+    const allConflictNames = [
+      ...conflictingAllergens.map((tag) => tag.replace('_', ' ')),
+      ...conflictingCustomIngredients,
+    ];
 
   /*
    * Estimated cost shown before the customer confirms.
@@ -775,8 +863,24 @@ const filteredMenuItems = isMealPrepDraft
                         selection.menuItemId === Number(item.id)
                     )
                   : selectedMenuItemIds.includes(item.id);
-                  const itemConflicts = checkAllergenConflict(item, customerDietaryRestrictions);
-                  const hasAllergyConflict = itemConflicts.length > 0;
+                  const itemConflicts = checkAllergenConflict(
+                    item,
+                    customerDietaryRestrictions
+                  );
+                  
+                  const itemCustomConflicts = getCustomIngredientConflicts(
+                    item,
+                    customIngredientAllergies
+                  );
+                  
+                  const hasAllergyConflict =
+                    itemConflicts.length > 0 ||
+                    itemCustomConflicts.length > 0;
+                  
+                  const itemConflictNames = [
+                    ...itemConflicts.map((tag) => tag.replace('_', ' ')),
+                    ...itemCustomConflicts,
+                  ];
                   
                   const servingsNeeded = isMealPrepDraft ? 1 : Math.max(1, Number(customerBookingDraft.guestCount) || 1);
                   const stockLeft = dishStock[Number(item.id)];
@@ -881,9 +985,9 @@ const filteredMenuItems = isMealPrepDraft
                           <div className="mt-3 flex gap-2 rounded-lg border border-red-200 bg-red-50 p-2">
                             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
                             <p className="text-xs text-red-700">
-                              Conflicts with your declared{' '}
-                              {itemConflicts.length === 1 ? 'allergy' : 'allergies'}:{' '}
-                              {itemConflicts.map((tag) => tag.replace('_', ' ')).join(', ')}
+                            Conflicts with your declared{' '}
+                            {itemConflictNames.length === 1 ? 'allergy' : 'allergies'}:{' '}
+                            {itemConflictNames.join(', ')}
                             </p>
                           </div>
                         )}                 
@@ -1167,7 +1271,7 @@ const filteredMenuItems = isMealPrepDraft
                     <p className="mb-1 text-xs font-semibold text-red-700">Allergen conflict</p>
                     <p className="text-xs text-red-700">
                       Your selection contains{' '}
-                      {conflictingAllergens.map((tag) => tag.replace('_', ' ')).join(', ')}, which you
+                      {allConflictNames.join(', ')} which you
                       declared as a restriction. You will be asked to confirm before submitting.
                     </p>
                   </div>

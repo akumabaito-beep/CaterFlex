@@ -324,8 +324,21 @@ export default function InquiryPage() {
   const draftIsMealPrep = draft.orderType === 'meal_prep';
   const splitOther = (text?: string | null) => {
     const lines = String(text ?? '').split('\n');
-    const other = lines.find((l) => l.startsWith('Other allergy: '))?.slice(15) ?? '';
-    return { text: lines.filter((l) => !l.startsWith('Other allergy: ')).join('\n'), other };
+  
+    const otherLine = lines.find((line) =>
+      /^Other allergy:\s*/i.test(line)
+    );
+  
+    const other = otherLine
+      ? otherLine.replace(/^Other allergy:\s*/i, '')
+      : '';
+  
+    return {
+      text: lines
+        .filter((line) => !/^Other allergy:\s*/i.test(line))
+        .join('\n'),
+      other,
+    };
   };
 
   const [cateringForm, setCateringForm] = useState(() => ({
@@ -689,7 +702,7 @@ export default function InquiryPage() {
 
   const otherNote =
     dietary.includes('other' as AllergenType) && otherAllergy.trim()
-      ? `Other allergy: ${otherAllergy.trim()}`
+      ? `Other Allergy: ${otherAllergy.trim()}`
       : '';
 
   const stepProblem = (which: 1 | 2): string => {
@@ -762,6 +775,15 @@ export default function InquiryPage() {
       if (step < 3) goNext();
       return;
     }
+
+    // Require a description when "Other" allergen is selected.
+    if (dietary.includes('other' as AllergenType) && !otherAllergy.trim()) {
+      setStepError('Please specify your other allergy before proceeding.');
+      document.getElementById('other-allergy')?.focus();
+      return;
+    }
+
+    setStepError('');
 
     /*
      * Do not allow submission if the selected date
@@ -1324,14 +1346,19 @@ export default function InquiryPage() {
                   />
                   {dietary.includes('other' as AllergenType) && (
                     <div>
-                      <label htmlFor="other-allergy" className="block text-sm font-semibold text-[#2B1D16] mb-2">Other allergy</label>
+                      <label htmlFor="other-allergy" className="block text-sm font-semibold text-[#2B1D16] mb-2">Other Allergy/ies</label>
                       <input
                         id="other-allergy"
                         type="text"
                         value={otherAllergy}
-                        onChange={(e) => setOtherAllergy(e.target.value)}
+                        onChange={(e) => {
+                          setOtherAllergy(e.target.value);
+                          setStepError('');
+                        }}
                         maxLength={120}
-                        placeholder="Type the allergy, e.g. mango"
+                        placeholder="e.g. mango, apple, avocado"
+                        required
+                        aria-invalid={!otherAllergy.trim()}
                         className={inputClass}
                       />
                     </div>
