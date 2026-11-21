@@ -1,14 +1,5 @@
-import type { AllergenType, MenuItem } from '../types';
 
-/**
- * Dietary restriction / allergen filtering logic.
- *
- * Implements the cross-referencing rule described in the thesis
- * (Chapter 3, Section 3.2.2 and FR-5.1 - FR-5.3): the Customer's declared
- * allergy tags are matched against the allergy tags assigned to each menu
- * item, and any match is surfaced as a conflict before the booking or
- * meal-prep order is finalized.
- */
+import type { AllergenType, MenuItem } from '../types';
 
 export interface MenuItemAllergenCheck {
   menuItemId: string;
@@ -17,8 +8,19 @@ export interface MenuItemAllergenCheck {
 }
 
 /**
- * Returns the allergens shared between a customer's declared restrictions
- * and a single menu item's allergy tags. An empty array means no conflict.
+ * Normalizes allergen names so differences in capitalization,
+ * spaces, and underscores do not prevent matching.
+ */
+function normalizeAllergen(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+}
+
+/**
+ * Returns the allergens shared between a customer's declared
+ * restrictions and a menu item's allergy tags.
  */
 export function checkAllergenConflict(
   menuItem: Pick<MenuItem, 'allergyTags'>,
@@ -27,7 +29,18 @@ export function checkAllergenConflict(
   if (dietaryRestrictions.length === 0 || menuItem.allergyTags.length === 0) {
     return [];
   }
-  return menuItem.allergyTags.filter((tag) => dietaryRestrictions.includes(tag));
+
+  const restrictionSet = new Set(
+    dietaryRestrictions.map(normalizeAllergen)
+  );
+
+  return Array.from(
+    new Set(
+      menuItem.allergyTags.filter((tag) =>
+        restrictionSet.has(normalizeAllergen(tag))
+      )
+    )
+  );
 }
 
 /**
@@ -41,9 +54,7 @@ export function hasAllergenConflict(
 }
 
 /**
- * Runs the cross-reference check across a set of menu items (e.g. a
- * customer's current selection, or the full items attached to a submitted
- * booking) and returns only the items that have at least one conflict.
+ * Returns only menu items that have at least one allergen conflict.
  */
 export function getConflictingMenuItems(
   menuItems: MenuItem[],
@@ -61,9 +72,7 @@ export function getConflictingMenuItems(
 }
 
 /**
- * Flattens the conflicts across a set of menu items into a unique,
- * deduplicated list of allergens — useful for a single summary warning
- * (e.g. in the booking sidebar) rather than repeating tags per item.
+ * Returns a unique list of allergens across all conflicting menu items.
  */
 export function getUniqueConflictingAllergens(
   menuItems: MenuItem[],
@@ -71,6 +80,10 @@ export function getUniqueConflictingAllergens(
 ): AllergenType[] {
   const conflicts = getConflictingMenuItems(menuItems, dietaryRestrictions);
   const unique = new Set<AllergenType>();
-  conflicts.forEach((check) => check.conflicts.forEach((tag) => unique.add(tag)));
+
+  conflicts.forEach((check) =>
+    check.conflicts.forEach((tag) => unique.add(tag))
+  );
+
   return Array.from(unique);
 }

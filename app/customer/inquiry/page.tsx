@@ -666,6 +666,109 @@ export default function InquiryPage() {
     );
   };
 
+
+const handleOtherAllergyChange = (value: string) => {
+  const entries = value.split(',');
+  const recognized: AllergenType[] = [];
+  const remaining: string[] = [];
+
+  entries.forEach((entry, index) => {
+    const trimmed = entry.trim();
+    const normalized = trimmed
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+
+    const match = allergenOptions.find(
+      (option) =>
+        option !== 'other' &&
+        option === normalized
+    );
+
+    // Recognize an exact match immediately when typed,
+    // or recognize completed entries before a comma.
+    if (
+      match &&
+      (index < entries.length - 1 || entries.length === 1)
+    ) {
+      recognized.push(match);
+    } else if (trimmed) {
+      remaining.push(trimmed);
+    }
+  });
+
+  if (recognized.length > 0) {
+    setDietary((prev) => {
+      const updated = new Set(prev);
+
+      recognized.forEach((allergen) => updated.add(allergen));
+
+      if (remaining.length === 0 && !value.endsWith(',')) {
+        updated.delete('other' as AllergenType);
+      }
+
+      return Array.from(updated);
+    });
+  }
+
+  setOtherAllergy(remaining.join(', '));
+  setStepError('');
+};
+
+const handleOtherAllergyBlur = () => {
+  const entries = otherAllergy
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const recognized = entries
+    .map((entry) => {
+      const normalized = entry
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+
+      return allergenOptions.find(
+        (option) =>
+          option !== 'other' &&
+          option === normalized
+      );
+    })
+    .filter(
+      (allergen): allergen is AllergenType =>
+        Boolean(allergen)
+    );
+
+  const remaining = entries.filter((entry) => {
+    const normalized = entry
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+
+    return !allergenOptions.some(
+      (option) =>
+        option !== 'other' &&
+        option === normalized
+    );
+  });
+
+  if (recognized.length > 0) {
+    setDietary((prev) => {
+      const updated = new Set(prev);
+
+      recognized.forEach((allergen) =>
+        updated.add(allergen)
+      );
+
+      if (remaining.length === 0) {
+        updated.delete('other' as AllergenType);
+      }
+
+      return Array.from(updated);
+    });
+
+    setOtherAllergy(remaining.join(', '));
+  }
+};
+
+
   /*
    * ============================================================
    * SUBMIT
@@ -1346,21 +1449,20 @@ export default function InquiryPage() {
                   />
                   {dietary.includes('other' as AllergenType) && (
                     <div>
-                      <label htmlFor="other-allergy" className="block text-sm font-semibold text-[#2B1D16] mb-2">Other Allergy/ies</label>
+                      <label htmlFor="other-allergy" className="block text-sm font-semibold text-[#2B1D16] mb-2">Other Allergy/ies</label>        
                       <input
                         id="other-allergy"
                         type="text"
                         value={otherAllergy}
-                        onChange={(e) => {
-                          setOtherAllergy(e.target.value);
-                          setStepError('');
-                        }}
+                        onChange={(e) => handleOtherAllergyChange(e.target.value)}
+                        onBlur={handleOtherAllergyBlur}
                         maxLength={120}
                         placeholder="e.g. mango, apple, avocado"
                         required
                         aria-invalid={!otherAllergy.trim()}
                         className={inputClass}
                       />
+
                     </div>
                   )}
                 </div>
