@@ -778,7 +778,7 @@ export default function InquiryPage() {
 
     // Require a description when "Other" allergen is selected.
     if (dietary.includes('other' as AllergenType) && !otherAllergy.trim()) {
-      setStepError('Please specify your other allergy before proceeding.');
+      setStepError('Please specify your other allergies before proceeding.');
       document.getElementById('other-allergy')?.focus();
       return;
     }

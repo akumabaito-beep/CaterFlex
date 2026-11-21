@@ -1,12 +1,25 @@
 'use client';
 
 import Image from 'next/image';
+
 import { CustomerShell } from '@/app/customer/customer-shell';
 import { useAppState } from '@/lib/state';
 import { restoreSession } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Check, AlertCircle, CheckCircle2, Plus, X, CalendarDays, Clock, Users, Repeat, Pencil } from 'lucide-react';
+import {
+  Check,
+  AlertCircle,
+  CheckCircle2,
+  Plus,
+  X,
+  CalendarDays,
+  Clock,
+  Users,
+  Repeat,
+  Pencil,
+  MessageSquare,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getDishStock } from '@/app/actions/stock-actions';
 import { Paged } from '@/components/owner/Pagination';
@@ -86,6 +99,14 @@ const mealPrepCategories = [
 ] as const;
   const [loadingMenu, setLoadingMenu] = useState(true);
   const [showAllergenConfirm, setShowAllergenConfirm] = useState(false);
+  const [showDishAllergenConfirm, setShowDishAllergenConfirm] = useState(false);
+  const [pendingAllergenSelection, setPendingAllergenSelection] = useState<{
+    itemId: string;
+    itemName: string;
+    conflicts: string[];
+    mealType: 'breakfast' | 'lunch' | 'dinner';
+  } | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showBookingSuccess, setShowBookingSuccess] = useState(false);
 
@@ -438,6 +459,27 @@ const filteredMenuItems = isMealPrepDraft
       ...conflictingCustomIngredients,
     ];
 
+    const selectedItemsWithAllergenConflicts = selectedItems
+  .map((item) => {
+    const predefinedConflicts = checkAllergenConflict(
+      item,
+      customerDietaryRestrictions
+    ).map((tag) => tag.replace('_', ' '));
+
+    const customConflicts = getCustomIngredientConflicts(
+      item,
+      customIngredientAllergies
+    );
+
+    return {
+      name: item.name,
+      conflicts: [
+        ...new Set([...predefinedConflicts, ...customConflicts]),
+      ],
+    };
+  })
+  .filter((item) => item.conflicts.length > 0);
+
   /*
    * Estimated cost shown before the customer confirms.
    */
@@ -694,6 +736,22 @@ const filteredMenuItems = isMealPrepDraft
     finalizeSubmit();
   };
 
+  const confirmAllergenSelection = () => {
+    if (!pendingAllergenSelection) return;
+  
+    if (isMealPrepDraft) {
+      addMealPrepSelection(
+        pendingAllergenSelection.mealType,
+        Number(pendingAllergenSelection.itemId)
+      );
+    } else {
+      selectMenuItem(pendingAllergenSelection.itemId);
+    }
+  
+    setShowDishAllergenConfirm(false);
+    setPendingAllergenSelection(null);
+  };
+
   /*
    * Small recap of the inquiry details shown at the top of the page.
    */
@@ -885,26 +943,48 @@ const filteredMenuItems = isMealPrepDraft
                   const servingsNeeded = isMealPrepDraft ? 1 : Math.max(1, Number(customerBookingDraft.guestCount) || 1);
                   const stockLeft = dishStock[Number(item.id)];
                   const lacksStock = stockLeft !== undefined && stockLeft < servingsNeeded;
+                  
                   const toggle = () => {
                     if (lacksStock && !isSelected) return;
-                    if (isMealPrepDraft) {
-                      if (isSelected) {
+                  
+                    // Remove an already-selected dish immediately.
+                    if (isSelected) {
+                      if (isMealPrepDraft) {
                         removeMealPrepSelection(
                           selectedMealPrepCategory,
                           Number(item.id)
                         );
                       } else {
-                        addMealPrepSelection(
-                          selectedMealPrepCategory,
-                          Number(item.id)
-                        );
+                        deselectMenuItem(item.id);
                       }
+                  
+                      return;
+                    }
+                  
+                    // Show the first modal if the dish conflicts with an allergy.
+                    if (hasAllergyConflict) {
+                      setPendingAllergenSelection({
+                        itemId: item.id,
+                        itemName: item.name,
+                        conflicts: itemConflictNames,
+                        mealType: selectedMealPrepCategory,
+                      });
+                  
+                      setShowDishAllergenConfirm(true);
+                      return;
+                    }
+                  
+                    // Add dishes without allergen conflicts normally.
+                    if (isMealPrepDraft) {
+                      addMealPrepSelection(
+                        selectedMealPrepCategory,
+                        Number(item.id)
+                      );
                     } else {
-                      isSelected
-                        ? deselectMenuItem(item.id)
-                        : selectMenuItem(item.id);
+                      selectMenuItem(item.id);
                     }
                   };
+
 
                   return (
                     <div
@@ -1317,53 +1397,153 @@ const filteredMenuItems = isMealPrepDraft
           <Button
             onClick={handleSubmit}
             disabled={!hasAnySelection || loadingMenu || isSubmitting}
-            className="h-11 rounded-lg bg-[#C8431B] font-semibold text-white hover:bg-[#A93615] disabled:opacity-50"
+            className="h-9 rounded-lg bg-[#C8431B] font-semibold text-white hover:bg-[#A93615] disabled:opacity-50"
           >
             Submit
           </Button>
         </div>
       </div>
 
-      {/* ALLERGEN CONFIRMATION MODAL */}
-      {showAllergenConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div role="alertdialog" aria-modal="true" className="w-full max-w-md rounded-xl border-2 border-red-200 bg-white p-6 shadow-xl">
-            <div className="mb-5 flex gap-3">
-              <AlertCircle className="h-6 w-6 shrink-0 text-red-600" />
-              <div>
-                <h3 className="font-heading text-xl font-bold uppercase text-[#2B1D16]">
-                  Allergen conflict
-                </h3>
-                <p className="mt-2 text-sm text-[#2B1D16]/70">
-                  Your selection includes items with declared allergens:{' '}
-                  <span className="font-semibold text-red-700">
-                    {conflictingAllergens.map((tag) => tag.replace('_', ' ')).join(', ')}
-                  </span>
-                  . Are you sure you want to submit this booking?
-                </p>
+      {/* DISH SELECTION ALLERGEN CONFIRMATION MODAL */}
+      {pendingAllergenSelection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2B1D16]/60 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-2xl bg-[#FBF6EE] p-5 shadow-2xl"
+          >
+            {/* HEADER */}
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FBE3DC]">
+                <AlertCircle className="h-5 w-5 text-[#C8431B]" />
               </div>
+
+              <h3 className="font-heading text-xl font-bold uppercase tracking-wide text-[#2B1D16]">
+                Allergen conflict
+              </h3>
             </div>
 
-            <div className="flex justify-end gap-3">
+            {/* DESCRIPTION */}
+            <p className="mt-3 text-xs leading-relaxed text-[#4A3A30]">
+              This dish contains an ingredient you declared as an allergy.
+            </p>
+
+            {/* DISH DETAILS */}
+            <div className="mt-4 rounded-xl border border-[#E8DCCB] bg-white p-3">
+              <p className="text-sm font-semibold text-[#2B1D16]">
+                {pendingAllergenSelection.itemName}
+              </p>
+
+              <span className="mt-2 inline-block rounded-full border border-[#F0B7A8] bg-[#FBE3DC] px-2.5 py-1 text-xs font-semibold text-[#9B1C1C]">
+                Contains: {pendingAllergenSelection.conflicts.join(', ')}
+              </span>
+            </div>
+
+            {/* BUTTONS */}
+            <div className="mt-5 flex gap-2">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setShowAllergenConfirm(false)}
-                disabled={isSubmitting}
-                className="h-11 rounded-lg border-[#C8431B] text-[#C8431B] hover:bg-[#F6E3D3]"
+                className="h-10 min-w-0 flex-1 rounded-lg bg-[#C8431B] px-2 text-xs font-semibold text-white hover:bg-[#A93615]"
+                onClick={() => {
+                  setShowDishAllergenConfirm(false);
+                  setPendingAllergenSelection(null);
+                }}
               >
-                Cancel
+                Go back
               </Button>
+
               <Button
                 type="button"
-                className="h-11 rounded-lg bg-[#C8431B] text-white hover:bg-[#A93615]"
+                className="h-10 min-w-0 flex-1 rounded-lg border border-[#8B796D] bg-transparent px-2 text-xs font-semibold text-[#2B1D16] hover:bg-[#2B1D16]/5"
+                onClick={confirmAllergenSelection}
+              >
+                Add anyway
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ALLERGEN CONFIRMATION MODAL */}
+      {showAllergenConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2B1D16]/60 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            className="flex h-[360px] max-h-[85vh] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-[#FBF6EE] p-5 shadow-2xl"
+          >
+            {/* HEADER */}
+            <div className="flex shrink-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#FBE3DC]">
+                <AlertCircle className="h-5 w-5 text-[#C8431B]" />
+              </div>
+
+              <h3 className="font-heading text-lg font-bold uppercase tracking-wide text-[#2B1D16]">
+                Allergen conflict
+              </h3>
+            </div>
+
+            {/* DESCRIPTION */}
+            <p className="mt-3 shrink-0 text-xs leading-relaxed text-[#4A3A30]">
+              <span className="font-semibold">
+                {selectedItemsWithAllergenConflicts.length} dishes
+              </span>{' '}
+              in your order match your declared allergies.
+            </p>
+
+            {/* SCROLLABLE DISH LIST */}
+            <div className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-xl border border-[#E8DCCB] bg-white">
+              {selectedItemsWithAllergenConflicts.map((item, index) => (
+                <div
+                  key={item.name}
+                  className={`flex items-center justify-between gap-2 px-3 py-2.5 ${
+                    index !== selectedItemsWithAllergenConflicts.length - 1
+                      ? 'border-b border-[#F0E8DE]'
+                      : ''
+                  }`}
+                >
+                  <p className="min-w-0 flex-1 text-xs font-semibold text-[#2B1D16]">
+                    {item.name}
+                  </p>
+
+                  <span className="max-w-[60%] shrink-0 rounded-full border border-[#F0B7A8] bg-[#FBE3DC] px-2 py-1 text-right text-[10px] font-semibold leading-tight text-[#9B1C1C]">
+                    Contains: {item.conflicts.join(', ')}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* NOTIFICATION NOTICE */}
+            <div className="mt-3 flex shrink-0 items-center gap-2">
+              <AlertCircle className="h-4 w-4 shrink-0 text-[#6B5A4E]" />
+              <p className="text-[11px] leading-relaxed text-[#4A3A30]">
+                The caterer will be notified of this allergen conflict.
+              </p>
+            </div>
+
+            {/* BUTTONS */}
+            <div className="mt-3 flex shrink-0 gap-2">
+              <Button
+                type="button"
+                className="h-10 min-w-0 flex-1 rounded-lg bg-[#C8431B] px-2 text-xs font-semibold text-white hover:bg-[#A93615]"
+                onClick={() => setShowAllergenConfirm(false)}
+                disabled={isSubmitting}
+              >
+                Go back and review
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 min-w-0 flex-1 rounded-lg border border-[#8B796D] bg-transparent px-2 text-xs font-semibold text-[#2B1D16] hover:bg-[#2B1D16]/5"
                 onClick={() => {
                   setShowAllergenConfirm(false);
                   finalizeSubmit();
                 }}
                 disabled={isSubmitting}
               >
-                Submit anyway
+                Yes, submit booking
               </Button>
             </div>
           </div>
