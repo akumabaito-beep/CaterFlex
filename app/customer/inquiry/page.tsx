@@ -1024,7 +1024,7 @@ export default function InquiryPage() {
         <Card className="p-6 sm:p-8 rounded-2xl border border-[#E8D8C4] bg-white shadow-sm">
           {/* STEP INDICATOR */}
           <ol className="mb-6 flex items-center gap-2 text-xs font-semibold" aria-label="Progress">
-            {(['Date & time', 'Delivery', 'Preferences'] as const).map((label, i) => {
+            {(['Date & Time', 'Delivery', 'Preferences'] as const).map((label, i) => {
               const n = i + 1;
               const done = step > n;
               const current = step === n;
