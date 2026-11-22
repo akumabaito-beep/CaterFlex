@@ -89,7 +89,6 @@ export async function getSystemHealth() {
     database: error ? 'disconnected' : 'connected',
     lastDeployment: await getLatestLog(admin, 'deployment'),
     uptime: formatUptime(await getLatestLog(admin, 'deployment')),
-    lastBackup: await getLatestLog(admin, 'backup'),
   }
 }
 
@@ -124,21 +123,7 @@ export async function triggerDeploy() {
   }
 }
 
-// Real backups are Supabase-managed. Exporting data through the admin would violate FR-12.6.
-export async function initiateBackup() {
-  await requireAdmin()
-  await new Promise((resolve) => setTimeout(resolve, 2000))
-  await writeLog('backup', '[SIMULATED] Backup initiated.')
-  return { ok: true }
-}
-
-// Real backups are Supabase-managed. Exporting data through the admin would violate FR-12.6.
-export async function restoreBackup(logId: number) {
-  await requireAdmin()
-  await new Promise((resolve) => setTimeout(resolve, 2000))
-  await writeLog('restore', `[SIMULATED] Restore requested for log ${logId}.`)
-  return { ok: true }
-}
+// Backups are managed by Supabase. The admin does not export or restore business data (FR-12.6).
 
 export type SystemLog = Awaited<ReturnType<typeof getSystemLogs>>['logs'][number]
 export type SystemHealth = Awaited<ReturnType<typeof getSystemHealth>>
