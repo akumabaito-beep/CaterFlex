@@ -22,6 +22,22 @@ export async function logSystemError(source: string, error: unknown): Promise<vo
   }
 }
 
+// Records a system event (for example a sign-in or the daily check). It never throws,
+// so a logging problem cannot break the action that triggered it. Messages must not
+// contain customer data: the administrator can read this log.
+export async function logSystemEvent(type: string, message: string): Promise<void> {
+  try {
+    await createAdminClient().from('SYSTEM_LOG').insert({
+      AdminID: null,
+      LogType: type,
+      Message: message.slice(0, 500),
+      Timestamp: new Date().toISOString(),
+    })
+  } catch {
+    // Logging must never break the caller.
+  }
+}
+
 export function formatUptimeForTest(since: string | null, now = new Date()) {
   return formatUptime(since, now)
 }

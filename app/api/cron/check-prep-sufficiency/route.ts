@@ -6,7 +6,7 @@ import { checkOrderSufficiencyWithAllocations } from '@/lib/macroflex'
 import { createNotification, hasNotificationForToday } from '@/lib/notifications'
 import { addDays, orderPrepWindow, servingsForBookingItem, servingsForOrder } from '@/lib/rules/allocation'
 import { formatQuantity } from '@/lib/rules/quantity-format'
-import { logSystemError } from '@/lib/system-log'
+import { logSystemError, logSystemEvent } from '@/lib/system-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -124,6 +124,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  await logSystemEvent('check', `Daily preparation check ran: ${checked} bookings and ${mealPrepChecked} meal-prep plans checked, ${notified + mealPrepNotified} notifications created.`)
   return NextResponse.json({ ok: true, checked, notified, mealPrepChecked, mealPrepNotified })
   } catch (error) {
     await logSystemError('check-prep-sufficiency', error)

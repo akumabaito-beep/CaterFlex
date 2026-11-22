@@ -3,12 +3,11 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { ReactNode } from 'react'
-import { BarChart3, CloudCog, FileText, LogOut } from 'lucide-react'
+import { BarChart3, FileText, LogOut } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 const links = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: BarChart3 },
-  { href: '/admin/deploy', label: 'Deploy', icon: CloudCog },
   { href: '/admin/logs', label: 'Logs', icon: FileText },
 ]
 

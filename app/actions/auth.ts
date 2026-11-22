@@ -6,6 +6,7 @@ import { cookies, headers } from 'next/headers'
 import { sendVerificationEmail } from '@/lib/email'
 import { newVerificationToken, VERIFY_RESEND_COOLDOWN_MS } from '@/lib/email-verification'
 import { createAdminClient } from '@/lib/supabase-admin'
+import { logSystemEvent } from '@/lib/system-log'
 import { decodeSession, encodeSession, SESSION_COOKIE } from '@/lib/session-cookie'
 import type { User, UserRole } from '@/lib/types'
 
@@ -222,6 +223,7 @@ export async function signInCustomer(input: {
     role: 'customer',
   }
   await setSessionCookie(user)
+  await logSystemEvent('login', 'Customer signed in.')
   return { ok: true, user }
 }
 
@@ -260,6 +262,7 @@ export async function signInOwner(input: {
     role: 'owner',
   }
   await setSessionCookie(user)
+  await logSystemEvent('login', 'Business Owner signed in.')
   return { ok: true, user }
 }
 

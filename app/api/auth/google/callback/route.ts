@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { encodeSession, SESSION_COOKIE } from '@/lib/session-cookie'
+import { logSystemEvent } from '@/lib/system-log'
 import type { User } from '@/lib/types'
 
 const STATE_COOKIE = 'caterflex-google-state'
@@ -107,6 +108,7 @@ export async function GET(request: NextRequest) {
     email: customer.Email,
     role: 'customer',
   }
+  await logSystemEvent('login', 'Customer signed in with Google.')
   const response = NextResponse.redirect(new URL(String(customer.Contact ?? '').trim() ? '/customer/home' : '/signup?step=contact', request.url))
   response.cookies.set(SESSION_COOKIE, await encodeSession(user), {
     httpOnly: true,

@@ -2,7 +2,7 @@
 
 import { getSupabaseServer } from '@/lib/auth-server'
 import { createAdminClient } from '@/lib/supabase-admin'
-import { formatUptime, logSystemError } from '@/lib/system-log'
+import { logSystemError } from '@/lib/system-log'
 
 const PAGE_SIZE = 25
 
@@ -71,55 +71,11 @@ export async function getSystemLogs(filters: LogFilters = {}) {
   }
 }
 
-async function getLatestLog(admin: ReturnType<typeof createAdminClient>, type: string) {
-  const { data } = await admin
-    .from('SYSTEM_LOG')
-    .select('Timestamp')
-    .eq('LogType', type)
-    .order('Timestamp', { ascending: false, nullsFirst: false })
-    .limit(1)
-    .maybeSingle()
-  return data?.Timestamp ?? null
-}
-
 export async function getSystemHealth() {
   const { admin } = await getAdminContext()
   const { error } = await admin.from('SYSTEM_LOG').select('LogID', { count: 'exact', head: true })
   return {
     database: error ? 'disconnected' : 'connected',
-    lastDeployment: await getLatestLog(admin, 'deployment'),
-    uptime: formatUptime(await getLatestLog(admin, 'deployment')),
-  }
-}
-
-async function writeLog(type: string, message: string) {
-  const { admin, adminId } = await getAdminContext()
-  const { error } = await admin.from('SYSTEM_LOG').insert({
-    AdminID: adminId,
-    LogType: type,
-    Message: message,
-    Timestamp: new Date().toISOString(),
-  })
-  if (error) throw new Error(error.message)
-}
-
-export async function triggerDeploy() {
-  const hook = process.env.VERCEL_DEPLOY_HOOK_URL
-  if (!hook) return { ok: false, error: 'Deploy hook not configured.' }
-
-  await requireAdmin()
-  try {
-    const response = await fetch(hook, { method: 'POST', cache: 'no-store' })
-    const message = response.ok
-      ? `Deploy hook triggered successfully (${response.status}).`
-      : `Deploy hook failed with status ${response.status}.`
-    await writeLog('deployment', message)
-    return { ok: response.ok, error: response.ok ? undefined : message }
-  } catch (error) {
-    await logSystemError('triggerDeploy', error)
-    const message = error instanceof Error ? error.message : 'Unknown deploy error.'
-    await writeLog('deployment', `Deploy hook error: ${message}`)
-    return { ok: false, error: message }
   }
 }
 
