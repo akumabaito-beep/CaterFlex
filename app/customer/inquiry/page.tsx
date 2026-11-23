@@ -100,6 +100,8 @@ export default function InquiryPage() {
     []
   );
 
+  const [selectedDeliveryIndex, setSelectedDeliveryIndex] = useState<number | null>(null);
+  
   const [loadingAvailability, setLoadingAvailability] =
     useState(false);
 
@@ -211,6 +213,78 @@ export default function InquiryPage() {
     setLoadingAvailability(false);
   };
 
+  const loadMealPrepAvailability = async () => {
+    setLoadingMealPrepAvailability(true);
+    setMealPrepAvailabilityError('');
+  
+    try {
+      const result = await getMealPrepAvailability();
+  
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+  
+      const formattedBookings: Booking[] = result.orders.map(
+        (order: {
+          id: number;
+          status: string;
+          deliveryDates: string[];
+        }) => {
+          const scheduledDeliveries = order.deliveryDates.map(
+            (date: string) => ({
+              date,
+              subscriptionWeek: 1,
+            })
+          );
+  
+          return {
+            id: String(order.id),
+            customerId: '',
+            customerName: '',
+            customerEmail: '',
+            orderType: 'meal_prep',
+            eventDate: scheduledDeliveries[0]?.date ?? '',
+            eventTime: '',
+            eventType: 'Meal Prep Subscription',
+            venue: '',
+            guestCount: 1,
+            status: order.status === 'active' ? 'confirmed' : 'pending',
+            selectedMenuItemIds: [],
+            dietaryRestrictions: [],
+            eventProfileId: '',
+            totalCost: 0,
+            paymentsReceived: 0,
+            createdAt: '',
+            specialRequests: '',
+            validationPassed: true,
+            ruleViolations: [],
+            scheduledDeliveries: finalScheduledDeliveries.map(
+              ({ date, subscriptionWeek }) => ({
+                date,
+                subscriptionWeek,
+              })
+            ),
+          } as unknown as Booking;
+        }
+      );
+  
+      setDatabaseMealPrepBookings(formattedBookings);
+    } catch (error) {
+      console.error(
+        'MEAL PREP AVAILABILITY FETCH ERROR:',
+        error
+      );
+  
+      setDatabaseMealPrepBookings([]);
+  
+      setMealPrepAvailabilityError(
+        'Unable to load meal-prep availability. Please refresh the page and try again.'
+      );
+    } finally {
+      setLoadingMealPrepAvailability(false);
+    }
+  };
+
   /*
    * Load current database bookings when the page opens.
    */
@@ -239,8 +313,21 @@ export default function InquiryPage() {
   const draftIsMealPrep = draft.orderType === 'meal_prep';
   const splitOther = (text?: string | null) => {
     const lines = String(text ?? '').split('\n');
-    const other = lines.find((l) => l.startsWith('Other allergy: '))?.slice(15) ?? '';
-    return { text: lines.filter((l) => !l.startsWith('Other allergy: ')).join('\n'), other };
+  
+    const otherLine = lines.find((line) =>
+      /^Other allergy:\s*/i.test(line)
+    );
+  
+    const other = otherLine
+      ? otherLine.replace(/^Other allergy:\s*/i, '')
+      : '';
+  
+    return {
+      text: lines
+        .filter((line) => !/^Other allergy:\s*/i.test(line))
+        .join('\n'),
+      other,
+    };
   };
 
   const [cateringForm, setCateringForm] = useState(() => ({
@@ -310,6 +397,141 @@ export default function InquiryPage() {
       mealPrepForm.deliveryDays,
       mealPrepForm.subscriptionWeeks,
     ]);
+
+    const [deliveryDateOverrides, setDeliveryDateOverrides] = useState<
+  Record<number, string>
+>({});
+
+const [removedDeliveryIndexes, setRemovedDeliveryIndexes] = useState<
+  number[]
+>([]);
+
+const [replacementDateInputs, setReplacementDateInputs] = useState<
+  Record<number, string>
+>({});
+
+// Reset individual date changes when the customer changes the
+// start date, subscription duration, or preferred delivery days.
+const scheduleKey = scheduledDeliveries
+  .map((delivery) => `${delivery.date}:${delivery.subscriptionWeek}`)
+  .join('|');
+
+useEffect(() => {
+  setDeliveryDateOverrides({});
+  setRemovedDeliveryIndexes([]);
+  setReplacementDateInputs({});
+}, [scheduleKey]);
+
+// The customer's final schedule, including date changes and removals.
+const finalScheduledDeliveries = useMemo(() => {
+  return scheduledDeliveries.flatMap((delivery, index) => {
+    if (removedDeliveryIndexes.includes(index)) {
+      return [];
+    }
+
+    return [{
+      ...delivery,
+      date: deliveryDateOverrides[index] ?? delivery.date,
+      originalIndex: index,
+    }];
+  });
+}, [
+  scheduledDeliveries,
+  deliveryDateOverrides,
+  removedDeliveryIndexes,
+]);
+
+// Check every date in the customer's current schedule.
+const deliveryAvailability = useMemo(() => {
+  if (!isMealPrep) {
+    return [];
+  }
+
+  return finalScheduledDeliveries.map((delivery) => ({
+    ...delivery,
+    availability: getDateAvailability(
+      delivery.date,
+      'meal_prep',
+      operatorSettings,
+      databaseMealPrepBookings
+    ),
+  }));
+}, [
+  isMealPrep,
+  finalScheduledDeliveries,
+  operatorSettings,
+  databaseMealPrepBookings,
+]);
+
+  const hasUnavailableDeliveries = deliveryAvailability.some(
+    (delivery) => !delivery.availability.available
+  );
+
+  // Apply a replacement to only the selected delivery.
+  const applyDeliveryDate = (originalIndex: number) => {
+    const replacementDate = replacementDateInputs[originalIndex];
+
+    if (!replacementDate) {
+      setStepError('Choose a replacement date first.');
+      return;
+    }
+
+    if (replacementDate < mealPrepForm.startDate) {
+      setStepError('The replacement date cannot be before your start date.');
+      return;
+    }
+
+    const isDuplicate = finalScheduledDeliveries.some(
+      (delivery) =>
+        delivery.originalIndex !== originalIndex &&
+        delivery.date === replacementDate
+    );
+
+    if (isDuplicate) {
+      setStepError('That date is already included in your delivery schedule.');
+      return;
+    }
+
+    const availability = getDateAvailability(
+      replacementDate,
+      'meal_prep',
+      operatorSettings,
+      databaseMealPrepBookings
+    );
+
+    if (!availability.available) {
+      setStepError(
+        availability.reason ?? 'That replacement date is unavailable. Choose another date.'
+      );
+      return;
+    }
+
+    setDeliveryDateOverrides((prev) => ({
+      ...prev,
+      [originalIndex]: replacementDate,
+    }));
+
+    setReplacementDateInputs((prev) => ({
+      ...prev,
+      [originalIndex]: '',
+    }));
+
+    setStepError('');
+  };
+
+  // Remove only the selected delivery.
+  const removeScheduledDelivery = (originalIndex: number) => {
+    if (finalScheduledDeliveries.length <= 1) {
+      setStepError('Your subscription must have at least one delivery.');
+      return;
+    }
+
+    setRemovedDeliveryIndexes((prev) =>
+      [...prev, originalIndex]
+    );
+
+    setStepError('');
+  };
 
   /*
    * ============================================================
@@ -546,6 +768,109 @@ export default function InquiryPage() {
     );
   };
 
+
+const handleOtherAllergyChange = (value: string) => {
+  const entries = value.split(',');
+  const recognized: AllergenType[] = [];
+  const remaining: string[] = [];
+
+  entries.forEach((entry, index) => {
+    const trimmed = entry.trim();
+    const normalized = trimmed
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+
+    const match = allergenOptions.find(
+      (option) =>
+        option !== 'other' &&
+        option === normalized
+    );
+
+    // Recognize an exact match immediately when typed,
+    // or recognize completed entries before a comma.
+    if (
+      match &&
+      (index < entries.length - 1 || entries.length === 1)
+    ) {
+      recognized.push(match);
+    } else if (trimmed) {
+      remaining.push(trimmed);
+    }
+  });
+
+  if (recognized.length > 0) {
+    setDietary((prev) => {
+      const updated = new Set(prev);
+
+      recognized.forEach((allergen) => updated.add(allergen));
+
+      if (remaining.length === 0 && !value.endsWith(',')) {
+        updated.delete('other' as AllergenType);
+      }
+
+      return Array.from(updated);
+    });
+  }
+
+  setOtherAllergy(remaining.join(', '));
+  setStepError('');
+};
+
+const handleOtherAllergyBlur = () => {
+  const entries = otherAllergy
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const recognized = entries
+    .map((entry) => {
+      const normalized = entry
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_');
+
+      return allergenOptions.find(
+        (option) =>
+          option !== 'other' &&
+          option === normalized
+      );
+    })
+    .filter(
+      (allergen): allergen is AllergenType =>
+        Boolean(allergen)
+    );
+
+  const remaining = entries.filter((entry) => {
+    const normalized = entry
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
+
+    return !allergenOptions.some(
+      (option) =>
+        option !== 'other' &&
+        option === normalized
+    );
+  });
+
+  if (recognized.length > 0) {
+    setDietary((prev) => {
+      const updated = new Set(prev);
+
+      recognized.forEach((allergen) =>
+        updated.add(allergen)
+      );
+
+      if (remaining.length === 0) {
+        updated.delete('other' as AllergenType);
+      }
+
+      return Array.from(updated);
+    });
+
+    setOtherAllergy(remaining.join(', '));
+  }
+};
+
+
   /*
    * ============================================================
    * SUBMIT
@@ -582,16 +907,40 @@ export default function InquiryPage() {
 
   const otherNote =
     dietary.includes('other' as AllergenType) && otherAllergy.trim()
-      ? `Other allergy: ${otherAllergy.trim()}`
+      ? `Other Allergy: ${otherAllergy.trim()}`
       : '';
 
   const stepProblem = (which: 1 | 2): string => {
     if (which === 1) {
       if (isMealPrep) {
-        if (!mealPrepForm.startDate) return 'Pick a start date on the calendar.';
-        if (!isValidDeliveryDays(mealPrepForm.deliveryDays)) return 'Select at least one delivery day.';
-        if (!mealPrepForm.fulfillmentTime) return 'Choose a preferred time.';
-        if (dateAvailability && !dateAvailability.available) return 'That date is not available. Pick another one.';
+        if (loadingMealPrepAvailability) {
+          return 'Checking meal-prep availability. Please wait.';
+        }
+      
+        if (mealPrepAvailabilityError) {
+          return mealPrepAvailabilityError;
+        }
+      
+        if (!mealPrepForm.startDate) {
+          return 'Pick a start date on the calendar.';
+        }
+      
+        if (!isValidDeliveryDays(mealPrepForm.deliveryDays)) {
+          return 'Select at least one delivery day.';
+        }
+      
+        if (!mealPrepForm.fulfillmentTime) {
+          return 'Choose a preferred time.';
+        }
+      
+        if (finalScheduledDeliveries.length === 0) {
+          return 'Your subscription must have at least one scheduled delivery.';
+        }
+        
+        if (hasUnavailableDeliveries) {
+          return 'Please change or remove every unavailable delivery date before proceeding.';
+        }
+      
         return '';
       }
       if (!cateringForm.eventType) return 'Choose an event type.';
@@ -631,6 +980,15 @@ export default function InquiryPage() {
       if (step < 3) goNext();
       return;
     }
+
+    // Require a description when "Other" allergen is selected.
+    if (dietary.includes('other' as AllergenType) && !otherAllergy.trim()) {
+      setStepError('Please specify your other allergies before proceeding.');
+      document.getElementById('other-allergy')?.focus();
+      return;
+    }
+
+    setStepError('');
 
     /*
      * Do not allow submission if the selected date
@@ -763,6 +1121,7 @@ export default function InquiryPage() {
    */
 
   const availabilityBanner =
+    !isMealPrep &&
     activeDate &&
     dateAvailability &&
     !dateAvailability.available && (
@@ -893,7 +1252,7 @@ export default function InquiryPage() {
         <Card className="p-6 sm:p-8 rounded-2xl border border-[#E8D8C4] bg-white shadow-sm">
           {/* STEP INDICATOR */}
           <ol className="mb-6 flex items-center gap-2 text-xs font-semibold" aria-label="Progress">
-            {(['Date & time', 'Delivery', 'Preferences'] as const).map((label, i) => {
+            {(['Date & Time', 'Delivery', 'Preferences'] as const).map((label, i) => {
               const n = i + 1;
               const done = step > n;
               const current = step === n;
@@ -901,7 +1260,7 @@ export default function InquiryPage() {
                 <li key={label} className="flex flex-1 items-center gap-2" aria-current={current ? 'step' : undefined}>
                   <span className={`flex size-6 shrink-0 items-center justify-center rounded-full ${current || done ? 'bg-[#C8431B] text-white' : 'bg-[#F3E7D6] text-[#2B1D16]/60'}`}>{n}</span>
                   <span className={`hidden sm:block ${current ? 'text-[#2B1D16]' : 'text-[#2B1D16]/50'}`}>
-                    {isMealPrep && n === 1 ? 'Plan & schedule' : label}
+                    {isMealPrep && n === 1 ? 'Plan & Schedule' : label}
                   </span>
                   {n < 3 && <span className={`h-px flex-1 ${done ? 'bg-[#C8431B]' : 'bg-[#E8D8C4]'}`} />}
                 </li>
@@ -1064,7 +1423,7 @@ export default function InquiryPage() {
 
                     <p className="mt-2">
                       <span className="font-semibold">
-                        {scheduledDeliveries.length} scheduled deliveries
+                      {finalScheduledDeliveries.length} scheduled deliveries
                       </span>
                       {' '}over {mealPrepForm.subscriptionWeeks}{' '}
                       {mealPrepForm.subscriptionWeeks === 1 ? 'week' : 'weeks'}.
@@ -1085,19 +1444,192 @@ export default function InquiryPage() {
                     </p>
 
                     <div className="mt-4 border-t border-[#E8D8C4] pt-3">
-                      <p className="font-semibold mb-2">
-                        Planned delivery dates
+                      <p className="mb-3 font-semibold">
+                        Review your delivery dates
                       </p>
 
-                      <ul className="space-y-1">
-                        {scheduledDeliveries.map((delivery, index) => (
-                          <li key={`${delivery.date}-${index}`}>
-                            Week {delivery.subscriptionWeek} —{' '}
-                            {formatDateLabel(delivery.date)}
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="grid grid-cols-2 items-start gap-2 sm:grid-cols-3 md:grid-cols-4">
+                        {deliveryAvailability.map((delivery) => {
+                          const index = delivery.originalIndex;
+                          const available = delivery.availability.available;
+                          const isSelected = selectedDeliveryIndex === index;
+
+                          return (
+                            <button
+                              key={`${index}-${delivery.date}`}
+                              type="button"
+                              onClick={() => {
+                                if (!available) {
+                                  setSelectedDeliveryIndex(index);
+                                  setStepError('');
+                                }
+                              }}
+                              disabled={available}
+                              className={`self-start rounded-lg border p-2.5 text-left transition ${
+                                available
+                                  ? 'cursor-default border-[#CDE3D1] bg-white'
+                                  : 'cursor-pointer border-[#E6B7AE] bg-[#FFF4F1] hover:border-[#C8431B] hover:bg-[#FCEAE5]'
+                              } ${isSelected ? 'ring-2 ring-[#C8431B]' : ''}`}
+                            >
+                              <p className="text-[10px] font-medium text-[#2B1D16]/60">
+                                Week {delivery.subscriptionWeek}
+                              </p>
+
+                              <p className="mt-1 text-xs font-semibold text-[#2B1D16]">
+                                {formatDateLabel(delivery.date)}
+                              </p>
+
+                              <span
+                                className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  available
+                                    ? 'bg-[#E5F2E7] text-[#28643A]'
+                                    : 'bg-[#F8DDD9] text-[#B3261E]'
+                                }`}
+                              >
+                                {available ? 'Available' : 'Unavailable'}
+                              </span>
+
+                              {!available && (
+                                <p className="mt-1 text-[10px] text-[#B3261E]">
+                                  Click to resolve
+                                </p>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <p className="mt-3 text-xs text-[#2B1D16]/60">
+                        Click an unavailable date to change or remove that delivery.
+                      </p>
                     </div>
+
+                    {/* Unavailable delivery drawer */}
+                    {selectedDeliveryIndex !== null && (
+                      <>
+                        <button
+                          type="button"
+                          aria-label="Close delivery drawer"
+                          onClick={() => setSelectedDeliveryIndex(null)}
+                          className="fixed inset-0 z-40 bg-black/30"
+                        />
+
+                        <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-sm flex-col bg-white shadow-2xl">
+                          <div className="flex items-center justify-between border-b border-[#E8D8C4] p-5">
+                            <div>
+                              <h3 className="text-lg font-semibold text-[#2B1D16]">
+                                Unavailable Delivery
+                              </h3>
+                              <p className="text-xs text-[#2B1D16]/60">
+                                Choose what to do with this delivery.
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDeliveryIndex(null)}
+                              className="rounded-full px-3 py-1 text-xl text-[#2B1D16]/60 hover:bg-[#F7EFE7]"
+                              aria-label="Close"
+                            >
+                              ×
+                            </button>
+                          </div>
+
+                          <div className="flex-1 space-y-5 overflow-y-auto p-5">
+                            {(() => {
+                              const delivery = deliveryAvailability.find(
+                                (item) => item.originalIndex === selectedDeliveryIndex
+                              );
+
+                              if (!delivery) return null;
+
+                              return (
+                                <>
+                                  <div className="rounded-lg border border-[#E6B7AE] bg-[#FFF4F1] p-3">
+                                    <p className="text-xs text-[#2B1D16]/60">
+                                      Week {delivery.subscriptionWeek}
+                                    </p>
+
+                                    <p className="mt-1 font-semibold text-[#2B1D16]">
+                                      {formatDateLabel(delivery.date)}
+                                    </p>
+
+                                    <span className="mt-2 inline-block rounded-full bg-[#F8DDD9] px-2 py-1 text-xs font-semibold text-[#B3261E]">
+                                      Unavailable
+                                    </span>
+
+                                    <p className="mt-2 text-xs text-[#B3261E]">
+                                      {delivery.availability.reason ??
+                                        'This date is unavailable.'}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <h4 className="mb-2 text-sm font-semibold text-[#2B1D16]">
+                                      Change delivery date
+                                    </h4>
+
+                                    <p className="mb-3 text-xs text-[#2B1D16]/60">
+                                      Select an available replacement date. Your other
+                                      scheduled deliveries will remain unchanged.
+                                    </p>
+
+                                    <input
+                                      type="date"
+                                      min={mealPrepForm.startDate}
+                                      value={
+                                        replacementDateInputs[selectedDeliveryIndex] ?? ''
+                                      }
+                                      onChange={(e) =>
+                                        setReplacementDateInputs((prev) => ({
+                                          ...prev,
+                                          [selectedDeliveryIndex]: e.target.value,
+                                        }))
+                                      }
+                                      className="w-full rounded-lg border border-[#E8D8C4] bg-white px-3 py-2.5 text-sm text-[#2B1D16]"
+                                    />
+
+                                    <Button
+                                      type="button"
+                                      onClick={() => {
+                                        applyDeliveryDate(selectedDeliveryIndex);
+                                        setSelectedDeliveryIndex(null);
+                                      }}
+                                      disabled={!replacementDateInputs[selectedDeliveryIndex]}
+                                      className="mt-3 h-10 w-full bg-[#C8431B] text-white hover:bg-[#A93615]"
+                                    >
+                                      Change Date
+                                    </Button>
+                                  </div>
+
+                                  <div className="border-t border-[#E8D8C4] pt-4">
+                                    <h4 className="text-sm font-semibold text-[#2B1D16]">
+                                      Remove this delivery
+                                    </h4>
+
+                                    <p className="mt-1 text-xs text-[#2B1D16]/60">
+                                      Only this delivery will be removed from your schedule.
+                                    </p>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        removeScheduledDelivery(selectedDeliveryIndex);
+                                        setSelectedDeliveryIndex(null);
+                                      }}
+                                      disabled={finalScheduledDeliveries.length <= 1}
+                                      className="mt-3 w-full rounded-lg border border-[#E6B7AE] px-3 py-2.5 text-sm font-semibold text-[#B3261E] hover:bg-[#FFF4F1] disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                      Remove Delivery
+                                    </button>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </>
+                    )}
 
                     <p className="mt-3 text-xs text-[#2B1D16]/60">
                       These are your preferred dates. The operator will
@@ -1191,16 +1723,20 @@ export default function InquiryPage() {
                   />
                   {dietary.includes('other' as AllergenType) && (
                     <div>
-                      <label htmlFor="other-allergy" className="block text-sm font-semibold text-[#2B1D16] mb-2">Other allergy</label>
+                      <label htmlFor="other-allergy" className="block text-sm font-semibold text-[#2B1D16] mb-2">Other Allergy/ies</label>        
                       <input
                         id="other-allergy"
                         type="text"
                         value={otherAllergy}
-                        onChange={(e) => setOtherAllergy(e.target.value)}
+                        onChange={(e) => handleOtherAllergyChange(e.target.value)}
+                        onBlur={handleOtherAllergyBlur}
                         maxLength={120}
-                        placeholder="Type the allergy, e.g. mango"
+                        placeholder="e.g. mango, apple, avocado"
+                        required
+                        aria-invalid={!otherAllergy.trim()}
                         className={inputClass}
                       />
+
                     </div>
                   )}
                 </div>
@@ -1240,7 +1776,15 @@ export default function InquiryPage() {
                   key="next-btn"
                   type="button"
                   onClick={goNext}
-                  disabled={loadingAvailability || Boolean(guestCountError)}
+                  disabled={
+                    (isMealPrep
+                      ? loadingMealPrepAvailability ||
+                        Boolean(mealPrepAvailabilityError) ||
+                        finalScheduledDeliveries.length === 0 ||
+                        hasUnavailableDeliveries
+                      : loadingAvailability) ||
+                    Boolean(guestCountError)
+                  }
                   className="flex-1 h-11 gap-2 rounded-lg bg-[#C8431B] text-white font-semibold hover:bg-[#A93615] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next <ArrowRight className="size-4" aria-hidden="true" />
@@ -1249,7 +1793,19 @@ export default function InquiryPage() {
                 <Button
                   key="submit-btn"
                   type="submit"
-                  disabled={Boolean(activeDate && dateAvailability && !dateAvailability.available) || loadingAvailability || Boolean(guestCountError)}
+                  disabled={
+                    (isMealPrep &&
+                      (
+                        loadingMealPrepAvailability ||
+                        Boolean(mealPrepAvailabilityError) ||
+                        finalScheduledDeliveries.length === 0 ||
+                        hasUnavailableDeliveries
+                      )) ||
+                    (!isMealPrep &&
+                      Boolean(activeDate && dateAvailability && !dateAvailability.available)) ||
+                    loadingAvailability ||
+                    Boolean(guestCountError)
+                  }
                   className="flex-1 h-11 rounded-lg bg-[#C8431B] text-white font-semibold hover:bg-[#A93615] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Continue to Menu Selection

@@ -102,15 +102,6 @@ export function AllergenPicker({
           )
         })}
       </div>
-
-      <p className="mt-3 min-h-5 text-sm text-[#2B1D16]" aria-live="polite">
-        {none
-          ? 'No allergies selected.'
-          : `Avoiding: ${selected.map(label).join(', ')}.`}{' '}
-        <span className="text-muted-foreground">
-          We will warn you about dishes that contain these.
-        </span>
-      </p>
     </div>
   )
 }
