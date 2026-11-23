@@ -457,7 +457,7 @@ const filteredMenuItems = isMealPrepDraft
       conflictingCustomIngredients.length > 0;
     
     const allConflictNames = [
-      ...conflictingAllergens.map((tag) => tag.replace('_', ' ')),
+      ...conflictingAllergens.map((tag) => allergenLabel(tag)),
       ...conflictingCustomIngredients,
     ];
 
@@ -466,7 +466,7 @@ const filteredMenuItems = isMealPrepDraft
     const predefinedConflicts = checkAllergenConflict(
       item,
       customerDietaryRestrictions
-    ).map((tag) => tag.replace('_', ' '));
+    ).map((tag) => allergenLabel(tag));
 
     const customConflicts = getCustomIngredientConflicts(
       item,
@@ -1406,23 +1406,18 @@ const filteredMenuItems = isMealPrepDraft
         </div>
       </div>
 
-      {/* ALLERGEN CONFIRMATION MODAL */}
-      {showAllergenConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div role="alertdialog" aria-modal="true" className="w-full max-w-md rounded-xl border-2 border-red-200 bg-white p-6 shadow-xl">
-            <div className="mb-5 flex gap-3">
-              <AlertCircle className="h-6 w-6 shrink-0 text-red-600" />
-              <div>
-                <h3 className="font-heading text-xl font-bold uppercase text-[#2B1D16]">
-                  Allergen conflict
-                </h3>
-                <p className="mt-2 text-sm text-[#2B1D16]/70">
-                  Your selection includes items with declared allergens:{' '}
-                  <span className="font-semibold text-red-700">
-                    {conflictingAllergens.map((tag) => allergenLabel(tag)).join(', ')}
-                  </span>
-                  . Are you sure you want to submit this booking?
-                </p>
+      {/* DISH SELECTION ALLERGEN CONFIRMATION MODAL */}
+      {showDishAllergenConfirm && pendingAllergenSelection && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2B1D16]/60 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            className="w-full max-w-sm rounded-2xl bg-[#FBF6EE] p-5 shadow-2xl"
+          >
+            {/* HEADER */}
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#FBE3DC]">
+                <AlertCircle className="h-5 w-5 text-[#C8431B]" />
               </div>
 
               <h3 className="font-heading text-xl font-bold uppercase tracking-wide text-[#2B1D16]">

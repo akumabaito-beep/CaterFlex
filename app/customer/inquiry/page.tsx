@@ -1,5 +1,6 @@
 'use client';
 
+import { getMealPrepAvailability } from '@/app/actions/booking-actions';
 import { CustomerShell } from '@/app/customer/customer-shell';
 import { useAppState } from '@/lib/state';
 import { supabase } from '@/lib/supabase';
@@ -28,6 +29,15 @@ import {
   isValidDeliveryDays,
   type SubscriptionWeeks,
 } from '@/lib/meal-plan';
+
+import {
+  autoMoveUnavailable,
+  findBetterStart,
+  nextDateAfterPlanEnd,
+  suggestDates,
+  tooManyUnavailable,
+  weekForDate,
+} from '@/lib/delivery-reschedule';
 
 import { EventTypePicker } from '@/components/booking/EventTypePicker';
 import { AllergenPicker } from '@/components/booking/AllergenPicker';
@@ -104,6 +114,15 @@ export default function InquiryPage() {
   
   const [loadingAvailability, setLoadingAvailability] =
     useState(false);
+
+  const [databaseMealPrepBookings, setDatabaseMealPrepBookings] =
+    useState<Booking[]>([]);
+
+  const [loadingMealPrepAvailability, setLoadingMealPrepAvailability] =
+    useState(true);
+
+  const [mealPrepAvailabilityError, setMealPrepAvailabilityError] =
+    useState('');
 
   const loadDatabaseBookings = async () => {
     setLoadingAvailability(true);
@@ -224,50 +243,41 @@ export default function InquiryPage() {
         throw new Error(result.error);
       }
   
-      const formattedBookings: Booking[] = result.orders.map(
+      // One entry per existing plan per delivery date, so every date a plan
+      // occupies counts toward that day's limit (the same way the server counts it).
+      const formattedBookings: Booking[] = result.orders.flatMap(
         (order: {
           id: number;
           status: string;
           deliveryDates: string[];
-        }) => {
-          const scheduledDeliveries = order.deliveryDates.map(
-            (date: string) => ({
-              date,
-              subscriptionWeek: 1,
-            })
-          );
-  
-          return {
-            id: String(order.id),
-            customerId: '',
-            customerName: '',
-            customerEmail: '',
-            orderType: 'meal_prep',
-            eventDate: scheduledDeliveries[0]?.date ?? '',
-            eventTime: '',
-            eventType: 'Meal Prep Subscription',
-            venue: '',
-            guestCount: 1,
-            status: order.status === 'active' ? 'confirmed' : 'pending',
-            selectedMenuItemIds: [],
-            dietaryRestrictions: [],
-            eventProfileId: '',
-            totalCost: 0,
-            paymentsReceived: 0,
-            createdAt: '',
-            specialRequests: '',
-            validationPassed: true,
-            ruleViolations: [],
-            scheduledDeliveries: finalScheduledDeliveries.map(
-              ({ date, subscriptionWeek }) => ({
-                date,
-                subscriptionWeek,
-              })
-            ),
-          } as unknown as Booking;
-        }
+        }) =>
+          order.deliveryDates.map(
+            (date: string) =>
+              ({
+                id: `${order.id}-${date}`,
+                customerId: '',
+                customerName: '',
+                customerEmail: '',
+                orderType: 'meal_prep',
+                eventDate: date,
+                eventTime: '',
+                eventType: 'Meal Prep Subscription',
+                venue: '',
+                guestCount: 1,
+                status: order.status === 'active' ? 'confirmed' : 'pending',
+                selectedMenuItemIds: [],
+                dietaryRestrictions: [],
+                eventProfileId: '',
+                totalCost: 0,
+                paymentsReceived: 0,
+                createdAt: '',
+                specialRequests: '',
+                validationPassed: true,
+                ruleViolations: [],
+              }) as unknown as Booking
+          )
       );
-  
+
       setDatabaseMealPrepBookings(formattedBookings);
     } catch (error) {
       console.error(
@@ -291,6 +301,10 @@ export default function InquiryPage() {
 
   useEffect(() => {
     loadDatabaseBookings();
+  }, []);
+
+  useEffect(() => {
+    loadMealPrepAvailability();
   }, []);
 
   /*
@@ -429,9 +443,18 @@ const finalScheduledDeliveries = useMemo(() => {
       return [];
     }
 
+    const movedTo = deliveryDateOverrides[index];
+
     return [{
       ...delivery,
-      date: deliveryDateOverrides[index] ?? delivery.date,
+      date: movedTo ?? delivery.date,
+      subscriptionWeek: movedTo
+        ? weekForDate(
+            mealPrepForm.startDate,
+            movedTo,
+            mealPrepForm.subscriptionWeeks
+          )
+        : delivery.subscriptionWeek,
       originalIndex: index,
     }];
   });
@@ -439,6 +462,8 @@ const finalScheduledDeliveries = useMemo(() => {
   scheduledDeliveries,
   deliveryDateOverrides,
   removedDeliveryIndexes,
+  mealPrepForm.startDate,
+  mealPrepForm.subscriptionWeeks,
 ]);
 
 // Check every date in the customer's current schedule.
@@ -532,6 +557,133 @@ const deliveryAvailability = useMemo(() => {
 
     setStepError('');
   };
+
+  /*
+   * Keeping the full plan is the default: an unavailable delivery is moved to
+   * another date instead of being dropped, so the customer keeps every serving
+   * they are paying for. Removing a delivery stays possible but is the last resort.
+   */
+  const isMealPrepDateOpen = (date: string) =>
+    getDateAvailability(
+      date,
+      'meal_prep',
+      operatorSettings,
+      databaseMealPrepBookings
+    ).available;
+
+  const plannedDeliveryCount = scheduledDeliveries.length;
+  const keptDeliveryCount = finalScheduledDeliveries.length;
+  const removedDeliveryCount = plannedDeliveryCount - keptDeliveryCount;
+  const unavailableDeliveryCount = deliveryAvailability.filter(
+    (delivery) => !delivery.availability.available
+  ).length;
+  const manyUnavailable = tooManyUnavailable(
+    unavailableDeliveryCount,
+    keptDeliveryCount
+  );
+
+  const scheduledDateList = finalScheduledDeliveries.map(
+    (delivery) => delivery.date
+  );
+
+  // Open dates near the delivery that is being fixed.
+  const suggestionsFor = (originalIndex: number) => {
+    const delivery = finalScheduledDeliveries.find(
+      (item) => item.originalIndex === originalIndex
+    );
+
+    if (!delivery) return [];
+
+    return suggestDates({
+      original: delivery.date,
+      planStart: mealPrepForm.startDate,
+      taken: scheduledDateList,
+      preferredDays: mealPrepForm.deliveryDays,
+      isAvailable: isMealPrepDateOpen,
+    });
+  };
+
+  // The first open delivery day after the plan's last delivery.
+  const endOfPlanDate = nextDateAfterPlanEnd({
+    lastDate: scheduledDateList.reduce(
+      (latest, date) => (date > latest ? date : latest),
+      mealPrepForm.startDate
+    ),
+    taken: scheduledDateList,
+    preferredDays: mealPrepForm.deliveryDays,
+    isAvailable: isMealPrepDateOpen,
+  });
+
+  const moveDelivery = (originalIndex: number, date: string) => {
+    setDeliveryDateOverrides((prev) => ({ ...prev, [originalIndex]: date }));
+    setReplacementDateInputs((prev) => ({ ...prev, [originalIndex]: '' }));
+    setStepError('');
+  };
+
+  // Move every unavailable delivery to its nearest open date.
+  const moveAllUnavailable = () => {
+    const { moves, stuck } = autoMoveUnavailable({
+      deliveries: deliveryAvailability.map((delivery) => ({
+        index: delivery.originalIndex,
+        date: delivery.date,
+      })),
+      planStart: mealPrepForm.startDate,
+      preferredDays: mealPrepForm.deliveryDays,
+      isAvailable: isMealPrepDateOpen,
+    });
+
+    setDeliveryDateOverrides((prev) => ({ ...prev, ...moves }));
+
+    setStepError(
+      stuck.length > 0
+        ? `${stuck.length} ${
+            stuck.length === 1 ? 'delivery' : 'deliveries'
+          } could not be moved because no nearby date is open. Pick a different start date or choose the dates yourself.`
+        : ''
+    );
+  };
+
+  // A later start date where more (ideally all) of the plan is open.
+  const betterStart = useMemo(() => {
+    if (
+      !isMealPrep ||
+      !mealPrepForm.startDate ||
+      !isValidDeliveryDays(mealPrepForm.deliveryDays) ||
+      unavailableDeliveryCount === 0
+    ) {
+      return null;
+    }
+
+    return findBetterStart({
+      currentStart: mealPrepForm.startDate,
+      generate: (start) =>
+        generateDeliveryDates(
+          start,
+          mealPrepForm.deliveryDays,
+          mealPrepForm.subscriptionWeeks
+        ),
+      isAvailable: (date) =>
+        getDateAvailability(
+          date,
+          'meal_prep',
+          operatorSettings,
+          databaseMealPrepBookings
+        ).available,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isMealPrep,
+    mealPrepForm.startDate,
+    mealPrepForm.deliveryDays,
+    mealPrepForm.subscriptionWeeks,
+    unavailableDeliveryCount,
+    operatorSettings,
+    databaseMealPrepBookings,
+  ]);
+
+  const [confirmRemoveIndex, setConfirmRemoveIndex] = useState<number | null>(
+    null
+  );
 
   /*
    * ============================================================
@@ -999,7 +1151,8 @@ const handleOtherAllergyBlur = () => {
       if (
         !mealPrepForm.startDate ||
         !isValidDeliveryDays(mealPrepForm.deliveryDays) ||
-        scheduledDeliveries.length === 0
+        finalScheduledDeliveries.length === 0 ||
+        hasUnavailableDeliveries
       ) {
         return;
       }
@@ -1060,7 +1213,10 @@ const handleOtherAllergyBlur = () => {
         // New subscription details
         subscriptionWeeks: mealPrepForm.subscriptionWeeks,
         deliveryDays: mealPrepForm.deliveryDays,
-        scheduledDeliveries,
+        // Save the customer's final schedule, including moved and removed dates.
+        scheduledDeliveries: finalScheduledDeliveries.map(
+          ({ date, subscriptionWeek }) => ({ date, subscriptionWeek })
+        ),
       });
 
       router.push(
@@ -1429,6 +1585,15 @@ const handleOtherAllergyBlur = () => {
                       {mealPrepForm.subscriptionWeeks === 1 ? 'week' : 'weeks'}.
                     </p>
 
+                    {removedDeliveryCount > 0 && (
+                      <p className="mt-1 text-[#B3261E]">
+                        You removed {removedDeliveryCount}{' '}
+                        {removedDeliveryCount === 1 ? 'delivery' : 'deliveries'}, so you
+                        will receive {keptDeliveryCount} of your {plannedDeliveryCount}{' '}
+                        planned deliveries.
+                      </p>
+                    )}
+
                     <p className="mt-1 text-[#2B1D16]/70">
                       Preferred days:{' '}
                       {WEEKDAYS
@@ -1447,6 +1612,55 @@ const handleOtherAllergyBlur = () => {
                       <p className="mb-3 font-semibold">
                         Review your delivery dates
                       </p>
+
+                      {unavailableDeliveryCount > 0 && (
+                        <div className="mb-3 space-y-3 rounded-lg border border-[#E6B7AE] bg-[#FFF4F1] p-3">
+                          <p className="text-xs text-[#2B1D16]">
+                            <span className="font-semibold">
+                              {unavailableDeliveryCount} of {keptDeliveryCount} dates{' '}
+                              {unavailableDeliveryCount === 1 ? 'is' : 'are'} full.
+                            </span>{' '}
+                            Move {unavailableDeliveryCount === 1 ? 'it' : 'them'} to another
+                            date and you still get all {plannedDeliveryCount} deliveries.
+                            Removing a date means one fewer delivery.
+                          </p>
+
+                          {manyUnavailable && betterStart && (
+                            <div className="rounded-md border border-[#E8D8C4] bg-white p-3">
+                              <p className="text-xs text-[#2B1D16]">
+                                Many dates are full this period.{' '}
+                                {betterStart.blocked === 0
+                                  ? `Starting on ${formatDateLabel(betterStart.start)} leaves every delivery open.`
+                                  : `Starting on ${formatDateLabel(betterStart.start)} leaves only ${betterStart.blocked} full.`}
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setMealPrepForm((prev) => ({
+                                    ...prev,
+                                    startDate: betterStart.start,
+                                  }))
+                                }
+                                className="mt-2 rounded-lg border border-[#C8431B] px-3 py-1.5 text-xs font-semibold text-[#C8431B] hover:bg-[#FCEAE5]"
+                              >
+                                Start on {formatDateLabel(betterStart.start)}
+                              </button>
+                            </div>
+                          )}
+
+                          <Button
+                            type="button"
+                            onClick={moveAllUnavailable}
+                            className="h-9 bg-[#C8431B] text-xs text-white hover:bg-[#A93615]"
+                          >
+                            Move{' '}
+                            {unavailableDeliveryCount === 1
+                              ? 'it'
+                              : `all ${unavailableDeliveryCount}`}{' '}
+                            to the nearest open dates
+                          </Button>
+                        </div>
+                      )}
 
                       <div className="grid grid-cols-2 items-start gap-2 sm:grid-cols-3 md:grid-cols-4">
                         {deliveryAvailability.map((delivery) => {
@@ -1500,7 +1714,7 @@ const handleOtherAllergyBlur = () => {
                       </div>
 
                       <p className="mt-3 text-xs text-[#2B1D16]/60">
-                        Click an unavailable date to change or remove that delivery.
+                        Click a full date to move it to another day.
                       </p>
                     </div>
 
@@ -1565,13 +1779,65 @@ const handleOtherAllergyBlur = () => {
                                   </div>
 
                                   <div>
-                                    <h4 className="mb-2 text-sm font-semibold text-[#2B1D16]">
-                                      Change delivery date
+                                    <h4 className="mb-1 text-sm font-semibold text-[#2B1D16]">
+                                      Move this delivery
                                     </h4>
 
                                     <p className="mb-3 text-xs text-[#2B1D16]/60">
-                                      Select an available replacement date. Your other
-                                      scheduled deliveries will remain unchanged.
+                                      You keep this delivery and all of its servings. Your other
+                                      dates stay the same.
+                                    </p>
+
+                                    {(() => {
+                                      const options = suggestionsFor(selectedDeliveryIndex);
+
+                                      return options.length > 0 ? (
+                                        <div className="space-y-2">
+                                          {options.map((option) => (
+                                            <button
+                                              key={option.date}
+                                              type="button"
+                                              onClick={() => {
+                                                moveDelivery(selectedDeliveryIndex, option.date);
+                                                setSelectedDeliveryIndex(null);
+                                              }}
+                                              className="flex w-full items-center justify-between rounded-lg border border-[#CDE3D1] bg-white px-3 py-2.5 text-left text-sm font-semibold text-[#2B1D16] hover:border-[#28643A] hover:bg-[#F3FAF4]"
+                                            >
+                                              <span>{formatDateLabel(option.date)}</span>
+                                              <span className="text-[10px] font-medium text-[#28643A]">
+                                                {option.onPreferredDay
+                                                  ? 'One of your delivery days'
+                                                  : 'Open'}
+                                              </span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="rounded-lg bg-[#F7EFE7] p-3 text-xs text-[#2B1D16]/70">
+                                          No nearby dates are open. Try the end of your plan or
+                                          pick a date yourself.
+                                        </p>
+                                      );
+                                    })()}
+
+                                    {endOfPlanDate && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          moveDelivery(selectedDeliveryIndex, endOfPlanDate);
+                                          setSelectedDeliveryIndex(null);
+                                        }}
+                                        className="mt-2 flex w-full items-center justify-between rounded-lg border border-[#E8D8C4] bg-white px-3 py-2.5 text-left text-sm font-semibold text-[#2B1D16] hover:bg-[#F7EFE7]"
+                                      >
+                                        <span>Add to the end of my plan</span>
+                                        <span className="text-[10px] font-medium text-[#2B1D16]/60">
+                                          {formatDateLabel(endOfPlanDate)}
+                                        </span>
+                                      </button>
+                                    )}
+
+                                    <p className="mb-2 mt-4 text-xs text-[#2B1D16]/60">
+                                      Or choose another date. Full days are not accepted.
                                     </p>
 
                                     <input
@@ -1598,30 +1864,52 @@ const handleOtherAllergyBlur = () => {
                                       disabled={!replacementDateInputs[selectedDeliveryIndex]}
                                       className="mt-3 h-10 w-full bg-[#C8431B] text-white hover:bg-[#A93615]"
                                     >
-                                      Change Date
+                                      Use this date
                                     </Button>
                                   </div>
 
                                   <div className="border-t border-[#E8D8C4] pt-4">
                                     <h4 className="text-sm font-semibold text-[#2B1D16]">
-                                      Remove this delivery
+                                      Skip this delivery instead
                                     </h4>
 
                                     <p className="mt-1 text-xs text-[#2B1D16]/60">
-                                      Only this delivery will be removed from your schedule.
+                                      You would receive {keptDeliveryCount - 1} of your{' '}
+                                      {plannedDeliveryCount} planned deliveries, and the total
+                                      price goes down by one delivery.
                                     </p>
 
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        removeScheduledDelivery(selectedDeliveryIndex);
-                                        setSelectedDeliveryIndex(null);
-                                      }}
-                                      disabled={finalScheduledDeliveries.length <= 1}
-                                      className="mt-3 w-full rounded-lg border border-[#E6B7AE] px-3 py-2.5 text-sm font-semibold text-[#B3261E] hover:bg-[#FFF4F1] disabled:cursor-not-allowed disabled:opacity-40"
-                                    >
-                                      Remove Delivery
-                                    </button>
+                                    {confirmRemoveIndex === selectedDeliveryIndex ? (
+                                      <div className="mt-3 flex gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            removeScheduledDelivery(selectedDeliveryIndex);
+                                            setConfirmRemoveIndex(null);
+                                            setSelectedDeliveryIndex(null);
+                                          }}
+                                          className="flex-1 rounded-lg bg-[#B3261E] px-3 py-2.5 text-sm font-semibold text-white hover:bg-[#8F1F18]"
+                                        >
+                                          Yes, remove it
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setConfirmRemoveIndex(null)}
+                                          className="flex-1 rounded-lg border border-[#E8D8C4] px-3 py-2.5 text-sm font-semibold text-[#2B1D16] hover:bg-[#F7EFE7]"
+                                        >
+                                          Keep it
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => setConfirmRemoveIndex(selectedDeliveryIndex)}
+                                        disabled={finalScheduledDeliveries.length <= 1}
+                                        className="mt-3 w-full rounded-lg border border-[#E6B7AE] px-3 py-2.5 text-sm font-semibold text-[#B3261E] hover:bg-[#FFF4F1] disabled:cursor-not-allowed disabled:opacity-40"
+                                      >
+                                        Skip this delivery
+                                      </button>
+                                    )}
                                   </div>
                                 </>
                               );

@@ -22,6 +22,7 @@ type MenuItem = {
   Description: string | null
   Availability?: boolean
   PhotoURL?: string | null
+  MealType?: 'breakfast' | 'lunch' | 'dinner' | null
 }
 
 type Ingredient = {
@@ -178,7 +179,7 @@ export default function MenuManagementPage() {
     }
     try {
       const [menuResult, ingredientResult, dishResult] = await Promise.all([
-        supabase.from('MENU_ITEM').select('MenuItemID, ItemName, Category, Price, PrepTimeDays, Description, Availability, PhotoURL').order('ItemName'),
+        supabase.from('MENU_ITEM').select('MenuItemID, ItemName, Category, Price, PrepTimeDays, Description, Availability, PhotoURL, MealType').order('ItemName'),
         supabase.from('INGREDIENT').select('IngredientID, IngredientName, UnitOfMeasure, CurrentStock, MaxStorageCapacity').order('IngredientName'),
         supabase.from('DISH_INGREDIENT').select('DishIngredientID, MenuItemID, IngredientID, QuantityRequiredPerServing').order('DishIngredientID'),
       ])
@@ -298,6 +299,8 @@ export default function MenuManagementPage() {
       await updateMenuItem(item.MenuItemID, {
         ItemName: item.ItemName,
         Category: item.Category,
+        // Keep the dish's meal type so flipping availability does not reset it.
+        MealType: item.MealType ?? 'lunch',
         Price: item.Price,
         PrepTimeDays: item.PrepTimeDays,
         Description: item.Description ?? '',

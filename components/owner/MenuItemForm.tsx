@@ -16,10 +16,9 @@ import {
   saveMenuItemPhotoUrl,
 } from '@/app/actions/menu-actions'
 import { supabase } from '@/lib/supabase';
-import type { AllergenType, MenuItem } from '@/lib/types';
-import { ALLERGEN_OPTIONS, allergenLabel, isSupportedAllergen } from '@/lib/allergens';
-import { PageLoader } from '@/components/ui/PageLoader'
 import type { AllergenType, MealType, MenuItem } from '@/lib/types';
+import { ALLERGEN_OPTIONS, allergenLabel, isSupportedAllergen } from '@/lib/allergens';
+import { PageLoader } from '@/components/ui/PageLoader';
 
 const CATEGORIES: MenuItem['category'][] = [
   'appetizers',
