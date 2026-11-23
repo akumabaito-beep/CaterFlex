@@ -482,6 +482,12 @@ const filteredMenuItems = isMealPrepDraft
   })
   .filter((item) => item.conflicts.length > 0);
 
+
+  const isPickupMealPrep =
+  isMealPrepDraft &&
+  customerBookingDraft.fulfillmentMethod !== 'delivery';
+
+  const fulfillmentLabel = isPickupMealPrep ? 'pickup' : 'delivery';
   /*
    * Estimated cost shown before the customer confirms.
    */
@@ -498,9 +504,7 @@ const filteredMenuItems = isMealPrepDraft
   
     venue: String(customerBookingDraft.venue ?? ''),
   
-    delivers:
-      customerBookingDraft.orderType !== 'meal_prep' ||
-      customerBookingDraft.fulfillmentMethod === 'delivery',
+    delivers: !isPickupMealPrep,
   });
   const peso = (n: number) =>
     `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -1141,7 +1145,7 @@ const filteredMenuItems = isMealPrepDraft
                   {!hasAnySelection
                     ? 'No dishes selected yet.'
                     : isMealPrepDraft
-                      ? `${mealPrepItemCount} dishes · ${mealPrepPortionCount} portions per delivery`
+                      ? `${mealPrepItemCount} dishes · ${mealPrepPortionCount} portions per ${fulfillmentLabel}`
                       : `${selectedItemCount} ${selectedItemCount === 1 ? 'dish' : 'dishes'} selected.`}
                 </p>
               </div>
@@ -1178,7 +1182,7 @@ const filteredMenuItems = isMealPrepDraft
                                   {item.name}
                                 </p>
                                 <p className="text-xs text-[#2B1D16]/60">
-                                  {peso(item.price)} each · {peso(item.price * item.quantity)} per delivery
+                                {peso(item.price)} each · {peso(item.price * item.quantity)} per {fulfillmentLabel}
                                 </p>
                               </div>
 
@@ -1284,31 +1288,49 @@ const filteredMenuItems = isMealPrepDraft
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#C8431B]">
                   Estimated cost
                 </p>
+
                 <dl className="mt-2 space-y-1">
                   <div className="flex justify-between gap-2">
                     <dt className="text-[#2B1D16]/70">
                       Food ({peso(estimate.perServing)} × {estimate.servings}{' '}
                       {isMealPrepDraft ? 'servings / cycle' : 'guests'})
                     </dt>
-                    <dd className="font-semibold">{peso(estimate.foodSubtotal)}</dd>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <dt className="text-[#2B1D16]/70">
-                      Delivery
-                      {estimate.distanceKm !== null && ` (${estimate.distanceKm.toFixed(1)} km)`}
-                    </dt>
                     <dd className="font-semibold">
-                      {estimate.distanceKm !== null ? peso(estimate.deliveryFee) : '—'}
+                      {peso(estimate.foodSubtotal)}
                     </dd>
                   </div>
+
+                  {!isPickupMealPrep && (
+                    <div className="flex justify-between gap-2">
+                      <dt className="text-[#2B1D16]/70">
+                        Delivery
+                        {estimate.distanceKm !== null &&
+                          ` (${estimate.distanceKm.toFixed(1)} km)`}
+                      </dt>
+                      <dd className="font-semibold">
+                        {estimate.distanceKm !== null
+                          ? peso(estimate.deliveryFee)
+                          : '—'}
+                      </dd>
+                    </div>
+                  )}
+
                   <div className="flex justify-between gap-2 border-t border-[#E8D8C4] pt-2 text-base">
-                    <dt className="font-bold">{isMealPrepDraft ? 'Per delivery' : 'Estimated total'}</dt>
-                    <dd className="font-bold text-[#C8431B]">{peso(estimate.total)}</dd>
+                    <dt className="font-bold">
+                      {isMealPrepDraft
+                        ? `Per ${fulfillmentLabel}`
+                        : 'Estimated total'}
+                    </dt>
+                    <dd className="font-bold text-[#C8431B]">
+                      {peso(estimate.total)}
+                    </dd>
                   </div>
+
                   {isMealPrepDraft && (
                     <div className="flex justify-between gap-2 pt-1">
                       <dt className="font-bold">
-                        Plan total ({scheduledDeliveryCount} deliveries)
+                        Plan total ({scheduledDeliveryCount}{' '}
+                        {isPickupMealPrep ? 'pickups' : 'deliveries'})
                       </dt>
                       <dd className="font-bold text-[#C8431B]">
                         {peso(estimate.total * scheduledDeliveryCount)}
@@ -1316,11 +1338,14 @@ const filteredMenuItems = isMealPrepDraft
                     </div>
                   )}
                 </dl>
+
                 {!estimate.withinRange && (
                   <p className="mt-2 text-xs font-semibold text-[#C8431B]">
-                    This location is more than {MAX_DELIVERY_KM} km from the kitchen. The owner may decline it.
+                    This location is more than {MAX_DELIVERY_KM} km from the kitchen.
+                    The owner may decline it.
                   </p>
                 )}
+
                 <p className="mt-2 text-xs text-[#2B1D16]/60">
                   {isMealPrepDraft
                     ? 'Prices are locked when you subscribe, so later menu price changes will not affect this plan until you renew.'
