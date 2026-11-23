@@ -1,6 +1,5 @@
 'use client';
 
-import { getMealPrepAvailability } from '@/app/actions/booking-actions';
 import { CustomerShell } from '@/app/customer/customer-shell';
 import { useAppState } from '@/lib/state';
 import { supabase } from '@/lib/supabase';
@@ -50,15 +49,10 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-const ALLERGEN_OPTIONS: AllergenType[] = [
-  'dairy',
-  'eggs',
-  'gluten',
-  'peanuts',
-  'shellfish',
-  'soy',
-  'other',
-];
+import { ALLERGEN_OPTIONS as SUPPORTED_ALLERGENS } from '@/lib/allergens';
+
+// The supported allergens, then "Other" with a free-text box.
+const ALLERGEN_OPTIONS: AllergenType[] = [...SUPPORTED_ALLERGENS, 'other'];
 
 function formatDateLabel(dateStr: string) {
   return new Date(`${dateStr}T12:00:00`).toLocaleDateString(
@@ -75,6 +69,7 @@ export default function InquiryPage() {
   const router = useRouter();
 
   const {
+    bookings,
     operatorSettings,
     customerOrderType,
     customerBookingDraft,
@@ -107,15 +102,6 @@ export default function InquiryPage() {
 
   const [loadingAvailability, setLoadingAvailability] =
     useState(false);
-
-  const [databaseMealPrepBookings, setDatabaseMealPrepBookings] =
-    useState<Booking[]>([]);
-
-  const [loadingMealPrepAvailability, setLoadingMealPrepAvailability] =
-    useState(true);
-
-  const [mealPrepAvailabilityError, setMealPrepAvailabilityError] =
-    useState('');
 
   const loadDatabaseBookings = async () => {
     setLoadingAvailability(true);
@@ -225,83 +211,12 @@ export default function InquiryPage() {
     setLoadingAvailability(false);
   };
 
-  const loadMealPrepAvailability = async () => {
-    setLoadingMealPrepAvailability(true);
-    setMealPrepAvailabilityError('');
-  
-    try {
-      const result = await getMealPrepAvailability();
-  
-      if (!result.ok) {
-        throw new Error(result.error);
-      }
-  
-      const formattedBookings: Booking[] = result.orders.map(
-        (order: {
-          id: number;
-          status: string;
-          deliveryDates: string[];
-        }) => {
-          const scheduledDeliveries = order.deliveryDates.map(
-            (date: string) => ({
-              date,
-              subscriptionWeek: 1,
-            })
-          );
-  
-          return {
-            id: String(order.id),
-            customerId: '',
-            customerName: '',
-            customerEmail: '',
-            orderType: 'meal_prep',
-            eventDate: scheduledDeliveries[0]?.date ?? '',
-            eventTime: '',
-            eventType: 'Meal Prep Subscription',
-            venue: '',
-            guestCount: 1,
-            status: order.status === 'active' ? 'confirmed' : 'pending',
-            selectedMenuItemIds: [],
-            dietaryRestrictions: [],
-            eventProfileId: '',
-            totalCost: 0,
-            paymentsReceived: 0,
-            createdAt: '',
-            specialRequests: '',
-            validationPassed: true,
-            ruleViolations: [],
-            scheduledDeliveries,
-          } as unknown as Booking;
-        }
-      );
-  
-      setDatabaseMealPrepBookings(formattedBookings);
-    } catch (error) {
-      console.error(
-        'MEAL PREP AVAILABILITY FETCH ERROR:',
-        error
-      );
-  
-      setDatabaseMealPrepBookings([]);
-  
-      setMealPrepAvailabilityError(
-        'Unable to load meal-prep availability. Please refresh the page and try again.'
-      );
-    } finally {
-      setLoadingMealPrepAvailability(false);
-    }
-  };
-
   /*
    * Load current database bookings when the page opens.
    */
 
   useEffect(() => {
     loadDatabaseBookings();
-  }, []);
-
-  useEffect(() => {
-    loadMealPrepAvailability();
   }, []);
 
   /*
@@ -396,43 +311,21 @@ export default function InquiryPage() {
       mealPrepForm.subscriptionWeeks,
     ]);
 
-    const unavailableScheduledDelivery = useMemo(() => {
-      if (!isMealPrep || scheduledDeliveries.length === 0) {
-        return null;
-      }
-    
-      return scheduledDeliveries.find((delivery) => {
-        const availability = getDateAvailability(
-          delivery.date,
-          'meal_prep',
-          operatorSettings,
-          databaseMealPrepBookings
-        );
-    
-        return !availability.available;
-      }) ?? null;
-    }, [
-      isMealPrep,
-      scheduledDeliveries,
-      operatorSettings,
-      databaseMealPrepBookings,
-    ]);
-
   /*
- * ============================================================
- * BOOKINGS USED FOR AVAILABILITY
- * ============================================================
- *
- * Catering:
- *   Uses real Supabase BOOKING records.
- *
- * Meal prep:
- *   Uses Supabase MEAL_PREP_ORDER records and their
- *   individual MEAL_PREP_DELIVERY dates.
- */
+   * ============================================================
+   * BOOKINGS USED FOR AVAILABILITY
+   * ============================================================
+   *
+   * Catering:
+   *   Uses real Supabase BOOKING records.
+   *
+   * Meal prep:
+   *   Uses existing application booking data because
+   *   MEAL_PREP_ORDER currently has no fulfillment date.
+   */
 
   const availabilityBookings = isMealPrep
-    ? databaseMealPrepBookings
+    ? bookings
     : databaseBookings;
 
   /*
@@ -695,34 +588,10 @@ export default function InquiryPage() {
   const stepProblem = (which: 1 | 2): string => {
     if (which === 1) {
       if (isMealPrep) {
-        if (loadingMealPrepAvailability) {
-          return 'Checking meal-prep availability. Please wait.';
-        }
-      
-        if (mealPrepAvailabilityError) {
-          return mealPrepAvailabilityError;
-        }
-      
-        if (!mealPrepForm.startDate) {
-          return 'Pick a start date on the calendar.';
-        }
-      
-        if (!isValidDeliveryDays(mealPrepForm.deliveryDays)) {
-          return 'Select at least one delivery day.';
-        }
-      
-        if (!mealPrepForm.fulfillmentTime) {
-          return 'Choose a preferred time.';
-        }
-      
-        if (dateAvailability && !dateAvailability.available) {
-          return 'That start date is not available. Pick another one.';
-        }
-      
-        if (unavailableScheduledDelivery) {
-          return `Your delivery schedule includes an unavailable date: ${formatDateLabel(unavailableScheduledDelivery.date)}. Please change your start date or delivery days.`;
-        }
-      
+        if (!mealPrepForm.startDate) return 'Pick a start date on the calendar.';
+        if (!isValidDeliveryDays(mealPrepForm.deliveryDays)) return 'Select at least one delivery day.';
+        if (!mealPrepForm.fulfillmentTime) return 'Choose a preferred time.';
+        if (dateAvailability && !dateAvailability.available) return 'That date is not available. Pick another one.';
         return '';
       }
       if (!cateringForm.eventType) return 'Choose an event type.';
@@ -769,11 +638,11 @@ export default function InquiryPage() {
      */
 
     if (isMealPrep) {
-      const problem = stepProblem(1);
-    
-      if (problem) {
-        setStepError(problem);
-        setStep(1);
+      if (
+        !mealPrepForm.startDate ||
+        !isValidDeliveryDays(mealPrepForm.deliveryDays) ||
+        scheduledDeliveries.length === 0
+      ) {
         return;
       }
     } else if (
@@ -1179,10 +1048,8 @@ export default function InquiryPage() {
                   </div>
                 </div>
 
-                {loadingMealPrepAvailability && (
-                  <p className="text-sm text-muted-foreground">
-                    Loading meal-prep availability...
-                  </p>
+                {loadingAvailability && mealPrepForm.startDate && (
+                  <p className="text-sm text-muted-foreground">Checking booking availability...</p>
                 )}
                 {availabilityBanner}
 
@@ -1373,12 +1240,7 @@ export default function InquiryPage() {
                   key="next-btn"
                   type="button"
                   onClick={goNext}
-                  disabled={
-                    (isMealPrep
-                      ? loadingMealPrepAvailability || Boolean(mealPrepAvailabilityError)
-                      : loadingAvailability) ||
-                    Boolean(guestCountError)
-                  }
+                  disabled={loadingAvailability || Boolean(guestCountError)}
                   className="flex-1 h-11 gap-2 rounded-lg bg-[#C8431B] text-white font-semibold hover:bg-[#A93615] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next <ArrowRight className="size-4" aria-hidden="true" />
@@ -1387,19 +1249,7 @@ export default function InquiryPage() {
                 <Button
                   key="submit-btn"
                   type="submit"
-                  disabled={
-                    (isMealPrep &&
-                      (
-                        loadingMealPrepAvailability ||
-                        Boolean(mealPrepAvailabilityError) ||
-                        Boolean(unavailableScheduledDelivery) ||
-                        Boolean(dateAvailability && !dateAvailability.available)
-                      )) ||
-                    (!isMealPrep &&
-                      Boolean(activeDate && dateAvailability && !dateAvailability.available)) ||
-                    loadingAvailability ||
-                    Boolean(guestCountError)
-                  }
+                  disabled={Boolean(activeDate && dateAvailability && !dateAvailability.available) || loadingAvailability || Boolean(guestCountError)}
                   className="flex-1 h-11 rounded-lg bg-[#C8431B] text-white font-semibold hover:bg-[#A93615] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Continue to Menu Selection

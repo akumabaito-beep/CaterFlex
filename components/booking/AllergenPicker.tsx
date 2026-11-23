@@ -13,6 +13,7 @@ import {
   Wheat,
   type LucideIcon,
 } from 'lucide-react'
+import { allergenLabel } from '@/lib/allergens'
 
 const ICONS: Record<string, LucideIcon> = {
   shellfish: Shrimp,
@@ -24,13 +25,10 @@ const ICONS: Record<string, LucideIcon> = {
   eggs: Egg,
   soy: Bean,
   sesame: Bean,
-  sulfites: ShieldAlert,
-  corn: Wheat,
-  mustard: Bean,
   other: CircleHelp,
 }
 
-const label = (a: string) => a.replace(/_/g, ' ')
+const label = allergenLabel
 
 /**
  * Allergy toggles. Same card, heading and colors as AvailabilityCalendar.

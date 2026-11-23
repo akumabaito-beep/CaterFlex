@@ -10,6 +10,7 @@ import {
   setEventTypeActive,
   type EventTypeRow,
 } from '@/app/actions/event-type-actions'
+import { PageLoader } from '@/components/ui/PageLoader'
 
 /** Lets the caterer choose which event types customers can pick on the booking form. */
 export function EventTypeManager() {
@@ -87,7 +88,7 @@ export function EventTypeManager() {
         </form>
 
         {types === null ? (
-          <div className="h-24 animate-pulse rounded-xl bg-[#FBF6EE]" aria-busy="true" />
+          <PageLoader compact label="Loading event types" />
         ) : types.length === 0 ? (
           <p className="rounded-xl border border-dashed border-[#DCC7A8] px-4 py-6 text-center text-sm text-[#2B1D16]/60">No event types yet.</p>
         ) : (

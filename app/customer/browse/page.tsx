@@ -15,11 +15,13 @@ import { estimateOrder, MAX_DELIVERY_KM } from '@/lib/pricing';
 import { supabase } from '@/lib/supabase';
 import { createBooking, createMealPrepOrder } from '@/app/actions/booking-actions';
 import { getCustomerAllergies } from '@/app/actions/allergy-actions';
+import { allergenLabel } from '@/lib/allergens';
 import {
   checkAllergenConflict,
   getUniqueConflictingAllergens,
 } from '@/lib/rules/allergenFiltering';
 import type { MenuItem } from '@/lib/types';
+import { notify } from '@/lib/notify'
 
 
 export default function BrowsePage() {
@@ -79,7 +81,7 @@ const mealPrepCategories = [
 
         if (menuError) {
           console.error('MENU_ITEM loading error:', menuError);
-          alert(`Failed to load menu items: ${menuError.message}`);
+          notify(`Failed to load menu items: ${menuError.message}`);
           return;
         }
 
@@ -100,7 +102,7 @@ const mealPrepCategories = [
             allergyRelationError
           );
 
-          alert(
+          notify(
             `Failed to load menu allergen information: ${allergyRelationError.message}`
           );
 
@@ -124,7 +126,7 @@ const mealPrepCategories = [
             allergyTagError
           );
 
-          alert(
+          notify(
             `Failed to load allergen information: ${allergyTagError.message}`
           );
 
@@ -193,7 +195,7 @@ const mealPrepCategories = [
         setDbMenuItems(formattedItems);
       } catch (error) {
         console.error('Unexpected menu loading error:', error);
-        alert('Something went wrong while loading the menu.');
+        notify('Something went wrong while loading the menu.');
       } finally {
         setLoadingMenu(false);
       }
@@ -404,12 +406,12 @@ const filteredMenuItems = isMealPrepDraft
       if (!currentUser?.id) await restoreSession();
       const sessionUser = useAppState.getState().currentUser;
       if (!sessionUser?.id || Number.isNaN(Number(sessionUser.id))) {
-        alert('Unable to identify your customer account. Please log in again.');
+        notify('Unable to identify your customer account. Please log in again.');
         return;
       }
 
       if (!eventDate) {
-        alert(
+        notify(
           isMealPrepOrder
             ? 'Please select your preferred start date.'
             : 'Please select an event date.'
@@ -418,7 +420,7 @@ const filteredMenuItems = isMealPrepDraft
       }
 
       if (!eventTime) {
-        alert('Please select a delivery or pickup time.');
+        notify('Please select a delivery or pickup time.');
         return;
       }
 
@@ -429,7 +431,7 @@ const filteredMenuItems = isMealPrepDraft
         );
 
         if (![1, 2, 4].includes(subscriptionWeeks)) {
-          alert('Please select a valid subscription duration.');
+          notify('Please select a valid subscription duration.');
           return;
         }
 
@@ -441,7 +443,7 @@ const filteredMenuItems = isMealPrepDraft
           : [];
 
         if (deliveryDays.length === 0) {
-          alert('Please select at least one delivery day.');
+          notify('Please select at least one delivery day.');
           return;
         }
 
@@ -453,7 +455,7 @@ const filteredMenuItems = isMealPrepDraft
           : [];
 
         if (scheduledDeliveries.length === 0) {
-          alert('No delivery dates were generated. Please review your schedule.');
+          notify('No delivery dates were generated. Please review your schedule.');
           return;
         }
 
@@ -463,12 +465,12 @@ const filteredMenuItems = isMealPrepDraft
         ).toLowerCase();
 
         if (!['pickup', 'delivery'].includes(fulfillmentMethod)) {
-          alert('Please select a valid fulfillment method.');
+          notify('Please select a valid fulfillment method.');
           return;
         }
 
         if (fulfillmentMethod === 'delivery' && !venue) {
-          alert('Please enter your delivery address.');
+          notify('Please enter your delivery address.');
           return;
         }
 
@@ -484,7 +486,7 @@ const filteredMenuItems = isMealPrepDraft
         );
 
         if (validMealPrepSelections.length === 0) {
-          alert('Please select at least one valid dish for your meal prep plan.');
+          notify('Please select at least one valid dish for your meal prep plan.');
           return;
         }
 
@@ -517,7 +519,7 @@ const filteredMenuItems = isMealPrepDraft
 
         if (!result.ok) {
           console.error('MEAL_PREP_ORDER INSERT ERROR:', result.error);
-          alert(`Meal prep order failed: ${result.error}`);
+          notify(`Meal prep order failed: ${result.error}`);
           return;
         }
 
@@ -535,12 +537,12 @@ const filteredMenuItems = isMealPrepDraft
       );
 
       if (!venue) {
-        alert('Please enter a venue.');
+        notify('Please enter a venue.');
         return;
       }
 
       if (!Number.isFinite(guestCount) || guestCount <= 0) {
-        alert('Please enter a valid guest count.');
+        notify('Please enter a valid guest count.');
         return;
       }
 
@@ -550,7 +552,7 @@ const filteredMenuItems = isMealPrepDraft
       );
 
       if (validMenuItemIds.length === 0) {
-        alert('Please select at least one valid menu item.');
+        notify('Please select at least one valid menu item.');
         return;
       }
 
@@ -572,14 +574,14 @@ const filteredMenuItems = isMealPrepDraft
 
       if (!result.ok) {
         console.error('BOOKING INSERT ERROR:', result.error);
-        alert(`Booking failed: ${result.error}`);
+        notify(`Booking failed: ${result.error}`);
         return;
       }
 
       setShowBookingSuccess(true);
     } catch (err) {
       console.error('UNEXPECTED BOOKING ERROR:', err);
-      alert('An unexpected error occurred while submitting your booking.');
+      notify('An unexpected error occurred while submitting your booking.');
     } finally {
       setIsSubmitting(false);
     }
@@ -590,7 +592,7 @@ const filteredMenuItems = isMealPrepDraft
    */
   const handleSubmit = () => {
     if (!hasAnySelection) {
-      alert(
+      notify(
         isMealPrepDraft
           ? 'Please add at least one dish to your meal prep plan.'
           : 'Please select at least one menu item.'
@@ -871,7 +873,7 @@ const filteredMenuItems = isMealPrepDraft
                                 key={tag}
                                 className="rounded-md bg-[#F6E3D3] px-2 py-1 text-xs font-medium capitalize text-[#A93615]"
                               >
-                                {tag.replace('_', ' ')}
+                                {allergenLabel(tag)}
                               </span>
                             ))}
                           </div>
@@ -883,7 +885,7 @@ const filteredMenuItems = isMealPrepDraft
                             <p className="text-xs text-red-700">
                               Conflicts with your declared{' '}
                               {itemConflicts.length === 1 ? 'allergy' : 'allergies'}:{' '}
-                              {itemConflicts.map((tag) => tag.replace('_', ' ')).join(', ')}
+                              {itemConflicts.map((tag) => allergenLabel(tag)).join(', ')}
                             </p>
                           </div>
                         )}                 
@@ -1152,7 +1154,7 @@ const filteredMenuItems = isMealPrepDraft
                         key={tag}
                         className="rounded-md bg-white px-2 py-1 text-xs font-medium capitalize text-[#A93615]"
                       >
-                        {tag.replace('_', ' ')}
+                        {allergenLabel(tag)}
                       </span>
                     ))}
                   </div>
@@ -1167,7 +1169,7 @@ const filteredMenuItems = isMealPrepDraft
                     <p className="mb-1 text-xs font-semibold text-red-700">Allergen conflict</p>
                     <p className="text-xs text-red-700">
                       Your selection contains{' '}
-                      {conflictingAllergens.map((tag) => tag.replace('_', ' ')).join(', ')}, which you
+                      {conflictingAllergens.map((tag) => allergenLabel(tag)).join(', ')}, which you
                       declared as a restriction. You will be asked to confirm before submitting.
                     </p>
                   </div>
@@ -1233,7 +1235,7 @@ const filteredMenuItems = isMealPrepDraft
                 <p className="mt-2 text-sm text-[#2B1D16]/70">
                   Your selection includes items with declared allergens:{' '}
                   <span className="font-semibold text-red-700">
-                    {conflictingAllergens.map((tag) => tag.replace('_', ' ')).join(', ')}
+                    {conflictingAllergens.map((tag) => allergenLabel(tag)).join(', ')}
                   </span>
                   . Are you sure you want to submit this booking?
                 </p>

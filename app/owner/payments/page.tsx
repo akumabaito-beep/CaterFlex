@@ -22,6 +22,7 @@ import {
   X,
 } from 'lucide-react';
 import { printInvoicePdf } from '@/lib/pdf/invoicePdf';
+import { PageLoader } from '@/components/ui/PageLoader'
 
 type BookingRow = { BookingID: number; CustomerID: number; OperatorID: number; EventDate: string; EventTime: string; Venue: string; GuestCount: number; Status: string };
 type CustomerRow = { CustomerID: number; Name: string; Email: string };
@@ -371,11 +372,7 @@ export default function PaymentsPage() {
         )}
 
         {loading ? (
-          <div className="space-y-5" aria-busy="true" aria-label="Loading payments">
-            <div className="h-20 animate-pulse rounded-2xl bg-[#EFE1D0]/60" />
-            <div className="h-28 animate-pulse rounded-2xl bg-[#EFE1D0]/60" />
-            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-24 animate-pulse rounded-2xl bg-[#EFE1D0]/60" />)}
-          </div>
+          <PageLoader label="Loading payments" />
         ) : (
           <>
             <div className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 ${owingBookings.length > 0 ? 'border-[#E8D8C4] bg-[#FBF6EE]' : 'border-emerald-200 bg-emerald-50'}`}>

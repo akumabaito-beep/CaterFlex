@@ -11,6 +11,7 @@ import { MenuItemForm } from '@/components/owner/MenuItemForm'
 import { supabase } from '@/lib/supabase'
 import type { MenuItem as FormMenuItem } from '@/lib/types'
 import { formatQuantity } from '@/lib/rules/quantity-format'
+import { PageLoader } from '@/components/ui/PageLoader'
 
 type MenuItem = {
   MenuItemID: number
@@ -418,7 +419,7 @@ export default function MenuManagementPage() {
         </div>
 
         {loading ? (
-          <Card className="flex items-center justify-center gap-2 p-12 text-muted-foreground"><Loader2 className="size-4 animate-spin" />Loading menu data...</Card>
+          <PageLoader label="Loading menu" />
         ) : errorMessage ? (
           <Card className="p-6"><p className="text-sm text-destructive">{errorMessage}</p></Card>
         ) : menuItems.length === 0 ? (

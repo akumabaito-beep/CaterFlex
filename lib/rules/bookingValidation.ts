@@ -125,28 +125,17 @@ function countCateringBookingsForDate(
 /**
  * Counts meal-prep bookings occupying capacity on a specific date.
  */
-
 function countMealPrepBookingsForDate(
   bookings: Booking[],
   eventDate: string
 ): number {
-  return bookings.filter((booking) => {
-    if (!isMealPrepBooking(booking) || !occupiesCapacity(booking.status)) {
-      return false;
-    }
-
-    // Count the plan if it has a delivery scheduled on this date.
-    if (booking.scheduledDeliveries?.length) {
-      return booking.scheduledDeliveries.some(
-        (delivery) => delivery.date === eventDate
-      );
-    }
-
-    // Fallback for older meal-prep records without a delivery schedule.
-    return booking.eventDate === eventDate;
-  }).length;
+  return bookings.filter(
+    (booking) =>
+      isMealPrepBooking(booking) &&
+      booking.eventDate === eventDate &&
+      occupiesCapacity(booking.status)
+  ).length;
 }
-
 
 /**
  * Checks daily catering-event capacity.
@@ -175,7 +164,7 @@ function validateCateringDailyCapacity(
   if (currentBookings >= maxEvents) {
     return {
       rule: 'dailyCapacity',
-      message: `The operator has already reached the maximum number of catering events for this date (${currentBookings}/${maxEvents}).`,
+      message: `Catering events are full on this date: ${currentBookings} booked, limit ${maxEvents}.`,
     };
   }
 
@@ -209,7 +198,7 @@ function validateMealPrepDailyCapacity(
   if (currentMealPrepBookings >= maxMealPrepOrders) {
     return {
       rule: 'mealPrepCapacity',
-      message: `The operator has already reached the maximum number of meal-prep orders for this date (${currentMealPrepBookings}/${maxMealPrepOrders}).`,
+      message: `Meal-prep plans are full on this date: ${currentMealPrepBookings} booked, limit ${maxMealPrepOrders}.`,
     };
   }
 

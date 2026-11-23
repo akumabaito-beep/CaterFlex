@@ -17,6 +17,7 @@ import {
   type CalendarItem,
   type CalendarMealPrepOrder,
 } from '@/lib/calendar-meal-prep'
+import { PageLoader } from '@/components/ui/PageLoader'
 
 type CalBooking = CalendarBooking & { EventType?: string | null }
 type Filter = 'all' | 'catering' | 'meal' | 'pending'
@@ -271,7 +272,7 @@ export default function CalendarPage() {
               <span><i className="mr-1.5 inline-block size-2.5 rounded-full bg-teal-600" />Meal prep</span>
               <span><i className="mr-1.5 inline-block size-2.5 rounded-full border border-dashed border-[#C8431B]" />Dashed = pending</span>
             </div>
-            {loading ? <p className="py-16 text-center text-muted-foreground">Loading calendar...</p> : (
+            {loading ? <PageLoader label="Loading calendar" /> : (
               <>
                 <div className="mb-2 grid grid-cols-7 gap-1.5 sm:gap-2">{dayLabels.map((d) => <div key={d} className="py-1 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">{d}</div>)}</div>
                 <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
@@ -299,7 +300,7 @@ export default function CalendarPage() {
 
             <Card className="p-5">
               <h2 className="font-heading text-lg font-bold text-card-foreground">Coming up</h2>
-              {loading ? <p className="mt-3 text-sm text-muted-foreground">Loading...</p> : upcoming.length === 0 ? (
+              {loading ? <PageLoader compact label="Loading" /> : upcoming.length === 0 ? (
                 <p className="mt-3 text-sm text-muted-foreground">No upcoming events{filter !== 'all' ? ' for this filter' : ''}.</p>
               ) : (
                 <div className="mt-3 flex flex-col gap-4">

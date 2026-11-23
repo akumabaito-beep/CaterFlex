@@ -29,6 +29,7 @@ import {
 import { notifyNotificationsUpdated } from '@/lib/notification-client'
 import { DashboardLayout } from '@/app/dashboard-layout'
 import { Paged } from '@/components/owner/Pagination'
+import { PageLoader } from '@/components/ui/PageLoader'
 
 type Notification = {
   NotificationID: number
@@ -248,11 +249,7 @@ export default function OwnerNotificationsPage() {
         </div>
 
         {loading ? (
-          <div className="space-y-3" aria-busy="true">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="h-20 animate-pulse rounded-2xl border border-[#E8D8C4] bg-white" />
-            ))}
-          </div>
+          <PageLoader label="Loading notifications" />
         ) : visible.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-[#DCC7A8] bg-white p-12 text-center">
             <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F3E7D6] text-[#C8431B]">

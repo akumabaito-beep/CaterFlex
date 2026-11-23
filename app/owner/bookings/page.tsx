@@ -44,6 +44,8 @@ import {
 } from 'lucide-react';
 import { VenueText } from '@/components/owner/VenueText';
 import { eventTypeIcon } from '@/components/booking/EventTypePicker';
+import { PageLoader } from '@/components/ui/PageLoader'
+import { notify } from '@/lib/notify'
 
 type Booking = {
   BookingID: number;
@@ -499,7 +501,7 @@ export default function BookingsPage() {
 
       if (!result.ok) {
         console.error('BOOKING STATUS UPDATE ERROR:', result.error);
-        alert(
+        notify(
           `Failed to ${
             status === 'confirmed' ? 'confirm' : 'reject'
           } booking: ${result.error}`
@@ -525,7 +527,7 @@ export default function BookingsPage() {
         error
       );
 
-      alert(
+      notify(
         error instanceof Error
           ? error.message
           : 'An unexpected error occurred.'
@@ -551,7 +553,7 @@ export default function BookingsPage() {
 
       if (!result.ok) {
         console.error('MEAL PREP STATUS UPDATE ERROR:', result.error);
-        alert(`Failed to ${status === 'active' ? 'confirm' : 'reject'} meal-prep order: ${result.error}`);
+        notify(`Failed to ${status === 'active' ? 'confirm' : 'reject'} meal-prep order: ${result.error}`);
         return;
       }
 
@@ -564,7 +566,7 @@ export default function BookingsPage() {
       );
     } catch (error) {
       console.error('Unexpected meal-prep status error:', error);
-      alert(error instanceof Error ? error.message : 'An unexpected error occurred.');
+      notify(error instanceof Error ? error.message : 'An unexpected error occurred.');
     } finally {
       setUpdatingId(null);
     }
@@ -577,7 +579,7 @@ export default function BookingsPage() {
     const result = booking.OrderType === 'meal_prep'
       ? (archived ? await archiveMealPrepOrder(booking.mealPrepOrderId!) : await restoreMealPrepOrder(booking.mealPrepOrderId!))
       : (archived ? await archiveBooking(booking.BookingID) : await restoreBooking(booking.BookingID));
-    if (!result.ok) alert(result.error);
+    if (!result.ok) notify(result.error);
     else setBookings((current) => current.map((item) => item.BookingID === booking.BookingID ? { ...item, IsArchived: archived } : item));
     setUpdatingId(null);
   };
@@ -587,7 +589,7 @@ export default function BookingsPage() {
     const draft = servingDrafts[booking.BookingID] ?? Object.fromEntries(booking.items.flatMap((item) => item.bookingItemId ? [[item.bookingItemId, item.quantity]] : []));
     setSavingServings(booking.BookingID);
     const result = await updateBookingItemServings(booking.BookingID, Object.entries(draft).map(([bookingItemId, servings]) => ({ bookingItemId: Number(bookingItemId), servings: Number(servings) })));
-    if (!result.ok) alert(result.error);
+    if (!result.ok) notify(result.error);
     else setBookings((current) => current.map((item) => item.BookingID === booking.BookingID ? { ...item, items: item.items.map((dish) => dish.bookingItemId ? { ...dish, quantity: Number(draft[dish.bookingItemId] ?? dish.quantity) } : dish) } : item));
     setSavingServings(null);
   };
@@ -916,7 +918,7 @@ export default function BookingsPage() {
         </div>
 
         {loading ? (
-          <Card className="p-12 text-center"><p className="text-muted-foreground">Loading bookings...</p></Card>
+          <PageLoader label="Loading bookings" />
         ) : loadError ? (
           <Card className="p-12 text-center">
             <p className="font-medium text-destructive">Unable to load bookings</p>

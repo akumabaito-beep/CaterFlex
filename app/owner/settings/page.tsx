@@ -11,6 +11,7 @@ import {
   loadOperatingRules,
   saveOperatingRules as saveOperatingRulesAction,
 } from '@/app/actions/settings-actions';
+import { PageLoader } from '@/components/ui/PageLoader'
 
 const DAY_LABELS: Record<DayOfWeek, string> = {
   0: 'Sunday',
@@ -258,10 +259,7 @@ export default function SettingsPage() {
       <DashboardLayout>
         <div className="space-y-8">
           {header}
-          <div className="grid gap-6 lg:grid-cols-[1fr_20rem]" aria-busy="true">
-            <div className="h-96 animate-pulse rounded-2xl border border-[#E8D8C4] bg-white" />
-            <div className="h-72 animate-pulse rounded-2xl border border-[#E8D8C4] bg-white" />
-          </div>
+          <PageLoader label="Loading settings" />
         </div>
       </DashboardLayout>
     );

@@ -10,6 +10,7 @@ import { AlertTriangle, CalendarDays, CheckCircle2, ChefHat, Clock, PackageCheck
 import { getOwnerPrepSchedule } from '@/app/actions/booking-actions';
 import { markBookingPrepared, markMealPrepCyclePrepared } from '@/app/actions/preparation-actions';
 import { servingsForBookingItem, servingsForOrder } from '@/lib/rules/allocation';
+import { PageLoader } from '@/components/ui/PageLoader'
 
 const OPERATOR_ID = 2;
 
@@ -373,12 +374,7 @@ export default function PrepSchedulePage() {
           <Card className="border-destructive/40 bg-destructive/10 p-4"><p className="text-sm text-destructive">{actionError}</p></Card>
         )}
 
-        {loading && (
-          <Card className="p-12 text-center">
-            <Clock className="mx-auto mb-4 size-10 animate-pulse text-muted-foreground" />
-            <p className="text-muted-foreground">Loading preparation schedule...</p>
-          </Card>
-        )}
+        {loading && <PageLoader label="Loading schedule" />}
 
         {!loading && error && (
           <Card className="p-8">

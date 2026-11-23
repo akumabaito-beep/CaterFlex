@@ -17,6 +17,8 @@ import {
 } from '@/app/actions/menu-actions'
 import { supabase } from '@/lib/supabase';
 import type { AllergenType, MenuItem } from '@/lib/types';
+import { ALLERGEN_OPTIONS, allergenLabel, isSupportedAllergen } from '@/lib/allergens';
+import { PageLoader } from '@/components/ui/PageLoader'
 
 const CATEGORIES: MenuItem['category'][] = [
   'appetizers',
@@ -26,15 +28,7 @@ const CATEGORIES: MenuItem['category'][] = [
   'beverages',
 ];
 
-const FALLBACK_ALLERGEN_OPTIONS: AllergenType[] = [
-  'shellfish',
-  'fish',
-  'peanuts',
-  'dairy',
-  'gluten',
-  'eggs',
-  'soy',
-];
+const FALLBACK_ALLERGEN_OPTIONS: AllergenType[] = ALLERGEN_OPTIONS;
 
 export type MenuItemFormValues = Omit<
   MenuItem,
@@ -283,7 +277,13 @@ export function MenuItemForm({
         );
 
         setAllergyTags(
-          allergyData ?? []
+          (allergyData ?? [])
+            .filter((tag) => isSupportedAllergen(tag.AllergenName))
+            .sort(
+              (a, b) =>
+                ALLERGEN_OPTIONS.indexOf(a.AllergenName.trim().toLowerCase() as AllergenType) -
+                ALLERGEN_OPTIONS.indexOf(b.AllergenName.trim().toLowerCase() as AllergenType)
+            )
         );
 
         /*
@@ -931,7 +931,7 @@ export function MenuItemForm({
         </div>
 
         {loadingData ? (
-          <div className="py-16 text-center text-[#2B1D16]/60">Loading menu item data...</div>
+          <PageLoader compact label="Loading menu item" />
         ) : (
           <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
             <div className="flex-1 space-y-5 overflow-y-auto px-6 py-5">
@@ -1087,7 +1087,7 @@ export function MenuItemForm({
                       >
                         <input type="checkbox" checked={checked} onChange={() => toggleAllergen(allergen)} className="sr-only" />
                         {checked && <Check className="size-3.5" aria-hidden="true" />}
-                        {tag.AllergenName.replace('_', ' ')}
+                        {allergenLabel(tag.AllergenName)}
                       </label>
                     );
                   })}

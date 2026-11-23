@@ -26,7 +26,7 @@ export interface BusinessOwnerRow {
 }
 
 // Allergen Types
-export type AllergenType = 'shellfish' | 'fish' | 'peanuts' | 'dairy' | 'gluten' | 'eggs' | 'soy' | 'tree_nuts' | 'sesame' | 'sulfites' | 'corn' | 'mustard' | 'other';
+export type AllergenType = 'shellfish' | 'fish' | 'peanuts' | 'dairy' | 'gluten' | 'eggs' | 'soy' | 'tree_nuts' | 'sesame' | 'other';
 
 export interface Allergen {
   id: string;

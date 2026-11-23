@@ -11,6 +11,7 @@ import { supabase } from '@/lib/supabase';
 import type { AllergenType, MenuItem } from '@/lib/types';
 
 import { MenuItemForm } from '@/components/owner/MenuItemForm';
+import { notify } from '@/lib/notify'
 
 const CATEGORIES: MenuItem['category'][] = [
   'appetizers',
@@ -482,7 +483,7 @@ export default function MenuPage() {
     if (
       Number.isNaN(menuItemId)
     ) {
-      window.alert(
+      notify(
         'Invalid menu item ID.'
       );
       return;
@@ -514,7 +515,7 @@ export default function MenuPage() {
         }
 
         if ((referencedBookings ?? []).length > 0) {
-          window.alert(
+          notify(
             'This menu item is used in a pending or confirmed booking and cannot be deleted.'
           );
           return;
@@ -546,7 +547,7 @@ export default function MenuPage() {
         }
 
         if ((referencedMealPrepOrders ?? []).length > 0) {
-          window.alert(
+          notify(
             'This menu item is used in a pending or active meal-prep order and cannot be deleted.'
           );
           return;
@@ -635,7 +636,7 @@ export default function MenuPage() {
         error
       );
 
-      window.alert(
+      notify(
         error instanceof Error
           ? error.message
           : 'Unable to delete the menu item.'

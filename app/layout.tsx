@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { AuthSessionSync } from '@/components/auth/session-sync'
+import { MessageDialog } from '@/components/ui/MessageDialog'
 
 export const metadata: Metadata = {
   title: 'CaterFlex - Catering Management',
@@ -33,6 +34,7 @@ export default function RootLayout({
       <body className="antialiased">
         <AuthSessionSync />
         {children}
+        <MessageDialog />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

@@ -32,6 +32,7 @@ import { Dropdown } from '@/components/owner/Dropdown';
 import { getScrapSuggestionsForBlockedDishes } from '@/lib/rules/scrapSuggestions';
 
 import type { Ingredient, MenuItem } from '@/lib/types';
+import { PageLoader } from '@/components/ui/PageLoader'
 
 type IngredientCategory =
   | 'all'
@@ -593,7 +594,7 @@ export default function InventoryPage() {
       <DashboardLayout>
         <div className="space-y-6">
           {header}
-          <Card className="flex items-center justify-center gap-2 p-12 text-muted-foreground"><Loader2 className="size-4 animate-spin" />Loading inventory...</Card>
+          <PageLoader label="Loading inventory" />
         </div>
       </DashboardLayout>
     );

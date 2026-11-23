@@ -8,6 +8,7 @@ import { Paged } from '@/components/owner/Pagination'
 import { Button } from '@/components/ui/button'
 import type { IngredientShortfall, OverPurchasedIngredient, ScrapSuggestion } from '@/lib/macroflex'
 import { formatQuantity } from '@/lib/rules/quantity-format'
+import { PageLoader } from '@/components/ui/PageLoader'
 
 interface DishStatus {
   menuItemId: number
@@ -191,18 +192,6 @@ function DishCard({ item, open, onToggle }: { item: DishStatus; open: boolean; o
   )
 }
 
-function Skeleton() {
-  return (
-    <div className="space-y-5" aria-busy="true" aria-label="Loading menu check">
-      <div className="h-20 animate-pulse rounded-2xl bg-[#EFE1D0]/60" />
-      <div className="h-10 w-2/3 animate-pulse rounded-full bg-[#EFE1D0]/60" />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-40 animate-pulse rounded-2xl bg-[#EFE1D0]/60" />)}
-      </div>
-    </div>
-  )
-}
-
 export default function MacroFlexPage() {
   const [items, setItems] = useState<DishStatus[]>([])
   const [over, setOver] = useState<OverPurchasedIngredient[]>([])
@@ -279,7 +268,7 @@ export default function MacroFlexPage() {
           </div>
         )}
 
-        {loading ? <Skeleton /> : (
+        {loading ? <PageLoader label="Checking menu" /> : (
           <>
             <div className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border p-4 ${blockedCount > 0 ? 'border-[#E8D8C4] bg-[#FBF6EE]' : 'border-emerald-200 bg-emerald-50'}`}>
               <div className="flex items-center gap-3">

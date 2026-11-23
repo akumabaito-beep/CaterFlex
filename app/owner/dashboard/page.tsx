@@ -9,6 +9,7 @@ import { DateRangePicker } from '@/components/owner/DateRangePicker'
 import type { RangeInput, ResolvedRange } from '@/lib/date-range'
 import { getOwnerDashboardData } from '@/app/actions/dashboard-actions'
 import { ArrowRight, CalendarClock, CalendarDays, CheckCircle2, ClipboardList, HandCoins, PackageMinus, Percent, RefreshCw, Wallet } from 'lucide-react'
+import { PageLoader } from '@/components/ui/PageLoader'
 
 type DashboardData = {
   pendingBookings: number
@@ -91,13 +92,7 @@ export default function OwnerDashboard() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="space-y-6" aria-busy="true" aria-label="Loading dashboard">
-          <div className="h-12 w-64 animate-pulse rounded-xl bg-[#EFE1D0]/60" />
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {[0, 1, 2].map((i) => <div key={i} className="h-28 animate-pulse rounded-2xl bg-[#EFE1D0]/60" />)}
-          </div>
-          <div className="h-80 animate-pulse rounded-2xl bg-[#EFE1D0]/60" />
-        </div>
+        <PageLoader label="Loading dashboard" />
       </DashboardLayout>
     )
   }
