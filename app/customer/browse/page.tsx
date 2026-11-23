@@ -491,21 +491,43 @@ const filteredMenuItems = isMealPrepDraft
   /*
    * Estimated cost shown before the customer confirms.
    */
-  const estimate = estimateOrder({
-    itemPrices: isMealPrepDraft
-      ? mealPrepSelectedItems.flatMap((item) =>
-          Array.from({ length: item.quantity }, () => item.price)
-        )
-      : selectedItems.map((item) => item.price),
+  const estimate = (() => {
+    const venue = String(customerBookingDraft.venue ?? '');
   
-    servings: isMealPrepDraft
-      ? 1
-      : parseInt(String(customerBookingDraft.guestCount || '0'), 10) || 0,
+    if (isMealPrepDraft) {
+      // Food cost: add the price of each selected dish and its quantity.
+      const foodSubtotal = mealPrepSelectedItems.reduce(
+        (total, item) => total + item.price * item.quantity,
+        0
+      );
   
-    venue: String(customerBookingDraft.venue ?? ''),
+      // Calculate the delivery fee only once per delivery,
+      // regardless of how many dishes are selected.
+      const deliveryEstimate = estimateOrder({
+        itemPrices: [],
+        servings: 1,
+        venue,
+        delivers: !isPickupMealPrep,
+      });
   
-    delivers: !isPickupMealPrep,
-  });
+      return {
+        ...deliveryEstimate,
+        perServing: foodSubtotal,
+        servings: 1,
+        foodSubtotal,
+        total: foodSubtotal + deliveryEstimate.deliveryFee,
+      };
+    }
+  
+    // Keep the existing catering calculation unchanged.
+    return estimateOrder({
+      itemPrices: selectedItems.map((item) => item.price),
+      servings:
+        parseInt(String(customerBookingDraft.guestCount || '0'), 10) || 0,
+      venue,
+      delivers: true,
+    });
+  })();
   const peso = (n: number) =>
     `₱${n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 

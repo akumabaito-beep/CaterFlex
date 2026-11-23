@@ -1,8 +1,8 @@
 import { KITCHEN, distanceKm, parsePinnedAddress } from './kitchen'
 
 // Edit these to change delivery pricing (pesos).
-export const DELIVERY_BASE_FEE = 50
-export const DELIVERY_FEE_PER_KM = 15
+export const DELIVERY_BASE_FEE = 20
+export const DELIVERY_FEE_PER_KM = 0
 export const DELIVERY_FEE_ROUNDING = 5
 export const MAX_DELIVERY_KM = 30
 

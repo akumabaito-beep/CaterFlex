@@ -358,7 +358,7 @@ export default function MealPlansPage() {
                     {/* DETAILS */}
                     <div className="grid gap-4 sm:grid-cols-2">
                       {[
-                        { icon: Users, label: 'Servings per delivery', value: String(plan.servings) },
+                        { icon: Users, label: 'Dishes per delivery', value: String(plan.servings) },
                         { icon: Clock, label: plan.method === 'delivery' ? 'Delivery time' : 'Pickup time', value: formatTime(plan.time) },
                         { icon: Calendar, label: 'Schedule', value: scheduleLabel(plan) },
                         {
@@ -408,7 +408,7 @@ export default function MealPlansPage() {
                                 {dish.name}
                               </span>
                               <p className="mt-1 text-xs text-[#2B1D16]/60">
-                                {plan.servings} {plan.servings === 1 ? 'serving' : 'servings'} per delivery
+                                {dish.quantity} {dish.quantity === 1 ? 'serving' : 'servings'} per delivery
                               </p>
                             </span>
                           ))
@@ -420,12 +420,12 @@ export default function MealPlansPage() {
                     {plan.pricePerServing !== null && perDelivery !== null && (
                       <div className="space-y-1 rounded-xl border border-[#E8D8C4] p-4 text-sm">
                         <div className="flex justify-between text-[#2B1D16]/70">
-                          <span>Price per serving (locked)</span>
+                          <span>Price per serving</span>
                           <span>{peso(plan.pricePerServing)}</span>
                         </div>
                         {plan.method === 'delivery' && (
                           <div className="flex justify-between text-[#2B1D16]/70">
-                            <span>Delivery fee per delivery</span>
+                            <span>Delivery fee</span>
                             <span>{peso(plan.deliveryFee)}</span>
                           </div>
                         )}
