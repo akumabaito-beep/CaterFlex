@@ -84,6 +84,9 @@ export function nextDateAfterPlanEnd(args: {
   isAvailable: (date: string) => boolean
   searchDays?: number
 }): string | null {
+  // No plan start yet (empty form on first render): nothing to search from.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(args.lastDate)) return null
+
   const taken = new Set(args.taken)
   const searchDays = args.searchDays ?? 42
 
