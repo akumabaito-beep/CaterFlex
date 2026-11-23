@@ -16,7 +16,7 @@ import {
   saveMenuItemPhotoUrl,
 } from '@/app/actions/menu-actions'
 import { supabase } from '@/lib/supabase';
-import type { AllergenType, MenuItem } from '@/lib/types';
+import type { AllergenType, MealType, MenuItem } from '@/lib/types';
 
 const CATEGORIES: MenuItem['category'][] = [
   'appetizers',
@@ -107,12 +107,12 @@ function toFormValues(
       name: item.name,
       description: item.description,
       category: item.category,
+      mealType: item.mealType ?? 'breakfast',
       price: item.price,
       prepTimeDays: item.prepTimeDays,
       availability: item.availability !== false,
       allergyTags: item.allergyTags ?? [],
-      requiredIngredients:
-        item.requiredIngredients ?? [],
+      requiredIngredients: item.requiredIngredients ?? [],
     };
   }
 
@@ -121,6 +121,7 @@ function toFormValues(
     name: '',
     description: '',
     category: 'mains',
+    mealType: 'breakfast',
     price: 0,
     prepTimeDays: 1,
     availability: true,
@@ -677,50 +678,38 @@ export function MenuItemForm({
         form.category.slice(1);
 
       let menuItemId: number;
-
+      
       /*
        * ====================================
-       * CREATE MENU ITEM
+       * CREATE OR UPDATE MENU ITEM
        * ====================================
        */
-      if (!isEditing || !item) {
-        menuItemId = await createMenuItem({
-          ItemName: form.name.trim(),
-          Category: databaseCategory,
-          Price: numericPrice,
-          PrepTimeDays: Math.max(0, Number(form.prepTimeDays) || 0),
-          Description: form.description.trim(),
-          Availability: form.availability !== false,
-        })
-      }
+      if (item) {
+        menuItemId = Number(item.id);
 
-      /*
-       * ====================================
-       * UPDATE MENU ITEM
-       * ====================================
-       */
-      else {
-        menuItemId =
-          Number(item.id);
-
-        if (
-          Number.isNaN(
-            menuItemId
-          )
-        ) {
-          throw new Error(
-            'Invalid menu item ID.'
-          );
+        if (Number.isNaN(menuItemId)) {
+          throw new Error('Invalid menu item ID.');
         }
 
         await updateMenuItem(menuItemId, {
           ItemName: form.name.trim(),
           Category: databaseCategory,
+          MealType: form.mealType ?? 'breakfast',
           Price: numericPrice,
           PrepTimeDays: Math.max(0, Number(form.prepTimeDays) || 0),
           Description: form.description.trim(),
           Availability: form.availability !== false,
-        })
+        });
+      } else {
+        menuItemId = await createMenuItem({
+          ItemName: form.name.trim(),
+          Category: databaseCategory,
+          MealType: form.mealType ?? 'breakfast',
+          Price: numericPrice,
+          PrepTimeDays: Math.max(0, Number(form.prepTimeDays) || 0),
+          Description: form.description.trim(),
+          Availability: form.availability !== false,
+        });
       }
 
       /*
@@ -975,8 +964,38 @@ export function MenuItemForm({
                       className="mt-1.5"
                       ariaLabel="Category"
                       value={form.category as string}
-                      onChange={(category) => setForm({ ...form, category: category as MenuItem['category'] })}
-                      groups={[{ options: CATEGORIES.map((c) => ({ value: c as string, label: c.charAt(0).toUpperCase() + c.slice(1) })) }]}
+                      onChange={(category) =>
+                        setForm({ ...form, category: category as MenuItem['category'] })
+                      }
+                      groups={[
+                        {
+                          options: CATEGORIES.map((c) => ({
+                            value: c as string,
+                            label: c.charAt(0).toUpperCase() + c.slice(1),
+                          })),
+                        },
+                      ]}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelClass}>Meal Type *</label>
+                    <Dropdown
+                      className="mt-1.5"
+                      ariaLabel="Meal Type"
+                      value={form.mealType ?? 'breakfast'}
+                      onChange={(mealType) =>
+                        setForm({ ...form, mealType: mealType as MealType })
+                      }
+                      groups={[
+                        {
+                          options: [
+                            { value: 'breakfast', label: 'Breakfast' },
+                            { value: 'lunch', label: 'Lunch' },
+                            { value: 'dinner', label: 'Dinner' },
+                          ],
+                        },
+                      ]}
                     />
                   </div>
 

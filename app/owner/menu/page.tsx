@@ -24,6 +24,7 @@ interface DbMenuItem {
   MenuItemID: number;
   ItemName: string;
   Category: string;
+  MealType: string | null;
   Price: number;
   PrepTimeDays: number;
   Description: string | null;
@@ -89,7 +90,7 @@ export default function MenuPage() {
       } = await supabase
         .from('MENU_ITEM')
         .select(
-          'MenuItemID, ItemName, Category, Price, PrepTimeDays, Description, PhotoURL'
+          'MenuItemID, ItemName, Category, MealType, Price, PrepTimeDays, Description, PhotoURL'
         )
         .order('MenuItemID');
 
@@ -356,10 +357,13 @@ export default function MenuPage() {
             photoUrl:
               menu.PhotoURL ?? undefined,
 
-            category:
+              category:
               menu.Category
                 .toLowerCase() as MenuItem['category'],
-
+            
+            mealType:
+              menu.MealType?.toLowerCase() as MenuItem['mealType'],
+            
             price: Number(
               menu.Price ?? 0
             ),

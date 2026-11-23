@@ -4,10 +4,12 @@
 import { requireRole } from '@/app/actions/auth'
 import { createAdminClient } from '@/lib/supabase-admin'
 import { validatePerServingQuantity } from '@/lib/rules/quantity-validation'
+import type { MealType } from '@/lib/types'
 
 type MenuItemUpdate = {
   ItemName: string
   Category: string
+  MealType: MealType
   Price: number
   PrepTimeDays: number
   Description: string
@@ -36,57 +38,81 @@ const ALLOWED_MENU_PHOTO_TYPES = {
   'image/webp': 'webp',
 } as const
 
-export async function createMenuItem(values: MenuItemCreate) {
-  const user = await requireRole('owner')
-  if (!user) throw new Error('Unauthorized')
+  export async function createMenuItem(values: MenuItemCreate) {
+    const user = await requireRole('owner')
+    if (!user) throw new Error('Unauthorized')
 
-  const admin = createAdminClient()
+    const admin = createAdminClient()
 
-  const { data, error } = await admin.rpc(
-    'create_menu_item_with_price_history',
-    {
-      p_item_name: values.ItemName,
-      p_category: values.Category,
-      p_price: values.Price,
-      p_prep_time_days: values.PrepTimeDays,
-      p_description: values.Description,
-      p_availability: values.Availability,
+    const { data, error } = await admin.rpc(
+      'create_menu_item_with_price_history',
+      {
+        p_item_name: values.ItemName,
+        p_category: values.Category,
+        p_price: values.Price,
+        p_prep_time_days: values.PrepTimeDays,
+        p_description: values.Description,
+        p_availability: values.Availability,
+      }
+    )
+
+    if (error || data == null) {
+      throw new Error(error?.message ?? 'Unable to create the menu item.')
     }
-  )
 
-  if (error || data == null) {
-    throw new Error(error?.message ?? 'Unable to create the menu item.')
+    const menuItemId = Number(data)
+
+    const { error: mealTypeError } = await admin
+      .from('MENU_ITEM')
+      .update({ MealType: values.MealType })
+      .eq('MenuItemID', menuItemId)
+
+    if (mealTypeError) {
+      throw new Error(
+        `Menu item was created, but its meal type could not be saved: ${mealTypeError.message}`
+      )
+    }
+
+    return menuItemId
   }
 
-  return Number(data)
-}
-
-export async function updateMenuItem(
-  menuItemId: number,
-  values: MenuItemUpdate
-) {
-  const user = await requireRole('owner')
-  if (!user) throw new Error('Unauthorized')
-
-  const admin = createAdminClient()
-
-  const { error } = await admin.rpc(
-    'update_menu_item_with_price_history',
-    {
-      p_menu_item_id: menuItemId,
-      p_item_name: values.ItemName,
-      p_category: values.Category,
-      p_price: values.Price,
-      p_prep_time_days: values.PrepTimeDays,
-      p_description: values.Description,
-      p_availability: values.Availability,
+  export async function updateMenuItem(
+    menuItemId: number,
+    values: MenuItemUpdate
+  ) {
+    const user = await requireRole('owner')
+    if (!user) throw new Error('Unauthorized')
+  
+    const admin = createAdminClient()
+  
+    const { error } = await admin.rpc(
+      'update_menu_item_with_price_history',
+      {
+        p_menu_item_id: menuItemId,
+        p_item_name: values.ItemName,
+        p_category: values.Category,
+        p_price: values.Price,
+        p_prep_time_days: values.PrepTimeDays,
+        p_description: values.Description,
+        p_availability: values.Availability,
+      }
+    )
+  
+    if (error) {
+      throw new Error(error.message)
     }
-  )
-
-  if (error) {
-    throw new Error(error.message)
+  
+    const { error: mealTypeError } = await admin
+      .from('MENU_ITEM')
+      .update({ MealType: values.MealType })
+      .eq('MenuItemID', menuItemId)
+  
+    if (mealTypeError) {
+      throw new Error(
+        `Menu item was updated, but its meal type could not be saved: ${mealTypeError.message}`
+      )
+    }
   }
-}
 
 export async function replaceMenuItemAllergies(
   menuItemId: number,

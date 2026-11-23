@@ -105,6 +105,8 @@ export default function InquiryPage() {
     []
   );
 
+  const [selectedDeliveryIndex, setSelectedDeliveryIndex] = useState<number | null>(null);
+  
   const [loadingAvailability, setLoadingAvailability] =
     useState(false);
 
@@ -270,7 +272,12 @@ export default function InquiryPage() {
             specialRequests: '',
             validationPassed: true,
             ruleViolations: [],
-            scheduledDeliveries,
+            scheduledDeliveries: finalScheduledDeliveries.map(
+              ({ date, subscriptionWeek }) => ({
+                date,
+                subscriptionWeek,
+              })
+            ),
           } as unknown as Booking;
         }
       );
@@ -409,27 +416,140 @@ export default function InquiryPage() {
       mealPrepForm.subscriptionWeeks,
     ]);
 
-    const unavailableScheduledDelivery = useMemo(() => {
-      if (!isMealPrep || scheduledDeliveries.length === 0) {
-        return null;
-      }
-    
-      return scheduledDeliveries.find((delivery) => {
-        const availability = getDateAvailability(
-          delivery.date,
-          'meal_prep',
-          operatorSettings,
-          databaseMealPrepBookings
-        );
-    
-        return !availability.available;
-      }) ?? null;
-    }, [
-      isMealPrep,
-      scheduledDeliveries,
+    const [deliveryDateOverrides, setDeliveryDateOverrides] = useState<
+  Record<number, string>
+>({});
+
+const [removedDeliveryIndexes, setRemovedDeliveryIndexes] = useState<
+  number[]
+>([]);
+
+const [replacementDateInputs, setReplacementDateInputs] = useState<
+  Record<number, string>
+>({});
+
+// Reset individual date changes when the customer changes the
+// start date, subscription duration, or preferred delivery days.
+const scheduleKey = scheduledDeliveries
+  .map((delivery) => `${delivery.date}:${delivery.subscriptionWeek}`)
+  .join('|');
+
+useEffect(() => {
+  setDeliveryDateOverrides({});
+  setRemovedDeliveryIndexes([]);
+  setReplacementDateInputs({});
+}, [scheduleKey]);
+
+// The customer's final schedule, including date changes and removals.
+const finalScheduledDeliveries = useMemo(() => {
+  return scheduledDeliveries.flatMap((delivery, index) => {
+    if (removedDeliveryIndexes.includes(index)) {
+      return [];
+    }
+
+    return [{
+      ...delivery,
+      date: deliveryDateOverrides[index] ?? delivery.date,
+      originalIndex: index,
+    }];
+  });
+}, [
+  scheduledDeliveries,
+  deliveryDateOverrides,
+  removedDeliveryIndexes,
+]);
+
+// Check every date in the customer's current schedule.
+const deliveryAvailability = useMemo(() => {
+  if (!isMealPrep) {
+    return [];
+  }
+
+  return finalScheduledDeliveries.map((delivery) => ({
+    ...delivery,
+    availability: getDateAvailability(
+      delivery.date,
+      'meal_prep',
       operatorSettings,
-      databaseMealPrepBookings,
-    ]);
+      databaseMealPrepBookings
+    ),
+  }));
+}, [
+  isMealPrep,
+  finalScheduledDeliveries,
+  operatorSettings,
+  databaseMealPrepBookings,
+]);
+
+  const hasUnavailableDeliveries = deliveryAvailability.some(
+    (delivery) => !delivery.availability.available
+  );
+
+  // Apply a replacement to only the selected delivery.
+  const applyDeliveryDate = (originalIndex: number) => {
+    const replacementDate = replacementDateInputs[originalIndex];
+
+    if (!replacementDate) {
+      setStepError('Choose a replacement date first.');
+      return;
+    }
+
+    if (replacementDate < mealPrepForm.startDate) {
+      setStepError('The replacement date cannot be before your start date.');
+      return;
+    }
+
+    const isDuplicate = finalScheduledDeliveries.some(
+      (delivery) =>
+        delivery.originalIndex !== originalIndex &&
+        delivery.date === replacementDate
+    );
+
+    if (isDuplicate) {
+      setStepError('That date is already included in your delivery schedule.');
+      return;
+    }
+
+    const availability = getDateAvailability(
+      replacementDate,
+      'meal_prep',
+      operatorSettings,
+      databaseMealPrepBookings
+    );
+
+    if (!availability.available) {
+      setStepError(
+        availability.reason ?? 'That replacement date is unavailable. Choose another date.'
+      );
+      return;
+    }
+
+    setDeliveryDateOverrides((prev) => ({
+      ...prev,
+      [originalIndex]: replacementDate,
+    }));
+
+    setReplacementDateInputs((prev) => ({
+      ...prev,
+      [originalIndex]: '',
+    }));
+
+    setStepError('');
+  };
+
+  // Remove only the selected delivery.
+  const removeScheduledDelivery = (originalIndex: number) => {
+    if (finalScheduledDeliveries.length <= 1) {
+      setStepError('Your subscription must have at least one delivery.');
+      return;
+    }
+
+    setRemovedDeliveryIndexes((prev) =>
+      [...prev, originalIndex]
+    );
+
+    setStepError('');
+  };
 
   /*
  * ============================================================
@@ -831,12 +951,12 @@ const handleOtherAllergyBlur = () => {
           return 'Choose a preferred time.';
         }
       
-        if (dateAvailability && !dateAvailability.available) {
-          return 'That start date is not available. Pick another one.';
+        if (finalScheduledDeliveries.length === 0) {
+          return 'Your subscription must have at least one scheduled delivery.';
         }
-      
-        if (unavailableScheduledDelivery) {
-          return `Your delivery schedule includes an unavailable date: ${formatDateLabel(unavailableScheduledDelivery.date)}. Please change your start date or delivery days.`;
+        
+        if (hasUnavailableDeliveries) {
+          return 'Please change or remove every unavailable delivery date before proceeding.';
         }
       
         return '';
@@ -1019,6 +1139,7 @@ const handleOtherAllergyBlur = () => {
    */
 
   const availabilityBanner =
+    !isMealPrep &&
     activeDate &&
     dateAvailability &&
     !dateAvailability.available && (
@@ -1322,7 +1443,7 @@ const handleOtherAllergyBlur = () => {
 
                     <p className="mt-2">
                       <span className="font-semibold">
-                        {scheduledDeliveries.length} scheduled deliveries
+                      {finalScheduledDeliveries.length} scheduled deliveries
                       </span>
                       {' '}over {mealPrepForm.subscriptionWeeks}{' '}
                       {mealPrepForm.subscriptionWeeks === 1 ? 'week' : 'weeks'}.
@@ -1343,19 +1464,192 @@ const handleOtherAllergyBlur = () => {
                     </p>
 
                     <div className="mt-4 border-t border-[#E8D8C4] pt-3">
-                      <p className="font-semibold mb-2">
-                        Planned delivery dates
+                      <p className="mb-3 font-semibold">
+                        Review your delivery dates
                       </p>
 
-                      <ul className="space-y-1">
-                        {scheduledDeliveries.map((delivery, index) => (
-                          <li key={`${delivery.date}-${index}`}>
-                            Week {delivery.subscriptionWeek} —{' '}
-                            {formatDateLabel(delivery.date)}
-                          </li>
-                        ))}
-                      </ul>
+                      <div className="grid grid-cols-2 items-start gap-2 sm:grid-cols-3 md:grid-cols-4">
+                        {deliveryAvailability.map((delivery) => {
+                          const index = delivery.originalIndex;
+                          const available = delivery.availability.available;
+                          const isSelected = selectedDeliveryIndex === index;
+
+                          return (
+                            <button
+                              key={`${index}-${delivery.date}`}
+                              type="button"
+                              onClick={() => {
+                                if (!available) {
+                                  setSelectedDeliveryIndex(index);
+                                  setStepError('');
+                                }
+                              }}
+                              disabled={available}
+                              className={`self-start rounded-lg border p-2.5 text-left transition ${
+                                available
+                                  ? 'cursor-default border-[#CDE3D1] bg-white'
+                                  : 'cursor-pointer border-[#E6B7AE] bg-[#FFF4F1] hover:border-[#C8431B] hover:bg-[#FCEAE5]'
+                              } ${isSelected ? 'ring-2 ring-[#C8431B]' : ''}`}
+                            >
+                              <p className="text-[10px] font-medium text-[#2B1D16]/60">
+                                Week {delivery.subscriptionWeek}
+                              </p>
+
+                              <p className="mt-1 text-xs font-semibold text-[#2B1D16]">
+                                {formatDateLabel(delivery.date)}
+                              </p>
+
+                              <span
+                                className={`mt-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                  available
+                                    ? 'bg-[#E5F2E7] text-[#28643A]'
+                                    : 'bg-[#F8DDD9] text-[#B3261E]'
+                                }`}
+                              >
+                                {available ? 'Available' : 'Unavailable'}
+                              </span>
+
+                              {!available && (
+                                <p className="mt-1 text-[10px] text-[#B3261E]">
+                                  Click to resolve
+                                </p>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <p className="mt-3 text-xs text-[#2B1D16]/60">
+                        Click an unavailable date to change or remove that delivery.
+                      </p>
                     </div>
+
+                    {/* Unavailable delivery drawer */}
+                    {selectedDeliveryIndex !== null && (
+                      <>
+                        <button
+                          type="button"
+                          aria-label="Close delivery drawer"
+                          onClick={() => setSelectedDeliveryIndex(null)}
+                          className="fixed inset-0 z-40 bg-black/30"
+                        />
+
+                        <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-sm flex-col bg-white shadow-2xl">
+                          <div className="flex items-center justify-between border-b border-[#E8D8C4] p-5">
+                            <div>
+                              <h3 className="text-lg font-semibold text-[#2B1D16]">
+                                Unavailable Delivery
+                              </h3>
+                              <p className="text-xs text-[#2B1D16]/60">
+                                Choose what to do with this delivery.
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDeliveryIndex(null)}
+                              className="rounded-full px-3 py-1 text-xl text-[#2B1D16]/60 hover:bg-[#F7EFE7]"
+                              aria-label="Close"
+                            >
+                              ×
+                            </button>
+                          </div>
+
+                          <div className="flex-1 space-y-5 overflow-y-auto p-5">
+                            {(() => {
+                              const delivery = deliveryAvailability.find(
+                                (item) => item.originalIndex === selectedDeliveryIndex
+                              );
+
+                              if (!delivery) return null;
+
+                              return (
+                                <>
+                                  <div className="rounded-lg border border-[#E6B7AE] bg-[#FFF4F1] p-3">
+                                    <p className="text-xs text-[#2B1D16]/60">
+                                      Week {delivery.subscriptionWeek}
+                                    </p>
+
+                                    <p className="mt-1 font-semibold text-[#2B1D16]">
+                                      {formatDateLabel(delivery.date)}
+                                    </p>
+
+                                    <span className="mt-2 inline-block rounded-full bg-[#F8DDD9] px-2 py-1 text-xs font-semibold text-[#B3261E]">
+                                      Unavailable
+                                    </span>
+
+                                    <p className="mt-2 text-xs text-[#B3261E]">
+                                      {delivery.availability.reason ??
+                                        'This date is unavailable.'}
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <h4 className="mb-2 text-sm font-semibold text-[#2B1D16]">
+                                      Change delivery date
+                                    </h4>
+
+                                    <p className="mb-3 text-xs text-[#2B1D16]/60">
+                                      Select an available replacement date. Your other
+                                      scheduled deliveries will remain unchanged.
+                                    </p>
+
+                                    <input
+                                      type="date"
+                                      min={mealPrepForm.startDate}
+                                      value={
+                                        replacementDateInputs[selectedDeliveryIndex] ?? ''
+                                      }
+                                      onChange={(e) =>
+                                        setReplacementDateInputs((prev) => ({
+                                          ...prev,
+                                          [selectedDeliveryIndex]: e.target.value,
+                                        }))
+                                      }
+                                      className="w-full rounded-lg border border-[#E8D8C4] bg-white px-3 py-2.5 text-sm text-[#2B1D16]"
+                                    />
+
+                                    <Button
+                                      type="button"
+                                      onClick={() => {
+                                        applyDeliveryDate(selectedDeliveryIndex);
+                                        setSelectedDeliveryIndex(null);
+                                      }}
+                                      disabled={!replacementDateInputs[selectedDeliveryIndex]}
+                                      className="mt-3 h-10 w-full bg-[#C8431B] text-white hover:bg-[#A93615]"
+                                    >
+                                      Change Date
+                                    </Button>
+                                  </div>
+
+                                  <div className="border-t border-[#E8D8C4] pt-4">
+                                    <h4 className="text-sm font-semibold text-[#2B1D16]">
+                                      Remove this delivery
+                                    </h4>
+
+                                    <p className="mt-1 text-xs text-[#2B1D16]/60">
+                                      Only this delivery will be removed from your schedule.
+                                    </p>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        removeScheduledDelivery(selectedDeliveryIndex);
+                                        setSelectedDeliveryIndex(null);
+                                      }}
+                                      disabled={finalScheduledDeliveries.length <= 1}
+                                      className="mt-3 w-full rounded-lg border border-[#E6B7AE] px-3 py-2.5 text-sm font-semibold text-[#B3261E] hover:bg-[#FFF4F1] disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                      Remove Delivery
+                                    </button>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </>
+                    )}
 
                     <p className="mt-3 text-xs text-[#2B1D16]/60">
                       These are your preferred dates. The operator will
@@ -1504,7 +1798,10 @@ const handleOtherAllergyBlur = () => {
                   onClick={goNext}
                   disabled={
                     (isMealPrep
-                      ? loadingMealPrepAvailability || Boolean(mealPrepAvailabilityError)
+                      ? loadingMealPrepAvailability ||
+                        Boolean(mealPrepAvailabilityError) ||
+                        finalScheduledDeliveries.length === 0 ||
+                        hasUnavailableDeliveries
                       : loadingAvailability) ||
                     Boolean(guestCountError)
                   }
@@ -1521,8 +1818,8 @@ const handleOtherAllergyBlur = () => {
                       (
                         loadingMealPrepAvailability ||
                         Boolean(mealPrepAvailabilityError) ||
-                        Boolean(unavailableScheduledDelivery) ||
-                        Boolean(dateAvailability && !dateAvailability.available)
+                        finalScheduledDeliveries.length === 0 ||
+                        hasUnavailableDeliveries
                       )) ||
                     (!isMealPrep &&
                       Boolean(activeDate && dateAvailability && !dateAvailability.available)) ||
