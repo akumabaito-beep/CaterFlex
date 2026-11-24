@@ -182,6 +182,7 @@ export async function saveMealPlanDetails(
   return { ok: true }
 }
 
+
 export type MealPlan = {
   id: number
   status: string
@@ -189,6 +190,7 @@ export type MealPlan = {
   servings: number
   nextDate: string
   mealType: string | null
+  mealTypes: string[]
   termCycles: number | null
   planWeeks: number | null
   days: number[]
@@ -206,6 +208,8 @@ export type MealPlan = {
     id: number
     name: string
     quantity: number
+    mealType: string
+    unitPrice: number | null
   }[]
 }
 
@@ -234,30 +238,49 @@ export async function getMyMealPlans(): Promise<
 
   const ids = (orders ?? []).map((o) => Number(o.MealPrepOrderID))
 
-  // Retrieve each dish's individual quantity.
-  const { data: items } = ids.length
-    ? await admin
-        .from('MEAL_PREP_ITEM')
-        .select('MealPrepOrderID, MenuItemID, Quantity')
-        .in('MealPrepOrderID', ids)
-    : {
-        data: [] as {
-          MealPrepOrderID: number
-          MenuItemID: number
-          Quantity: number
-        }[],
-      }
+  const [
+    { data: items, error: itemError },
+    { data: periods, error: periodError },
+  ] = await Promise.all([
+    ids.length
+      ? admin
+          .from('MEAL_PREP_ITEM')
+          .select(
+            'MealPrepOrderID, MenuItemID, Quantity, UnitPrice, MealPrepPlanPeriodID'
+          )
+          .in('MealPrepOrderID', ids)
+      : Promise.resolve({ data: [], error: null }),
 
-  const menuIds = Array.from(
-    new Set((items ?? []).map((i) => Number(i.MenuItemID)))
-  )
+    ids.length
+      ? admin
+          .from('MEAL_PREP_PLAN_PERIOD')
+          .select('MealPrepPlanPeriodID, MealPrepOrderID, MealPeriod')
+          .in('MealPrepOrderID', ids)
+      : Promise.resolve({ data: [], error: null }),
+  ])
 
-  const { data: menu } = menuIds.length
+  if (itemError) {
+    return { ok: false, error: itemError.message, plans: [] }
+  }
+
+  if (periodError) {
+    return { ok: false, error: periodError.message, plans: [] }
+  }
+
+  const menuIds = [
+    ...new Set((items ?? []).map((i) => Number(i.MenuItemID))),
+  ]
+
+  const { data: menu, error: menuError } = menuIds.length
     ? await admin
         .from('MENU_ITEM')
         .select('MenuItemID, ItemName')
         .in('MenuItemID', menuIds)
-    : { data: [] as { MenuItemID: number; ItemName: string }[] }
+    : { data: [], error: null }
+
+  if (menuError) {
+    return { ok: false, error: menuError.message, plans: [] }
+  }
 
   const names = new Map(
     (menu ?? []).map((m) => [
@@ -266,55 +289,111 @@ export async function getMyMealPlans(): Promise<
     ])
   )
 
-  const plans: MealPlan[] = (orders ?? []).map((o) => ({
-    id: Number(o.MealPrepOrderID),
-    status: String(o.Status ?? '').toLowerCase(),
-    frequency: o.RecurrencePattern === 'biweekly' ? 'biweekly' : 'weekly',
-    servings: Number(o.MealsPerCycle ?? 0),
-    nextDate: String(o.NextFulfillmentDate ?? '').slice(0, 10),
-    mealType: o.MealType ?? null,
-    termCycles:
-      o.TermCycles === null || o.TermCycles === undefined
-        ? null
-        : Number(o.TermCycles),
-    planWeeks:
-      o.PlanWeeks === null || o.PlanWeeks === undefined
-        ? null
-        : Number(o.PlanWeeks),
-    days: parseDeliveryDays(o.DeliveryDays),
-    pausedUntil: o.PausedUntil
-      ? String(o.PausedUntil).slice(0, 10)
-      : null,
-    refund:
-      o.RefundAmount === null || o.RefundAmount === undefined
-        ? null
-        : Number(o.RefundAmount),
-    termEnd: o.TermEndDate
-      ? String(o.TermEndDate).slice(0, 10)
-      : null,
-    renewedCount: Number(o.RenewedCount ?? 0),
-    skippedCount: Number(o.SkippedCount ?? 0),
-    method: o.FulfillmentMethod === 'delivery' ? 'delivery' : 'pickup',
-    time: o.FulfillmentTime ?? null,
-    address: o.DeliveryAddress ?? null,
-    deliveryFee: Number(o.DeliveryFee ?? 0),
-    pricePerServing:
-      o.PricePerServing === null || o.PricePerServing === undefined
-        ? null
-        : Number(o.PricePerServing),
+  const periodNames = new Map(
+    (periods ?? []).map((p) => [
+      Number(p.MealPrepPlanPeriodID),
+      String(p.MealPeriod),
+    ])
+  )
 
-    dishes: (items ?? [])
-      .filter(
-        (i) => Number(i.MealPrepOrderID) === Number(o.MealPrepOrderID)
+  const normalizeMealType = (value: string) => {
+    const normalized = value.trim().toLowerCase()
+
+    if (normalized === 'breakfast') return 'Breakfast'
+    if (normalized === 'lunch') return 'Lunch'
+    if (normalized === 'dinner') return 'Dinner'
+
+    return value
+  }
+
+  const plans: MealPlan[] = (orders ?? []).map((o) => {
+    const orderId = Number(o.MealPrepOrderID)
+
+    const orderItems = (items ?? []).filter(
+      (i) => Number(i.MealPrepOrderID) === orderId
+    )
+
+    const dishes = orderItems.map((i) => {
+      const savedPeriod = periodNames.get(
+        Number(i.MealPrepPlanPeriodID)
       )
-      .map((i) => ({
+
+      // Fallback for older orders that did not use plan periods.
+      const mealType = normalizeMealType(
+        savedPeriod ?? String(o.MealType ?? 'Meal')
+      )
+
+      return {
         id: Number(i.MenuItemID),
         name:
           names.get(Number(i.MenuItemID)) ??
           `Dish #${i.MenuItemID}`,
         quantity: Number(i.Quantity ?? 1),
-      })),
-  }))
+        mealType,
+        unitPrice:
+          i.UnitPrice === null || i.UnitPrice === undefined
+            ? null
+            : Number(i.UnitPrice),
+      }
+    })
+
+    const mealTypes = [
+      ...new Set(dishes.map((dish) => dish.mealType)),
+    ]
+
+    // Keep compatibility with older orders without linked dish records.
+    if (mealTypes.length === 0 && o.MealType) {
+      mealTypes.push(normalizeMealType(String(o.MealType)))
+    }
+
+    const totalServings = dishes.reduce(
+      (total, dish) => total + dish.quantity,
+      0
+    )
+
+    return {
+      id: orderId,
+      status: String(o.Status ?? '').toLowerCase(),
+      frequency:
+        o.RecurrencePattern === 'biweekly' ? 'biweekly' : 'weekly',
+      servings:
+        totalServings || Number(o.MealsPerCycle ?? 0),
+      nextDate: String(o.NextFulfillmentDate ?? '').slice(0, 10),
+      mealType: o.MealType ?? null,
+      mealTypes,
+      termCycles:
+        o.TermCycles === null || o.TermCycles === undefined
+          ? null
+          : Number(o.TermCycles),
+      planWeeks:
+        o.PlanWeeks === null || o.PlanWeeks === undefined
+          ? null
+          : Number(o.PlanWeeks),
+      days: parseDeliveryDays(o.DeliveryDays),
+      pausedUntil: o.PausedUntil
+        ? String(o.PausedUntil).slice(0, 10)
+        : null,
+      refund:
+        o.RefundAmount === null || o.RefundAmount === undefined
+          ? null
+          : Number(o.RefundAmount),
+      termEnd: o.TermEndDate
+        ? String(o.TermEndDate).slice(0, 10)
+        : null,
+      renewedCount: Number(o.RenewedCount ?? 0),
+      skippedCount: Number(o.SkippedCount ?? 0),
+      method:
+        o.FulfillmentMethod === 'delivery' ? 'delivery' : 'pickup',
+      time: o.FulfillmentTime ?? null,
+      address: o.DeliveryAddress ?? null,
+      deliveryFee: Number(o.DeliveryFee ?? 0),
+      pricePerServing:
+        o.PricePerServing === null || o.PricePerServing === undefined
+          ? null
+          : Number(o.PricePerServing),
+      dishes,
+    }
+  })
 
   return {
     ok: true,
@@ -322,6 +401,7 @@ export async function getMyMealPlans(): Promise<
     today: todayInManila(),
   }
 }
+
 
 /**
  * Renew: add more weeks. If the plan is still running, the new weeks are added after the last
