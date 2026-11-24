@@ -2044,7 +2044,7 @@ const handleOtherAllergyBlur = () => {
                   type="button"
                   variant="outline"
                   className="h-11 rounded-lg border-[#C8431B] px-5 text-[#C8431B] hover:bg-[#F6E3D3] hover:text-[#A93615]"
-                  onClick={() => router.back()}
+                  onClick={() => router.push('/customer/home')}
                 >
                   Cancel
                 </Button>
