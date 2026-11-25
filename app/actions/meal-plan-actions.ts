@@ -1,3 +1,4 @@
+
 'use server'
 
 import { revalidatePath } from 'next/cache'
@@ -51,10 +52,19 @@ async function loadOwnPlan(orderId: number): Promise<Loaded> {
   const customer = await requireRole('customer')
   if (!customer) return { error: 'Customer access required.' }
   if (!Number.isInteger(orderId) || orderId <= 0) return { error: 'Invalid meal plan.' }
+
   const admin = createAdminClient()
-  const { data, error } = await admin.from('MEAL_PREP_ORDER').select(PLAN_FIELDS).eq('MealPrepOrderID', orderId).maybeSingle()
+  const { data, error } = await admin
+    .from('MEAL_PREP_ORDER')
+    .select(PLAN_FIELDS)
+    .eq('MealPrepOrderID', orderId)
+    .maybeSingle()
+
   if (error) return { error: error.message }
-  if (!data || Number(data.CustomerID) !== Number(customer.id)) return { error: 'You are not authorized to change this meal plan.' }
+  if (!data || Number(data.CustomerID) !== Number(customer.id)) {
+    return { error: 'You are not authorized to change this meal plan.' }
+  }
+
   return { admin, plan: data }
 }
 
@@ -63,13 +73,26 @@ async function currentPricePerServing(
   admin: ReturnType<typeof createAdminClient>,
   orderId: number
 ): Promise<{ error: string; price?: undefined } | { error?: undefined; price: number }> {
-  const { data: items, error } = await admin.from('MEAL_PREP_ITEM').select('MenuItemID').eq('MealPrepOrderID', orderId)
+  const { data: items, error } = await admin
+    .from('MEAL_PREP_ITEM')
+    .select('MenuItemID')
+    .eq('MealPrepOrderID', orderId)
+
   if (error) return { error: error.message }
+
   const ids = (items ?? []).map((i) => Number(i.MenuItemID))
   if (ids.length === 0) return { error: 'This meal plan has no dishes.' }
-  const { data: menu, error: menuError } = await admin.from('MENU_ITEM').select('MenuItemID, Price').in('MenuItemID', ids)
+
+  const { data: menu, error: menuError } = await admin
+    .from('MENU_ITEM')
+    .select('MenuItemID, Price')
+    .in('MenuItemID', ids)
+
   if (menuError) return { error: menuError.message }
-  return { price: (menu ?? []).reduce((sum, m) => sum + Number(m.Price ?? 0), 0) }
+
+  return {
+    price: (menu ?? []).reduce((sum, m) => sum + Number(m.Price ?? 0), 0),
+  }
 }
 
 export type MealPlanDetailsInput = {
@@ -85,33 +108,57 @@ export type MealPlanDetailsInput = {
  * Called right after createMealPrepOrder. Saves the subscription details, calculates the
  * delivery fee on the server, and LOCKS the price per serving at today's menu prices.
  */
-export async function saveMealPlanDetails(orderId: number, input: MealPlanDetailsInput): Promise<{ ok: true } | Fail> {
+export async function saveMealPlanDetails(
+  orderId: number,
+  input: MealPlanDetailsInput
+): Promise<{ ok: true } | Fail> {
   const loaded = await loadOwnPlan(orderId)
   if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+
   const { admin, plan } = loaded
 
-  if (String(plan.Status) !== 'pending' || plan.MealType) return { ok: false, error: 'This meal plan was already set up.' }
-  if (!isMealType(input.mealType)) return { ok: false, error: 'Choose breakfast, lunch or dinner.' }
-  if (!isPlanWeeks(input.planWeeks)) return { ok: false, error: 'Choose a plan length of 1, 2 or 4 weeks.' }
+  if (String(plan.Status) !== 'pending' || plan.MealType) {
+    return { ok: false, error: 'This meal plan was already set up.' }
+  }
+  if (!isMealType(input.mealType)) {
+    return { ok: false, error: 'Choose breakfast, lunch or dinner.' }
+  }
+  if (!isPlanWeeks(input.planWeeks)) {
+    return { ok: false, error: 'Choose a plan length of 1, 2 or 4 weeks.' }
+  }
+
   const days = parseDeliveryDays(input.deliveryDays)
-  if (days.length === 0) return { ok: false, error: 'Choose at least one delivery day.' }
-  if (!TIME_RE.test(input.fulfillmentTime)) return { ok: false, error: 'Choose a delivery time.' }
+  if (days.length === 0) {
+    return { ok: false, error: 'Choose at least one delivery day.' }
+  }
+  if (!TIME_RE.test(input.fulfillmentTime)) {
+    return { ok: false, error: 'Choose a delivery time.' }
+  }
+
   const method = input.fulfillmentMethod === 'delivery' ? 'delivery' : 'pickup'
 
   let address: string | null = null
   let fee = 0
+
   if (method === 'delivery') {
     address = String(input.deliveryAddress ?? '').trim().slice(0, 500)
     const d = deliveryFeeForVenue(address)
-    if (!address || !d) return { ok: false, error: 'Pin the delivery location on the map.' }
+
+    if (!address || !d) {
+      return { ok: false, error: 'Pin the delivery location on the map.' }
+    }
+
     fee = d.fee
   }
 
   const priced = await currentPricePerServing(admin, orderId)
   if (priced.error !== undefined) return { ok: false, error: priced.error }
 
-  // the first delivery is the first chosen day on or after the date the customer picked
-  const start = firstDeliveryOnOrAfter(String(plan.NextFulfillmentDate).slice(0, 10), days)
+  const start = firstDeliveryOnOrAfter(
+    String(plan.NextFulfillmentDate).slice(0, 10),
+    days
+  )
+
   const { error } = await admin
     .from('MEAL_PREP_ORDER')
     .update({
@@ -129,9 +176,12 @@ export async function saveMealPlanDetails(orderId: number, input: MealPlanDetail
       PricePerServing: priced.price,
     })
     .eq('MealPrepOrderID', orderId)
+
   if (error) return { ok: false, error: error.message }
+
   return { ok: true }
 }
+
 
 export type MealPlan = {
   id: number
@@ -140,6 +190,7 @@ export type MealPlan = {
   servings: number
   nextDate: string
   mealType: string | null
+  mealTypes: string[]
   termCycles: number | null
   planWeeks: number | null
   days: number[]
@@ -153,58 +204,204 @@ export type MealPlan = {
   address: string | null
   deliveryFee: number
   pricePerServing: number | null
-  dishes: { id: number; name: string }[]
+  dishes: {
+    id: number
+    name: string
+    quantity: number
+    mealType: string
+    unitPrice: number | null
+  }[]
 }
 
-export async function getMyMealPlans(): Promise<{ ok: true; plans: MealPlan[]; today: string } | (Fail & { plans: [] })> {
+export async function getMyMealPlans(): Promise<
+  { ok: true; plans: MealPlan[]; today: string } | (Fail & { plans: [] })
+> {
   const customer = await requireRole('customer')
-  if (!customer) return { ok: false, error: 'Customer access required.', plans: [] }
+
+  if (!customer) {
+    return { ok: false, error: 'Customer access required.', plans: [] }
+  }
+
   const admin = createAdminClient()
-  // plans whose planned return date has arrived start delivering again
+
   await resumeDuePlans(admin, todayInManila(), Number(customer.id))
+
   const { data: orders, error } = await admin
     .from('MEAL_PREP_ORDER')
     .select(PLAN_FIELDS)
     .eq('CustomerID', Number(customer.id))
     .order('MealPrepOrderID', { ascending: false })
-  if (error) return { ok: false, error: error.message, plans: [] }
+
+  if (error) {
+    return { ok: false, error: error.message, plans: [] }
+  }
 
   const ids = (orders ?? []).map((o) => Number(o.MealPrepOrderID))
-  const { data: items } = ids.length
-    ? await admin.from('MEAL_PREP_ITEM').select('MealPrepOrderID, MenuItemID').in('MealPrepOrderID', ids)
-    : { data: [] as { MealPrepOrderID: number; MenuItemID: number }[] }
-  const menuIds = Array.from(new Set((items ?? []).map((i) => Number(i.MenuItemID))))
-  const { data: menu } = menuIds.length
-    ? await admin.from('MENU_ITEM').select('MenuItemID, ItemName').in('MenuItemID', menuIds)
-    : { data: [] as { MenuItemID: number; ItemName: string }[] }
-  const names = new Map((menu ?? []).map((m) => [Number(m.MenuItemID), String(m.ItemName)]))
 
-  const plans: MealPlan[] = (orders ?? []).map((o) => ({
-    id: Number(o.MealPrepOrderID),
-    status: String(o.Status ?? '').toLowerCase(),
-    frequency: o.RecurrencePattern === 'biweekly' ? 'biweekly' : 'weekly',
-    servings: Number(o.MealsPerCycle ?? 0),
-    nextDate: String(o.NextFulfillmentDate ?? '').slice(0, 10),
-    mealType: o.MealType ?? null,
-    termCycles: o.TermCycles === null || o.TermCycles === undefined ? null : Number(o.TermCycles),
-    planWeeks: o.PlanWeeks === null || o.PlanWeeks === undefined ? null : Number(o.PlanWeeks),
-    days: parseDeliveryDays(o.DeliveryDays),
-    pausedUntil: o.PausedUntil ? String(o.PausedUntil).slice(0, 10) : null,
-    refund: o.RefundAmount === null || o.RefundAmount === undefined ? null : Number(o.RefundAmount),
-    termEnd: o.TermEndDate ? String(o.TermEndDate).slice(0, 10) : null,
-    renewedCount: Number(o.RenewedCount ?? 0),
-    skippedCount: Number(o.SkippedCount ?? 0),
-    method: o.FulfillmentMethod === 'delivery' ? 'delivery' : 'pickup',
-    time: o.FulfillmentTime ?? null,
-    address: o.DeliveryAddress ?? null,
-    deliveryFee: Number(o.DeliveryFee ?? 0),
-    pricePerServing: o.PricePerServing === null || o.PricePerServing === undefined ? null : Number(o.PricePerServing),
-    dishes: (items ?? [])
-      .filter((i) => Number(i.MealPrepOrderID) === Number(o.MealPrepOrderID))
-      .map((i) => ({ id: Number(i.MenuItemID), name: names.get(Number(i.MenuItemID)) ?? `Dish #${i.MenuItemID}` })),
-  }))
-  return { ok: true, plans, today: todayInManila() }
+  const [
+    { data: items, error: itemError },
+    { data: periods, error: periodError },
+  ] = await Promise.all([
+    ids.length
+      ? admin
+          .from('MEAL_PREP_ITEM')
+          .select(
+            'MealPrepOrderID, MenuItemID, Quantity, UnitPrice, MealPrepPlanPeriodID'
+          )
+          .in('MealPrepOrderID', ids)
+      : Promise.resolve({ data: [], error: null }),
+
+    ids.length
+      ? admin
+          .from('MEAL_PREP_PLAN_PERIOD')
+          .select('MealPrepPlanPeriodID, MealPrepOrderID, MealPeriod')
+          .in('MealPrepOrderID', ids)
+      : Promise.resolve({ data: [], error: null }),
+  ])
+
+  if (itemError) {
+    return { ok: false, error: itemError.message, plans: [] }
+  }
+
+  if (periodError) {
+    return { ok: false, error: periodError.message, plans: [] }
+  }
+
+  const menuIds = [
+    ...new Set((items ?? []).map((i) => Number(i.MenuItemID))),
+  ]
+
+  const { data: menu, error: menuError } = menuIds.length
+    ? await admin
+        .from('MENU_ITEM')
+        .select('MenuItemID, ItemName')
+        .in('MenuItemID', menuIds)
+    : { data: [], error: null }
+
+  if (menuError) {
+    return { ok: false, error: menuError.message, plans: [] }
+  }
+
+  const names = new Map(
+    (menu ?? []).map((m) => [
+      Number(m.MenuItemID),
+      String(m.ItemName),
+    ])
+  )
+
+  const periodNames = new Map(
+    (periods ?? []).map((p) => [
+      Number(p.MealPrepPlanPeriodID),
+      String(p.MealPeriod),
+    ])
+  )
+
+  const normalizeMealType = (value: string) => {
+    const normalized = value.trim().toLowerCase()
+
+    if (normalized === 'breakfast') return 'Breakfast'
+    if (normalized === 'lunch') return 'Lunch'
+    if (normalized === 'dinner') return 'Dinner'
+
+    return value
+  }
+
+  const plans: MealPlan[] = (orders ?? []).map((o) => {
+    const orderId = Number(o.MealPrepOrderID)
+
+    const orderItems = (items ?? []).filter(
+      (i) => Number(i.MealPrepOrderID) === orderId
+    )
+
+    const dishes = orderItems.map((i) => {
+      const savedPeriod = periodNames.get(
+        Number(i.MealPrepPlanPeriodID)
+      )
+
+      // Fallback for older orders that did not use plan periods.
+      const mealType = normalizeMealType(
+        savedPeriod ?? String(o.MealType ?? 'Meal')
+      )
+
+      return {
+        id: Number(i.MenuItemID),
+        name:
+          names.get(Number(i.MenuItemID)) ??
+          `Dish #${i.MenuItemID}`,
+        quantity: Number(i.Quantity ?? 1),
+        mealType,
+        unitPrice:
+          i.UnitPrice === null || i.UnitPrice === undefined
+            ? null
+            : Number(i.UnitPrice),
+      }
+    })
+
+    const mealTypes = [
+      ...new Set(dishes.map((dish) => dish.mealType)),
+    ]
+
+    // Keep compatibility with older orders without linked dish records.
+    if (mealTypes.length === 0 && o.MealType) {
+      mealTypes.push(normalizeMealType(String(o.MealType)))
+    }
+
+    const totalServings = dishes.reduce(
+      (total, dish) => total + dish.quantity,
+      0
+    )
+
+    return {
+      id: orderId,
+      status: String(o.Status ?? '').toLowerCase(),
+      frequency:
+        o.RecurrencePattern === 'biweekly' ? 'biweekly' : 'weekly',
+      servings:
+        totalServings || Number(o.MealsPerCycle ?? 0),
+      nextDate: String(o.NextFulfillmentDate ?? '').slice(0, 10),
+      mealType: o.MealType ?? null,
+      mealTypes,
+      termCycles:
+        o.TermCycles === null || o.TermCycles === undefined
+          ? null
+          : Number(o.TermCycles),
+      planWeeks:
+        o.PlanWeeks === null || o.PlanWeeks === undefined
+          ? null
+          : Number(o.PlanWeeks),
+      days: parseDeliveryDays(o.DeliveryDays),
+      pausedUntil: o.PausedUntil
+        ? String(o.PausedUntil).slice(0, 10)
+        : null,
+      refund:
+        o.RefundAmount === null || o.RefundAmount === undefined
+          ? null
+          : Number(o.RefundAmount),
+      termEnd: o.TermEndDate
+        ? String(o.TermEndDate).slice(0, 10)
+        : null,
+      renewedCount: Number(o.RenewedCount ?? 0),
+      skippedCount: Number(o.SkippedCount ?? 0),
+      method:
+        o.FulfillmentMethod === 'delivery' ? 'delivery' : 'pickup',
+      time: o.FulfillmentTime ?? null,
+      address: o.DeliveryAddress ?? null,
+      deliveryFee: Number(o.DeliveryFee ?? 0),
+      pricePerServing:
+        o.PricePerServing === null || o.PricePerServing === undefined
+          ? null
+          : Number(o.PricePerServing),
+      dishes,
+    }
+  })
+
+  return {
+    ok: true,
+    plans,
+    today: todayInManila(),
+  }
 }
+
 
 /**
  * Renew: add more weeks. If the plan is still running, the new weeks are added after the last
@@ -214,13 +411,18 @@ export async function getMyMealPlans(): Promise<{ ok: true; plans: MealPlan[]; t
 export async function renewMealPlan(orderId: number, weeks: number): Promise<{ ok: true } | Fail> {
   const loaded = await loadOwnPlan(orderId)
   if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+
   const { admin, plan } = loaded
+
   if (!isPlanWeeks(weeks)) return { ok: false, error: 'Choose 1, 2 or 4 more weeks.' }
+
   const status = String(plan.Status).toLowerCase()
   if (!['active', 'confirmed', 'paused', 'ended'].includes(status)) {
     return { ok: false, error: 'Only confirmed meal plans can be renewed.' }
   }
-  if (!plan.TermEndDate) return { ok: false, error: 'This meal plan has no subscription term yet.' }
+  if (!plan.TermEndDate) {
+    return { ok: false, error: 'This meal plan has no subscription term yet.' }
+  }
 
   const today = todayInManila()
   const days = parseDeliveryDays(plan.DeliveryDays)
@@ -230,7 +432,11 @@ export async function renewMealPlan(orderId: number, weeks: number): Promise<{ o
 
   if (end >= today && status !== 'ended') {
     let newEnd = end
-    for (let i = 0; i < add; i++) newEnd = nextDeliveryAfter(newEnd, days, freq)
+
+    for (let i = 0; i < add; i++) {
+      newEnd = nextDeliveryAfter(newEnd, days, freq)
+    }
+
     const { error } = await admin
       .from('MEAL_PREP_ORDER')
       .update({
@@ -240,20 +446,41 @@ export async function renewMealPlan(orderId: number, weeks: number): Promise<{ o
         RenewedCount: Number(plan.RenewedCount ?? 0) + 1,
       })
       .eq('MealPrepOrderID', orderId)
+
     if (error) return { ok: false, error: error.message }
+
     const from = String(plan.NextFulfillmentDate).slice(0, 10)
     const all = scheduleDates(from, newEnd, days, freq)
-    await syncDeliveries(admin, orderId, all, { time: plan.FulfillmentTime, perWeek: days.length || 1 })
-    await addRenewalPayments(admin, orderId, all.filter((d) => d > end), days.length || 1, {
-      pricePerServing: Number(plan.PricePerServing ?? 0),
-      servings: Number(plan.MealsPerCycle ?? 0),
-      deliveryFee: Number(plan.DeliveryFee ?? 0),
+
+    await syncDeliveries(admin, orderId, all, {
+      time: plan.FulfillmentTime,
+      perWeek: days.length || 1,
     })
+
+    await addRenewalPayments(
+      admin,
+      orderId,
+      all.filter((d) => d > end),
+      days.length || 1,
+      {
+        pricePerServing: Number(plan.PricePerServing ?? 0),
+        servings: Number(plan.MealsPerCycle ?? 0),
+        deliveryFee: Number(plan.DeliveryFee ?? 0),
+      }
+    )
   } else {
     const priced = await currentPricePerServing(admin, orderId)
     if (priced.error !== undefined) return { ok: false, error: priced.error }
+
     const earliest = addDaysISO(today, SKIP_CUTOFF_DAYS)
-    const dates = deliveryDates(earliest, add, days.length ? days : [new Date(`${String(plan.NextFulfillmentDate).slice(0, 10)}T00:00:00Z`).getUTCDay()])
+    const dates = deliveryDates(
+      earliest,
+      add,
+      days.length
+        ? days
+        : [new Date(`${String(plan.NextFulfillmentDate).slice(0, 10)}T00:00:00Z`).getUTCDay()]
+    )
+
     const { error } = await admin
       .from('MEAL_PREP_ORDER')
       .update({
@@ -266,14 +493,21 @@ export async function renewMealPlan(orderId: number, weeks: number): Promise<{ o
         PricePerServing: priced.price,
       })
       .eq('MealPrepOrderID', orderId)
+
     if (error) return { ok: false, error: error.message }
-    await syncDeliveries(admin, orderId, dates, { time: plan.FulfillmentTime, perWeek: days.length || 1 })
+
+    await syncDeliveries(admin, orderId, dates, {
+      time: plan.FulfillmentTime,
+      perWeek: days.length || 1,
+    })
+
     await addRenewalPayments(admin, orderId, dates, days.length || 1, {
       pricePerServing: priced.price,
       servings: Number(plan.MealsPerCycle ?? 0),
       deliveryFee: Number(plan.DeliveryFee ?? 0),
     })
   }
+
   revalidatePath('/customer/active-orders')
   return { ok: true }
 }
@@ -282,27 +516,50 @@ export async function renewMealPlan(orderId: number, weeks: number): Promise<{ o
 export async function skipNextDelivery(orderId: number): Promise<{ ok: true } | Fail> {
   const loaded = await loadOwnPlan(orderId)
   if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+
   const { admin, plan } = loaded
+
   if (!['active', 'confirmed'].includes(String(plan.Status).toLowerCase())) {
     return { ok: false, error: 'Only active meal plans can skip a delivery.' }
   }
-  if (!plan.TermEndDate) return { ok: false, error: 'This meal plan has no subscription term yet.' }
+  if (!plan.TermEndDate) {
+    return { ok: false, error: 'This meal plan has no subscription term yet.' }
+  }
+
   const today = todayInManila()
   const next = String(plan.NextFulfillmentDate).slice(0, 10)
+
   if (daysBetween(today, next) < SKIP_CUTOFF_DAYS) {
-    return { ok: false, error: `Deliveries can be skipped up to ${SKIP_CUTOFF_DAYS} days before the delivery date.` }
+    return {
+      ok: false,
+      error: `Deliveries can be skipped up to ${SKIP_CUTOFF_DAYS} days before the delivery date.`,
+    }
   }
+
   const days = parseDeliveryDays(plan.DeliveryDays)
   const freq = String(plan.RecurrencePattern)
   const newNext = nextDeliveryAfter(next, days, freq)
   const newEnd = nextDeliveryAfter(String(plan.TermEndDate).slice(0, 10), days, freq)
+
   const { error } = await admin
     .from('MEAL_PREP_ORDER')
-    .update({ NextFulfillmentDate: newNext, TermEndDate: newEnd, SkippedCount: Number(plan.SkippedCount ?? 0) + 1 })
+    .update({
+      NextFulfillmentDate: newNext,
+      TermEndDate: newEnd,
+      SkippedCount: Number(plan.SkippedCount ?? 0) + 1,
+    })
     .eq('MealPrepOrderID', orderId)
+
   if (error) return { ok: false, error: error.message }
+
   await markFirstSkipped(admin, orderId)
-  await syncDeliveries(admin, orderId, scheduleDates(newNext, newEnd, days, freq), { time: plan.FulfillmentTime, perWeek: days.length || 1 })
+  await syncDeliveries(
+    admin,
+    orderId,
+    scheduleDates(newNext, newEnd, days, freq),
+    { time: plan.FulfillmentTime, perWeek: days.length || 1 }
+  )
+
   revalidatePath('/customer/active-orders')
   return { ok: true }
 }
@@ -314,25 +571,40 @@ export async function skipNextDelivery(orderId: number): Promise<{ ok: true } | 
 export async function pauseMealPlan(orderId: number, returnDate: string): Promise<{ ok: true } | Fail> {
   const loaded = await loadOwnPlan(orderId)
   if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+
   const { admin, plan } = loaded
+
   if (!['active', 'confirmed'].includes(String(plan.Status).toLowerCase())) {
     return { ok: false, error: 'Only active meal plans can be paused.' }
   }
+
   const today = todayInManila()
   const next = String(plan.NextFulfillmentDate).slice(0, 10)
+
   if (daysBetween(today, next) < PAUSE_CUTOFF_DAYS) {
-    return { ok: false, error: `Your next delivery is less than ${PAUSE_CUTOFF_DAYS} days away and is already being prepared. You can pause after it.` }
+    return {
+      ok: false,
+      error: `Your next delivery is less than ${PAUSE_CUTOFF_DAYS} days away and is already being prepared. You can pause after it.`,
+    }
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(returnDate)) return { ok: false, error: 'Choose the date you want deliveries to start again.' }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(returnDate)) {
+    return { ok: false, error: 'Choose the date you want deliveries to start again.' }
+  }
+
   const length = daysBetween(today, returnDate)
   if (length < 1) return { ok: false, error: 'Choose a return date after today.' }
-  if (length > MAX_PAUSE_DAYS) return { ok: false, error: `A plan can be paused for up to ${MAX_PAUSE_DAYS} days at a time.` }
+  if (length > MAX_PAUSE_DAYS) {
+    return { ok: false, error: `A plan can be paused for up to ${MAX_PAUSE_DAYS} days at a time.` }
+  }
 
   const { error } = await admin
     .from('MEAL_PREP_ORDER')
     .update({ Status: 'paused', PausedFrom: today, PausedUntil: returnDate })
     .eq('MealPrepOrderID', orderId)
+
   if (error) return { ok: false, error: error.message }
+
   revalidatePath('/customer/active-orders')
   return { ok: true }
 }
@@ -341,25 +613,49 @@ export async function pauseMealPlan(orderId: number, returnDate: string): Promis
 export async function resumeMealPlan(orderId: number): Promise<{ ok: true } | Fail> {
   const loaded = await loadOwnPlan(orderId)
   if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+
   const { admin, plan } = loaded
-  if (String(plan.Status).toLowerCase() !== 'paused') return { ok: false, error: 'This meal plan is not paused.' }
+
+  if (String(plan.Status).toLowerCase() !== 'paused') {
+    return { ok: false, error: 'This meal plan is not paused.' }
+  }
+
   const today = todayInManila()
-  const { error } = await resumePausedPlan(admin, plan, addDaysISO(today, SKIP_CUTOFF_DAYS), today)
+  const { error } = await resumePausedPlan(
+    admin,
+    plan,
+    addDaysISO(today, SKIP_CUTOFF_DAYS),
+    today
+  )
+
   if (error) return { ok: false, error: error.message }
+
   revalidatePath('/customer/active-orders')
   return { ok: true }
 }
 
-async function refundFor(admin: ReturnType<typeof createAdminClient>, plan: Record<string, any>, orderId: number) {
+async function refundFor(
+  admin: ReturnType<typeof createAdminClient>,
+  plan: Record<string, any>,
+  orderId: number
+) {
   const status = String(plan.Status).toLowerCase()
   const today = todayInManila()
-  let price = plan.PricePerServing === null || plan.PricePerServing === undefined ? null : Number(plan.PricePerServing)
+
+  let price =
+    plan.PricePerServing === null || plan.PricePerServing === undefined
+      ? null
+      : Number(plan.PricePerServing)
+
   if (price === null) {
     const priced = await currentPricePerServing(admin, orderId)
     price = priced.error === undefined ? priced.price : 0
   }
-  // a plan nobody has confirmed or paid for yet has nothing to refund
-  if (status === 'pending') return { refundedDeliveries: 0, committedDeliveries: 0, refund: 0 }
+
+  if (status === 'pending') {
+    return { refundedDeliveries: 0, committedDeliveries: 0, refund: 0 }
+  }
+
   return cancellationRefund({
     nextDate: String(plan.NextFulfillmentDate).slice(0, 10),
     termEnd: plan.TermEndDate ? String(plan.TermEndDate).slice(0, 10) : null,
@@ -375,65 +671,108 @@ async function refundFor(admin: ReturnType<typeof createAdminClient>, plan: Reco
 /** What cancelling would do, shown before the customer confirms. */
 export async function previewMealPlanCancellation(
   orderId: number
-): Promise<{ ok: true; refundedDeliveries: number; committedDeliveries: number; refund: number } | Fail> {
+): Promise<
+  { ok: true; refundedDeliveries: number; committedDeliveries: number; refund: number } | Fail
+> {
   const loaded = await loadOwnPlan(orderId)
   if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+
   const r = await refundFor(loaded.admin, loaded.plan, orderId)
   return { ok: true, ...r }
 }
 
 /**
  * Cancel right away. Deliveries inside the 2-day cutoff are treated as committed; the unused
- * deliveries after that are refunded at the LOCKED price. The system works out the amount and the
- * owner pays it back manually (there is no payment gateway).
+ * deliveries after that are refunded at the LOCKED price. The owner pays this back manually.
  */
 export async function cancelMealPlan(
   orderId: number
 ): Promise<{ ok: true; refund: number; refundedDeliveries: number } | Fail> {
   const loaded = await loadOwnPlan(orderId)
   if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+
   const { admin, plan } = loaded
+
   if (!['pending', 'confirmed', 'active', 'paused'].includes(String(plan.Status).toLowerCase())) {
     return { ok: false, error: 'This meal plan cannot be cancelled.' }
   }
+
   const r = await refundFor(admin, plan, orderId)
+
   const { error } = await admin
     .from('MEAL_PREP_ORDER')
-    .update({ Status: 'cancelled', RefundAmount: r.refund, CancelledAt: todayInManila(), PausedFrom: null, PausedUntil: null })
+    .update({
+      Status: 'cancelled',
+      RefundAmount: r.refund,
+      CancelledAt: todayInManila(),
+      PausedFrom: null,
+      PausedUntil: null,
+    })
     .eq('MealPrepOrderID', orderId)
+
   if (error) return { ok: false, error: error.message }
+
   await cancelDeliveries(admin, orderId, todayInManila())
   await cancelPendingPayments(admin, orderId, todayInManila())
+
   revalidatePath('/customer/active-orders')
-  return { ok: true, refund: r.refund, refundedDeliveries: r.refundedDeliveries }
+  return {
+    ok: true,
+    refund: r.refund,
+    refundedDeliveries: r.refundedDeliveries,
+  }
 }
 
 /** Change delivery time / method / address. The delivery fee is recalculated; food prices stay locked. */
 export async function updateMealPlanDelivery(
   orderId: number,
-  input: { fulfillmentTime: string; fulfillmentMethod: string; deliveryAddress?: string | null }
+  input: {
+    fulfillmentTime: string
+    fulfillmentMethod: string
+    deliveryAddress?: string | null
+  }
 ): Promise<{ ok: true } | Fail> {
   const loaded = await loadOwnPlan(orderId)
   if (loaded.error !== undefined) return { ok: false, error: loaded.error }
+
   const { admin, plan } = loaded
+
   if (!['pending', 'active', 'confirmed', 'paused'].includes(String(plan.Status).toLowerCase())) {
     return { ok: false, error: 'This meal plan can no longer be changed.' }
   }
-  if (!TIME_RE.test(input.fulfillmentTime)) return { ok: false, error: 'Choose a delivery time.' }
+
+  if (!TIME_RE.test(input.fulfillmentTime)) {
+    return { ok: false, error: 'Choose a delivery time.' }
+  }
+
   const method = input.fulfillmentMethod === 'delivery' ? 'delivery' : 'pickup'
+
   let address: string | null = null
   let fee = 0
+
   if (method === 'delivery') {
     address = String(input.deliveryAddress ?? '').trim().slice(0, 500)
     const d = deliveryFeeForVenue(address)
-    if (!address || !d) return { ok: false, error: 'Pin the delivery location on the map.' }
+
+    if (!address || !d) {
+      return { ok: false, error: 'Pin the delivery location on the map.' }
+    }
+
     fee = d.fee
   }
+
   const { error } = await admin
     .from('MEAL_PREP_ORDER')
-    .update({ FulfillmentTime: input.fulfillmentTime, FulfillmentMethod: method, DeliveryAddress: address, DeliveryFee: fee })
+    .update({
+      FulfillmentTime: input.fulfillmentTime,
+      FulfillmentMethod: method,
+      DeliveryAddress: address,
+      DeliveryFee: fee,
+    })
     .eq('MealPrepOrderID', orderId)
+
   if (error) return { ok: false, error: error.message }
+
   revalidatePath('/customer/active-orders')
   return { ok: true }
 }
