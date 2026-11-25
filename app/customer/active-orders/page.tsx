@@ -40,6 +40,7 @@ import {
 } from '@/app/actions/meal-plan-actions';
 
 import { parsePinnedAddress } from '@/lib/kitchen';
+import { confirmAction } from '@/lib/confirm';
 
 import {
   MAX_PAUSE_DAYS,
@@ -1103,12 +1104,14 @@ export default function MealPlansPage() {
                               variant="outline"
                               className={outlineBtn}
                               disabled={busy}
-                              onClick={() => {
-                                if (
-                                  window.confirm(
-                                    `Skip your ${formatDate(plan.nextDate)} ${fulfillmentLabel}? Your plan will end one ${fulfillmentLabel} later instead.`
-                                  )
-                                ) {
+                              onClick={async () => {
+                                const confirmed = await confirmAction({
+                                  title: `Skip your ${formatDate(plan.nextDate)} ${fulfillmentLabel}?`,
+                                  body: `Your plan will end one ${fulfillmentLabel} later instead.`,
+                                  confirmLabel: 'Skip it',
+                                  cancelLabel: 'Keep it',
+                                });
+                                if (confirmed) {
                                   void run(
                                     () => skipNextDelivery(plan.id),
                                     `Next ${fulfillmentLabel} skipped.`

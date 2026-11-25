@@ -194,7 +194,7 @@ const mealPrepCategories = [
 
         if (dishIngredientError) {
         console.error('DISH_INGREDIENT loading error:', dishIngredientError);
-        alert(`Failed to load dish ingredients: ${dishIngredientError.message}`);
+        notify(`Failed to load dish ingredients: ${dishIngredientError.message}`);
         return;
         }
 
@@ -206,7 +206,7 @@ const mealPrepCategories = [
 
         if (ingredientError) {
         console.error('INGREDIENT loading error:', ingredientError);
-        alert(`Failed to load ingredients: ${ingredientError.message}`);
+        notify(`Failed to load ingredients: ${ingredientError.message}`);
         return;
         }
 

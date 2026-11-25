@@ -12,6 +12,7 @@ import type { AllergenType, MenuItem } from '@/lib/types';
 
 import { MenuItemForm } from '@/components/owner/MenuItemForm';
 import { notify } from '@/lib/notify'
+import { confirmAction } from '@/lib/confirm'
 
 const CATEGORIES: MenuItem['category'][] = [
   'appetizers',
@@ -471,10 +472,12 @@ export default function MenuPage() {
   const handleDelete = async (
     item: MenuItem
   ) => {
-    const confirmed =
-      window.confirm(
-        `Delete "${item.name}" from the menu?`
-      );
+    const confirmed = await confirmAction({
+      title: `Delete "${item.name}"?`,
+      body: 'This removes the dish from your menu. This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
 
     if (!confirmed) {
       return;

@@ -324,6 +324,8 @@ export default function PrepSchedulePage() {
     return d < 0 ? 'Overdue – start now' : d === 0 ? 'Start today' : d === 1 ? 'Start tomorrow' : d <= 7 ? 'This week' : 'Later';
   };
   const groupOrder = ['Overdue – start now', 'Start today', 'Start tomorrow', 'This week', 'Later'];
+  // Only what needs attention now is open by default. The rest stays one click away.
+  const collapsedGroups = ['This week', 'Later'];
   const groups = groupOrder
     .map((name) => ({ name, items: open.filter((t) => groupOf(t) === name) }))
     .filter((g) => g.items.length > 0);
@@ -451,21 +453,37 @@ export default function PrepSchedulePage() {
               <Card className="p-12 text-center">
                 <PackageCheck className="mx-auto mb-4 size-12 text-muted-foreground opacity-50" />
                 <p className="text-muted-foreground">{needle ? `No orders match "${query}".` : `Nothing to prepare${filter !== 'all' ? ' for this filter' : ''}. You are all caught up.`}</p>
+                {!needle && filter !== 'meal' && <p className="mt-2 text-xs text-muted-foreground">Catering events appear here once they are confirmed and their event date has not passed.</p>}
               </Card>
             ) : (
-              groups.map((group) => (
-                <section key={group.name} aria-label={group.name} className="flex flex-col gap-3">
-                  <h2 className={`flex items-center gap-2 font-heading text-sm font-bold uppercase tracking-wide ${group.name.startsWith('Overdue') ? 'text-[#C8431B]' : 'text-muted-foreground'}`}>
+              groups.map((group) => {
+                const collapsible = collapsedGroups.includes(group.name) && !needle;
+                const heading = (
+                  <>
                     {group.name.startsWith('Overdue') && <AlertTriangle className="size-4" aria-hidden="true" />}
                     {group.name} <span className="rounded-full bg-[#C8431B]/10 px-2 text-xs text-[#C8431B]">{group.items.length}</span>
-                  </h2>
+                  </>
+                );
+                const headingClass = `flex items-center gap-2 font-heading text-sm font-bold uppercase tracking-wide ${group.name.startsWith('Overdue') ? 'text-[#C8431B]' : 'text-muted-foreground'}`;
+                const list = (
                   <ul className="owner-list-page flex flex-col gap-3">
                     {group.items.map((t) => (
                       <TaskCard key={t.key} task={t} shortDate={shortDate} urgent={group.name.startsWith('Overdue')} />
                     ))}
                   </ul>
-                </section>
-              ))
+                );
+                return collapsible ? (
+                  <details key={group.name} aria-label={group.name} className="group flex flex-col gap-3">
+                    <summary className={`${headingClass} cursor-pointer list-none`}>{heading}<span className="ml-1 text-xs font-medium normal-case text-muted-foreground group-open:hidden">Show</span><span className="ml-1 hidden text-xs font-medium normal-case text-muted-foreground group-open:inline">Hide</span></summary>
+                    <div className="mt-3">{list}</div>
+                  </details>
+                ) : (
+                  <section key={group.name} aria-label={group.name} className="flex flex-col gap-3">
+                    <h2 className={headingClass}>{heading}</h2>
+                    {list}
+                  </section>
+                );
+              })
             )}
 
           </>
