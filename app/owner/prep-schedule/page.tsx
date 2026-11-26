@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/app/dashboard-layout';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, CalendarDays, CheckCircle2, ChefHat, Clock, PackageCheck, Search, UtensilsCrossed } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, Clock, PackageCheck, Search, UtensilsCrossed } from 'lucide-react';
 
 import { getOwnerPrepSchedule } from '@/app/actions/booking-actions';
 import { markBookingPrepared, markMealPrepCyclePrepared } from '@/app/actions/preparation-actions';
@@ -333,9 +333,6 @@ export default function PrepSchedulePage() {
 
   // Today's cook list: the same dish across several orders is added up.
   const cookNow = open.filter((t) => daysFromToday(t.start) <= 0);
-  const cookList = Object.entries(
-    cookNow.flatMap((t) => t.lines).reduce<Record<string, number>>((acc, l) => ({ ...acc, [l.itemName]: (acc[l.itemName] ?? 0) + l.quantity }), {}),
-  ).sort((a, b) => b[1] - a[1]);
 
   const stats = {
     now: cookNow.length,
@@ -421,21 +418,6 @@ export default function PrepSchedulePage() {
                 </label>
               </div>
             </div>
-
-            {view === 'todo' && cookList.length > 0 && (
-              <Card className="border-[#C8431B]/30 bg-[#FBF6EE] p-5">
-                <div className="flex items-center gap-2">
-                  <ChefHat className="size-5 text-[#C8431B]" aria-hidden="true" />
-                  <h2 className="font-heading text-lg font-bold text-card-foreground">Cook list for right now</h2>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">Everything that should already be in progress, added up per dish.</p>
-                <ul className="mt-3 flex flex-wrap gap-2">
-                  {cookList.map(([name, qty]) => (
-                    <li key={name} className="rounded-full border border-[#E8D8C4] bg-white px-3 py-1 text-sm font-medium text-[#2B1D16]">{name} <span className="font-bold text-[#C8431B]">× {qty}</span></li>
-                  ))}
-                </ul>
-              </Card>
-            )}
 
             {view === 'done' ? (
               done.length === 0 ? (
