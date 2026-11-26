@@ -481,7 +481,7 @@ export default function PrepSchedulePage() {
                 </div>
                 {shownGroup && (
                   <section aria-label={shownGroup.name}>
-                    <ul className="owner-list-page grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
+                    <ul className="owner-list-page flex flex-col gap-3">
                       {shownGroup.items.map((t) => (
                         <TaskCard key={t.key} task={t} shortDate={shortDate} urgent={shownGroup.name.startsWith('Overdue')} />
                       ))}
