@@ -101,6 +101,7 @@ export default function PrepSchedulePage() {
   const [filter, setFilter] = useState<'all' | 'catering' | 'meal'>('all');
   const [view, setView] = useState<'todo' | 'done'>('todo');
   const [query, setQuery] = useState('');
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(
     null
@@ -324,11 +325,11 @@ export default function PrepSchedulePage() {
     return d < 0 ? 'Overdue – start now' : d === 0 ? 'Start today' : d === 1 ? 'Start tomorrow' : d <= 7 ? 'This week' : 'Later';
   };
   const groupOrder = ['Overdue – start now', 'Start today', 'Start tomorrow', 'This week', 'Later'];
-  // Only what needs attention now is open by default. The rest stays one click away.
-  const collapsedGroups = ['This week', 'Later'];
   const groups = groupOrder
     .map((name) => ({ name, items: open.filter((t) => groupOf(t) === name) }))
     .filter((g) => g.items.length > 0);
+  // Show the chosen start day. Until one is chosen, show the most urgent one.
+  const shownGroup = groups.find((g) => g.name === activeGroup) ?? groups[0];
 
   // Today's cook list: the same dish across several orders is added up.
   const cookNow = open.filter((t) => daysFromToday(t.start) <= 0);
@@ -456,34 +457,38 @@ export default function PrepSchedulePage() {
                 {!needle && filter !== 'meal' && <p className="mt-2 text-xs text-muted-foreground">Catering events appear here once they are confirmed and their event date has not passed.</p>}
               </Card>
             ) : (
-              groups.map((group) => {
-                const collapsible = collapsedGroups.includes(group.name) && !needle;
-                const heading = (
-                  <>
-                    {group.name.startsWith('Overdue') && <AlertTriangle className="size-4" aria-hidden="true" />}
-                    {group.name} <span className="rounded-full bg-[#C8431B]/10 px-2 text-xs text-[#C8431B]">{group.items.length}</span>
-                  </>
-                );
-                const headingClass = `flex items-center gap-2 font-heading text-sm font-bold uppercase tracking-wide ${group.name.startsWith('Overdue') ? 'text-[#C8431B]' : 'text-muted-foreground'}`;
-                const list = (
-                  <ul className="owner-list-page flex flex-col gap-3">
-                    {group.items.map((t) => (
-                      <TaskCard key={t.key} task={t} shortDate={shortDate} urgent={group.name.startsWith('Overdue')} />
-                    ))}
-                  </ul>
-                );
-                return collapsible ? (
-                  <details key={group.name} aria-label={group.name} className="group flex flex-col gap-3">
-                    <summary className={`${headingClass} cursor-pointer list-none`}>{heading}<span className="ml-1 text-xs font-medium normal-case text-muted-foreground group-open:hidden">Show</span><span className="ml-1 hidden text-xs font-medium normal-case text-muted-foreground group-open:inline">Hide</span></summary>
-                    <div className="mt-3">{list}</div>
-                  </details>
-                ) : (
-                  <section key={group.name} aria-label={group.name} className="flex flex-col gap-3">
-                    <h2 className={headingClass}>{heading}</h2>
-                    {list}
+              <>
+                <div className="flex flex-wrap gap-2" role="group" aria-label="Start date">
+                  {groupOrder.map((name) => {
+                    const count = open.filter((t) => groupOf(t) === name).length;
+                    const on = shownGroup?.name === name;
+                    const overdue = name.startsWith('Overdue');
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        aria-pressed={on}
+                        disabled={count === 0}
+                        onClick={() => setActiveGroup(name)}
+                        className={`inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${on ? 'border-[#C8431B] bg-[#C8431B] text-white' : overdue ? 'border-[#C8431B]/50 bg-white text-[#C8431B] hover:bg-[#F6E3D3]' : 'border-[#E8D8C4] bg-white text-[#2B1D16] hover:bg-[#F6E3D3]'}`}
+                      >
+                        {overdue && <AlertTriangle className="size-4" aria-hidden="true" />}
+                        {name}
+                        <span className={`rounded-full px-2 text-xs ${on ? 'bg-white/25 text-white' : 'bg-[#C8431B]/10 text-[#C8431B]'}`}>{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {shownGroup && (
+                  <section aria-label={shownGroup.name}>
+                    <ul className="owner-list-page grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
+                      {shownGroup.items.map((t) => (
+                        <TaskCard key={t.key} task={t} shortDate={shortDate} urgent={shownGroup.name.startsWith('Overdue')} />
+                      ))}
+                    </ul>
                   </section>
-                );
-              })
+                )}
+              </>
             )}
 
           </>
