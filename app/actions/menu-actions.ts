@@ -38,81 +38,147 @@ const ALLOWED_MENU_PHOTO_TYPES = {
   'image/webp': 'webp',
 } as const
 
-  export async function createMenuItem(values: MenuItemCreate) {
-    const user = await requireRole('owner')
-    if (!user) throw new Error('Unauthorized')
+type AdminClient = ReturnType<typeof createAdminClient>
 
-    const admin = createAdminClient()
+async function nextPriceId(admin: AdminClient) {
+  const { data, error } = await admin
+    .from('PRICES')
+    .select('PriceID')
+    .order('PriceID', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
-    const { data, error } = await admin.rpc(
-      'create_menu_item_with_price_history',
-      {
-        p_item_name: values.ItemName,
-        p_category: values.Category,
-        p_price: values.Price,
-        p_prep_time_days: values.PrepTimeDays,
-        p_description: values.Description,
-        p_availability: values.Availability,
-      }
-    )
+  if (error) throw new Error(error.message)
 
-    if (error || data == null) {
-      throw new Error(error?.message ?? 'Unable to create the menu item.')
-    }
+  return Number(data?.PriceID ?? 0) + 1
+}
 
-    const menuItemId = Number(data)
+/**
+ * PRICES.PriceID uses a sequence that can lag behind existing rows
+ * (bulk imports with explicit IDs). Always pick max(PriceID)+1.
+ */
+async function insertActivePrice(
+  admin: AdminClient,
+  menuItemId: number,
+  price: number
+) {
+  const now = new Date().toISOString()
+  let priceId = await nextPriceId(admin)
 
-    const { error: mealTypeError } = await admin
-      .from('MENU_ITEM')
-      .update({ MealType: values.MealType })
-      .eq('MenuItemID', menuItemId)
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const { error } = await admin.from('PRICES').insert({
+      PriceID: priceId,
+      MenuItemID: menuItemId,
+      Price: price,
+      EffectiveFrom: now,
+      EffectiveTo: null,
+      ChangedAt: now,
+    })
 
-    if (mealTypeError) {
-      throw new Error(
-        `Menu item was created, but its meal type could not be saved: ${mealTypeError.message}`
-      )
-    }
+    if (!error) return
 
-    return menuItemId
-  }
-
-  export async function updateMenuItem(
-    menuItemId: number,
-    values: MenuItemUpdate
-  ) {
-    const user = await requireRole('owner')
-    if (!user) throw new Error('Unauthorized')
-  
-    const admin = createAdminClient()
-  
-    const { error } = await admin.rpc(
-      'update_menu_item_with_price_history',
-      {
-        p_menu_item_id: menuItemId,
-        p_item_name: values.ItemName,
-        p_category: values.Category,
-        p_price: values.Price,
-        p_prep_time_days: values.PrepTimeDays,
-        p_description: values.Description,
-        p_availability: values.Availability,
-      }
-    )
-  
-    if (error) {
+    if (error.code !== '23505') {
       throw new Error(error.message)
     }
-  
-    const { error: mealTypeError } = await admin
-      .from('MENU_ITEM')
-      .update({ MealType: values.MealType })
-      .eq('MenuItemID', menuItemId)
-  
-    if (mealTypeError) {
-      throw new Error(
-        `Menu item was updated, but its meal type could not be saved: ${mealTypeError.message}`
-      )
-    }
+
+    priceId += 1
   }
+
+  throw new Error('Unable to record the menu item price.')
+}
+
+async function replaceActivePrice(
+  admin: AdminClient,
+  menuItemId: number,
+  price: number
+) {
+  const { data: current, error: currentError } = await admin
+    .from('PRICES')
+    .select('PriceID, Price')
+    .eq('MenuItemID', menuItemId)
+    .is('EffectiveTo', null)
+    .maybeSingle()
+
+  if (currentError) throw new Error(currentError.message)
+
+  if (current && Number(current.Price) === Number(price)) return
+
+  if (current) {
+    const { error: closeError } = await admin
+      .from('PRICES')
+      .update({ EffectiveTo: new Date().toISOString() })
+      .eq('PriceID', current.PriceID)
+
+    if (closeError) throw new Error(closeError.message)
+  }
+
+  await insertActivePrice(admin, menuItemId, price)
+}
+
+export async function createMenuItem(values: MenuItemCreate) {
+  const user = await requireRole('owner')
+  if (!user) throw new Error('Unauthorized')
+
+  const admin = createAdminClient()
+
+  const { data, error } = await admin
+    .from('MENU_ITEM')
+    .insert({
+      ItemName: values.ItemName,
+      Category: values.Category,
+      MealType: values.MealType,
+      Price: values.Price,
+      PrepTimeDays: values.PrepTimeDays,
+      Description: values.Description,
+      Availability: values.Availability,
+    })
+    .select('MenuItemID')
+    .single()
+
+  if (error || data == null) {
+    throw new Error(error?.message ?? 'Unable to create the menu item.')
+  }
+
+  const menuItemId = Number(data.MenuItemID)
+
+  try {
+    await insertActivePrice(admin, menuItemId, values.Price)
+  } catch (priceError) {
+    await admin.from('MENU_ITEM').delete().eq('MenuItemID', menuItemId)
+    throw priceError
+  }
+
+  return menuItemId
+}
+
+export async function updateMenuItem(
+  menuItemId: number,
+  values: MenuItemUpdate
+) {
+  const user = await requireRole('owner')
+  if (!user) throw new Error('Unauthorized')
+
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('MENU_ITEM')
+    .update({
+      ItemName: values.ItemName,
+      Category: values.Category,
+      MealType: values.MealType,
+      Price: values.Price,
+      PrepTimeDays: values.PrepTimeDays,
+      Description: values.Description,
+      Availability: values.Availability,
+    })
+    .eq('MenuItemID', menuItemId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  await replaceActivePrice(admin, menuItemId, values.Price)
+}
 
 export async function replaceMenuItemAllergies(
   menuItemId: number,
