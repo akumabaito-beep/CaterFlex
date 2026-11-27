@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { AuthSessionSync } from '@/components/auth/session-sync'
 import { MessageDialog } from '@/components/ui/MessageDialog'
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 
 export const metadata: Metadata = {
   title: 'CaterFlex - Catering Management',
@@ -35,6 +36,7 @@ export default function RootLayout({
         <AuthSessionSync />
         {children}
         <MessageDialog />
+        <ConfirmDialog />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

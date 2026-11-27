@@ -10,6 +10,8 @@ import {
   Nut,
   ShieldAlert,
   Shrimp,
+  Sprout,
+  TreeDeciduous,
   Wheat,
   type LucideIcon,
 } from 'lucide-react'
@@ -19,12 +21,12 @@ const ICONS: Record<string, LucideIcon> = {
   shellfish: Shrimp,
   fish: Fish,
   peanuts: Nut,
-  tree_nuts: Nut,
+  tree_nuts: TreeDeciduous,
   dairy: Milk,
   gluten: Wheat,
   eggs: Egg,
   soy: Bean,
-  sesame: Bean,
+  sesame: Sprout,
   other: CircleHelp,
 }
 
@@ -72,7 +74,7 @@ export function AllergenPicker({
       </div>
 
       <div
-        className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4"
+        className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"
         role="group"
         aria-label="Allergies"
       >

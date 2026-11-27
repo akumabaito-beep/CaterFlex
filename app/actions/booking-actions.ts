@@ -1122,9 +1122,9 @@ export async function getOwnerPrepSchedule() {
   const admin = createAdminClient()
   const operatorId = Number(owner.id)
   const [{ data: bookings, error: bookingError }, { data: mealPrepOrders, error: mealPrepError }, { data: preparationLogs, error: preparationError }] = await Promise.all([
-    admin.from('BOOKING').select('BookingID, CustomerID, EventDate, EventTime, Venue, GuestCount, Status').eq('OperatorID', operatorId).eq('Status', 'confirmed'),
+    admin.from('BOOKING').select('BookingID, CustomerID, EventDate, EventTime, Venue, GuestCount, Status').eq('OperatorID', operatorId).eq('Status', 'confirmed').or('IsArchived.is.null,IsArchived.eq.false'),
     admin.from('MEAL_PREP_ORDER').select('MealPrepOrderID, CustomerID, RecurrencePattern, MealsPerCycle, NextFulfillmentDate, Status').eq('OperatorID', operatorId).in('Status', ['pending', 'confirmed', 'active']),
-    admin.from('PREPARATION_LOG').select('BookingID, MealPrepOrderID, CycleDate').not('BookingID', 'is', null).or('BookingID.not.is.null,MealPrepOrderID.not.is.null'),
+    admin.from('PREPARATION_LOG').select('BookingID, MealPrepOrderID, CycleDate').or('BookingID.not.is.null,MealPrepOrderID.not.is.null'),
   ])
 
   if (bookingError) return { ok: false as const, error: bookingError.message, bookings: [], bookingItems: [], mealPrepOrders: [], mealPrepItems: [], customers: [], menuItems: [] }

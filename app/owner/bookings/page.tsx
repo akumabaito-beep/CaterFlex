@@ -46,6 +46,7 @@ import { VenueText } from '@/components/owner/VenueText';
 import { eventTypeIcon } from '@/components/booking/EventTypePicker';
 import { PageLoader } from '@/components/ui/PageLoader'
 import { notify } from '@/lib/notify'
+import { confirmAction } from '@/lib/confirm'
 
 type Booking = {
   BookingID: number;
@@ -573,8 +574,18 @@ export default function BookingsPage() {
   };
 
   const archiveItem = async (booking: BookingDisplay, archived: boolean) => {
-    if (!archived && !window.confirm('Restore this order?')) return;
-    if (archived && !window.confirm('Archive this booking? You can restore it from the Archived filter.')) return;
+    const confirmed = archived
+      ? await confirmAction({
+          title: 'Archive this booking?',
+          body: 'It moves out of your active list. You can restore it from the Archived filter.',
+          confirmLabel: 'Archive',
+        })
+      : await confirmAction({
+          title: 'Restore this order?',
+          body: 'It returns to your active list.',
+          confirmLabel: 'Restore',
+        });
+    if (!confirmed) return;
     setUpdatingId(booking.BookingID);
     const result = booking.OrderType === 'meal_prep'
       ? (archived ? await archiveMealPrepOrder(booking.mealPrepOrderId!) : await restoreMealPrepOrder(booking.mealPrepOrderId!))
